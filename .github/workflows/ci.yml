@@ -1,0 +1,41 @@
+name: CI
+
+# Roda em push para main/dev e em PRs para main.
+# UAT é ambiente manual — sem CI automático lá.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend Tests (Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5          # mata o job se passar de 5 min
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install fastapi uvicorn anthropic supabase pydantic python-dotenv httpx
+          pip install pytest pytest-asyncio pytest-mock
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+        env:
+          # Variáveis fictícias para não quebrar imports que lêem env
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_KEY: placeholder
+          ANTHROPIC_API_KEY: sk-ant-placeholder
