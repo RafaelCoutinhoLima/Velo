@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": {
+      "@shared/*": ["../../packages/shared/src/*"],
+      "@metrics/*": ["../../packages/metrics/src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

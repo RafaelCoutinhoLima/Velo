@@ -1,0 +1,2 @@
+export PATH="$HOME/.bun/bin:$PATH"
+bun run check && bun run --filter @fitsync/metrics test --run

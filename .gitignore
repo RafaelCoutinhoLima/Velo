@@ -1,17 +1,24 @@
+# Docs internos — não expor no GitHub (CLAUDE.md, stack, user stories, backlog)
+docs/
+
+# Env — nunca commitar chaves
+.env
+.env.local
+.env.*.local
+
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
-dist/
 .pytest_cache/
+.uv/
 
-# Env
-.env
-.env.local
+# Node / Bun
+node_modules/
+bun.lockb
 
 # Expo / React Native
-node_modules/
 .expo/
 dist/
 web-build/
@@ -21,6 +28,11 @@ web-build/
 *.key
 *.mobileprovision
 
+# Build artifacts
+build/
+coverage/
+*.tsbuildinfo
+
 # OS
 .DS_Store
 Thumbs.db
@@ -28,7 +40,3 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
-
-# npm temp files
-*.npmlock
-package.json.*[0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z][0-9a-zA-Z]

@@ -1,0 +1,17 @@
+{
+  "name": "@fitsync/metrics",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "vitest": "2.1.9",
+    "@vitest/coverage-v8": "2.1.9",
+    "typescript": "5.5.4"
+  }
+}
