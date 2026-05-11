@@ -26,11 +26,7 @@ export function filterHROutliers(hrSeries: number[]): number[] {
 export function calculateDecoupling(workout: WorkoutInput): number {
   const series = workout.hr_series ? filterHROutliers(workout.hr_series) : [];
 
-  if (series.length < 10) {
-    // Sem série de FC: estimativa pelo treino inteiro
-    const pacePerHR = workout.distance_m / workout.duration_s / workout.avg_hr;
-    return pacePerHR > 0 ? 0 : 0;
-  }
+  if (series.length < 10) return 0;
 
   const mid = Math.floor(series.length / 2);
   const firstHalf = series.slice(0, mid);

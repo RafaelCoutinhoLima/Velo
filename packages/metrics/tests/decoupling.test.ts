@@ -68,4 +68,10 @@ describe('calculateDecoupling', () => {
     const result = calculateDecoupling({ ...baseWorkout, hr_series: stable });
     expect(Math.abs(result)).toBeLessThan(5);
   });
+
+  it('retorna 0 quando média de FC da primeira metade é zero (série de zeros)', () => {
+    // Cobre o guard avgHR1 === 0
+    const result = calculateDecoupling({ ...baseWorkout, hr_series: Array(60).fill(0) });
+    expect(result).toBe(0);
+  });
 });
