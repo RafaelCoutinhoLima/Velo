@@ -1,0 +1,69 @@
+name: fitsync
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Hot-reload: monta o código fonte sem reconstruir a imagem
+      - ./apps/api/src:/app/apps/api/src:ro
+      - ./packages:/app/packages:ro
+    depends_on:
+      - garmin-sidecar
+    networks:
+      - fitsync-net
+    restart: unless-stopped
+
+  garmin-sidecar:
+    build:
+      context: .
+      dockerfile: services/garmin-sidecar/Dockerfile
+      target: dev
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./services/garmin-sidecar/app:/app/app:ro
+    networks:
+      - fitsync-net
+    restart: unless-stopped
+
+  # ── Postgres local opcional — use: docker compose --profile with-db up ──────
+  # ⚠ Não tem Supabase Auth nem Vault. Só para testar migrations/queries puras.
+  # Para dev com auth completo, rodar `supabase start` em paralelo.
+  db:
+    profiles:
+      - with-db
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fitsync
+    ports:
+      - "5432:5432"
+    volumes:
+      - fitsync-pgdata:/var/lib/postgresql/data
+    networks:
+      - fitsync-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  fitsync-net:
+    driver: bridge
+
+volumes:
+  fitsync-pgdata:

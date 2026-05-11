@@ -1,0 +1,42 @@
+# Dependências — nunca copiar para a imagem
+node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+
+# Git
+.git
+.gitignore
+
+# Variáveis de ambiente — vêm em runtime, nunca baked na imagem
+.env
+.env.*
+!.env.example
+
+# Artefatos de build
+dist/
+build/
+coverage/
+.next/
+
+# Expo
+.expo/
+apps/mobile/.expo/
+
+# Logs
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# Docs (não necessário no container)
+docs/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# uv cache
+.uv/

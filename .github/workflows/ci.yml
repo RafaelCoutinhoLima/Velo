@@ -7,54 +7,87 @@ on:
     branches: [main]
 
 jobs:
-  # ─── Bun: lint + testes TS ──────────────────────────────────────────────────
-  bun-check:
-    name: Lint + Tests (Bun)
+  # ─── API: build imagem dev → lint + testes dentro do container ──────────────
+  api:
+    name: API (lint + tests)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build api (dev target)
+        uses: docker/build-push-action@v5
         with:
-          bun-version: "1.2.x"
+          context: .
+          file: apps/api/Dockerfile
+          target: dev
+          load: true
+          tags: fitsync-api:test
+          cache-from: type=gha,scope=api-dev
+          cache-to: type=gha,mode=max,scope=api-dev
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Lint + test api
+        run: docker run --rm fitsync-api:test sh -c "bun run check && bun run test"
 
-      - name: Lint (Biome)
-        run: bun run check
-
-      - name: Tests (packages/metrics — 100% coverage obrigatória)
-        run: bun run --filter @fitsync/metrics test:coverage
-
-  # ─── Python sidecar: lint + testes ─────────────────────────────────────────
-  sidecar-check:
-    name: Tests (Python sidecar)
+  # ─── Sidecar: build imagem dev → pytest dentro do container ─────────────────
+  sidecar:
+    name: Sidecar (pytest)
     runs-on: ubuntu-latest
-    timeout-minutes: 8
-
-    defaults:
-      run:
-        working-directory: services/garmin-sidecar
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build sidecar (dev target)
+        uses: docker/build-push-action@v5
         with:
-          python-version: "3.11"
+          context: .
+          file: services/garmin-sidecar/Dockerfile
+          target: dev
+          load: true
+          tags: fitsync-sidecar:test
+          cache-from: type=gha,scope=sidecar-dev
+          cache-to: type=gha,mode=max,scope=sidecar-dev
 
-      - name: Install uv
-        run: pip install uv
+      - name: Test sidecar
+        run: |
+          docker run --rm \
+            -e SUPABASE_URL=https://placeholder.supabase.co \
+            -e SUPABASE_SERVICE_ROLE_KEY=placeholder \
+            -e ANTHROPIC_API_KEY=sk-ant-placeholder \
+            fitsync-sidecar:test uv run pytest tests/ -v --tb=short
 
-      - name: Install dependencies
-        run: uv sync --dev
+  # ─── Validação dos stages de produção (smoke antes de Railway deployar) ─────
+  prod-build-check:
+    name: Prod build check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [api, sidecar]
 
-      - name: Run tests
-        run: uv run pytest tests/ -v --tb=short
-        env:
-          SUPABASE_URL: https://placeholder.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: placeholder
-          ANTHROPIC_API_KEY: sk-ant-placeholder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build api prod
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: prod
+          cache-from: type=gha,scope=api-prod
+          cache-to: type=gha,mode=max,scope=api-prod
+
+      - name: Build sidecar prod
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/garmin-sidecar/Dockerfile
+          target: prod
+          cache-from: type=gha,scope=sidecar-prod
+          cache-to: type=gha,mode=max,scope=sidecar-prod
