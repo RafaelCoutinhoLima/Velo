@@ -1,8 +1,10 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from app.models import AuthRequest, AuthResponse
 from app.garmin.client import GarminClient, GarminAuthError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger("sidecar.auth")
 
 
 @router.post("", response_model=AuthResponse)
@@ -11,9 +13,7 @@ async def garmin_login(body: AuthRequest) -> AuthResponse:
     try:
         tokens = client.login(body.email, body.password, body.mfa_code)
     except GarminAuthError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail="Garmin com problema de login no momento. Tente novamente em alguns minutos.",
-        ) from exc
+        logger.error("GarminAuthError: %s | causa: %s", exc, exc.__cause__)
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
 
     return AuthResponse(session=tokens)

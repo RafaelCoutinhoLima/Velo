@@ -9,7 +9,7 @@ class AuthRequest(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    session: dict  # garth.dump() completo — necessário para restore_session
+    session: dict  # client.dumps() serializado — necessário para restore_session
 
 
 class MetricsResponse(BaseModel):
