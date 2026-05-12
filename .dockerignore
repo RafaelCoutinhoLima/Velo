@@ -1,9 +1,9 @@
-# Dependências — nunca copiar para a imagem
-node_modules
-.venv
-__pycache__
-*.pyc
-*.pyo
+# Dependências — nunca copiar para a imagem (** cobre todas as subpastas)
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
 
 # Git
 .git
