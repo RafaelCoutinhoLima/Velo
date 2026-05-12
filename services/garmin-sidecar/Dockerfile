@@ -6,16 +6,16 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS base
 WORKDIR /app
 
 # Copiar manifests do sidecar
-COPY services/garmin-sidecar/pyproject.toml services/garmin-sidecar/uv.lock* ./
+COPY services/garmin-sidecar/pyproject.toml ./
 
-# Instalar deps em /app/.venv (sem dev)
-RUN uv sync --frozen --no-dev
+# Instalar deps de produção (sem dev)
+RUN uv sync --no-dev
 
 # ─── Stage 2: dev (inclui pytest e httpx) ───────────────────────────────────
 FROM base AS dev
 WORKDIR /app
 
-RUN uv sync --frozen
+RUN uv sync
 
 COPY services/garmin-sidecar/ ./
 
