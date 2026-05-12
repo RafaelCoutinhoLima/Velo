@@ -1,6 +1,5 @@
 import { Elysia, t } from 'elysia';
 import { supabase } from '../db/client';
-import { logger } from '../lib/logger';
 
 export const feedbackRoutes = new Elysia({ prefix: '/feedback' }).get(
   '/',

@@ -16,8 +16,4 @@ async def garmin_login(body: AuthRequest) -> AuthResponse:
             detail="Garmin com problema de login no momento. Tente novamente em alguns minutos.",
         ) from exc
 
-    return AuthResponse(
-        di_token=tokens.get("oauth_token", ""),
-        refresh_token=tokens.get("oauth_token_secret", ""),
-        expires_at=tokens.get("domain", ""),
-    )
+    return AuthResponse(session=tokens)

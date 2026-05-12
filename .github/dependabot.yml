@@ -1,0 +1,81 @@
+version: 2
+updates:
+  # Root workspace
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    groups:
+      all-deps:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "@fitsync/*"
+
+  # API
+  - package-ecosystem: npm
+    directory: "/apps/api"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  # Mobile
+  - package-ecosystem: npm
+    directory: "/apps/mobile"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    groups:
+      expo-sdk:
+        patterns: ["expo", "expo-*", "@expo/*", "react-native*", "react"]
+      tanstack:
+        patterns: ["@tanstack/*"]
+      all-other:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "@fitsync/*"
+
+  # Packages/shared
+  - package-ecosystem: npm
+    directory: "/packages/shared"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  # Packages/metrics
+  - package-ecosystem: npm
+    directory: "/packages/metrics"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    groups:
+      all-deps:
+        patterns: ["*"]
+
+  # Garmin sidecar (Python)
+  - package-ecosystem: pip
+    directory: "/services/garmin-sidecar"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    groups:
+      all-deps:
+        patterns: ["*"]

@@ -13,37 +13,41 @@ type Step = 'form' | 'connecting' | 'importing' | 'done';
 
 export default function GarminScreen() {
   const session = useAuthStore((s) => s.session);
+  const setOnboardingComplete = useAuthStore((s) => s.setOnboardingComplete);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [step, setStep] = useState<Step>('form');
 
   async function connect() {
-    if (!email || !password) return;
+    if (!email || !password || !session?.athlete_id) return;
     setStep('connecting');
 
     try {
-      // Sprint 1: POST /garmin/connect → sidecar autentica e salva token no Vault
-      const res = await fetch(`${API_URL}/garmin/connect`, {
+      const connectRes = await fetch(`${API_URL}/garmin/connect`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ email, password, mfa_code: mfaCode || undefined }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          athlete_id: session.athlete_id,
+          email,
+          password,
+          mfa_code: mfaCode || undefined,
+        }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message ?? 'Erro ao conectar Garmin');
+      if (!connectRes.ok) {
+        const err = (await connectRes.json().catch(() => ({}))).error ?? 'Erro ao conectar Garmin';
+        throw new Error(err);
       }
 
-      // Sprint 1: POST /garmin/sync → importar 90 dias de atividades
       setStep('importing');
-      await fetch(`${API_URL}/garmin/sync`, {
+      const syncRes = await fetch(`${API_URL}/garmin/sync`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athlete_id: session.athlete_id }),
       });
+
+      if (!syncRes.ok) throw new Error('Não conseguimos importar seus treinos');
 
       setStep('done');
     } catch (e: unknown) {
@@ -53,8 +57,18 @@ export default function GarminScreen() {
     }
   }
 
-  function finish() {
-    // Sprint 1: disparar geração do primeiro plano (POST /plan/generate) e ir para /plan
+  async function finish() {
+    setOnboardingComplete();
+    if (session?.athlete_id) {
+      // Dispara geração do primeiro plano assincronamente
+      fetch(`${API_URL}/plan/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athlete_id: session.athlete_id }),
+      }).catch(() => {
+        // Falha silenciosa — job async garante reprocessamento
+      });
+    }
     router.replace('/(tabs)/plan');
   }
 

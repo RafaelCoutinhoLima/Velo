@@ -1,24 +1,60 @@
 // US-004 — Prova alvo ou modo progressão geral
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { useAuthStore } from '../../lib/store';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 type GoalMode = 'race' | 'general_progression';
 type RaceDistance = '5k' | '10k' | '21k' | '42k' | '70.3' | 'other';
 
+const DISTANCE_KM: Record<RaceDistance, number> = {
+  '5k': 5,
+  '10k': 10,
+  '21k': 21.0975,
+  '42k': 42.195,
+  '70.3': 113.0,
+  other: 0,
+};
+
 export default function GoalScreen() {
+  const session = useAuthStore((s) => s.session);
   const [mode, setMode] = useState<GoalMode | null>(null);
   const [raceDistance, setRaceDistance] = useState<RaceDistance | null>(null);
   const [raceDate, setRaceDate] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const isValid =
     mode === 'general_progression' ||
     (mode === 'race' && raceDistance && raceDate.length === 10);
 
-  function next() {
-    if (!isValid) return;
-    // Sprint 1: incluir goalMode, raceDistance, raceDate no POST /onboarding
-    router.push('/onboarding/garmin');
+  async function next() {
+    if (!isValid || !session?.athlete_id) return;
+    setLoading(true);
+    try {
+      const body: Record<string, unknown> = {
+        athlete_id: session.athlete_id,
+        goal_mode: mode,
+      };
+      if (mode === 'race' && raceDistance && raceDate) {
+        // Converte DD/MM/AAAA → AAAA-MM-DD
+        const [d, m, y] = raceDate.split('/');
+        body['race_date'] = `${y}-${m}-${d}`;
+        body['race_distance_km'] = DISTANCE_KM[raceDistance];
+      }
+      const res = await fetch(`${API_URL}/onboarding/goal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('Falha ao salvar objetivo');
+      router.push('/onboarding/garmin');
+    } catch {
+      Alert.alert('Erro', 'Não conseguimos salvar seu objetivo. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -95,11 +131,11 @@ export default function GoalScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.btn, !isValid && styles.btnDisabled]}
+          style={[styles.btn, (!isValid || loading) && styles.btnDisabled]}
           onPress={next}
-          disabled={!isValid}
+          disabled={!isValid || loading}
         >
-          <Text style={styles.btnText}>Continuar</Text>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Continuar</Text>}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

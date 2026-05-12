@@ -2,25 +2,49 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useAuthStore } from '../../lib/store';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 type Sex = 'M' | 'F' | 'other';
 type Frequency = '2x' | '3x' | '4x' | '5x+';
 
 export default function ProfileScreen() {
+  const session = useAuthStore((s) => s.session);
   const [birthYear, setBirthYear] = useState('');
   const [weightKg, setWeightKg] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
   const [frequency, setFrequency] = useState<Frequency | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const isValid = birthYear.length === 4 && weightKg.length > 0 && sex && frequency;
 
-  function next() {
-    if (!isValid) return;
-    // Sprint 1: POST /onboarding com esses dados antes de navegar
-    router.push('/onboarding/goal');
+  async function next() {
+    if (!isValid || !session?.athlete_id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/onboarding/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          athlete_id: session.athlete_id,
+          birth_year: Number(birthYear),
+          weight_kg: Number(weightKg),
+          sex,
+          weekly_frequency: frequency,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      });
+      if (!res.ok) throw new Error('Falha ao salvar perfil');
+      router.push('/onboarding/goal');
+    } catch {
+      Alert.alert('Erro', 'Não conseguimos salvar seu perfil. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -87,11 +111,11 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.btn, !isValid && styles.btnDisabled]}
+          style={[styles.btn, (!isValid || loading) && styles.btnDisabled]}
           onPress={next}
-          disabled={!isValid}
+          disabled={!isValid || loading}
         >
-          <Text style={styles.btnText}>Continuar</Text>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Continuar</Text>}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

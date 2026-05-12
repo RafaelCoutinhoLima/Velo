@@ -3,9 +3,9 @@ import { useAuthStore } from '../lib/store';
 
 export default function Index() {
   const session = useAuthStore((s) => s.session);
-  const profile = useAuthStore((s) => s.profile);
+  const onboardingComplete = useAuthStore((s) => s.onboardingComplete);
 
   if (!session) return <Redirect href="/(auth)/login" />;
-  if (!profile) return <Redirect href="/onboarding" />;
+  if (!onboardingComplete) return <Redirect href="/onboarding" />;
   return <Redirect href="/(tabs)/plan" />;
 }

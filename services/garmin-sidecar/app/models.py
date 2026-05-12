@@ -9,9 +9,7 @@ class AuthRequest(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    di_token: str
-    refresh_token: str
-    expires_at: str
+    session: dict  # garth.dump() completo — necessário para restore_session
 
 
 class MetricsResponse(BaseModel):

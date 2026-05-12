@@ -74,7 +74,6 @@ export const planRoutes = new Elysia({ prefix: '/plan' })
       const weeks = (plan.plan_json as { weeks: { days: { day: number; type: string }[] }[] })
         .weeks;
       const allDays = weeks.flatMap((w) => w.days);
-      const targetDayData = allDays.find((d) => d.day === target_day);
       const prevDay = allDays.find((d) => d.day === target_day - 1);
       const nextDay = allDays.find((d) => d.day === target_day + 1);
       const movingDay = allDays.find((d) => d.day === workout_day);

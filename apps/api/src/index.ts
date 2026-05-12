@@ -4,6 +4,7 @@ import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
 import { authRoutes } from './routes/auth';
 import { feedbackRoutes } from './routes/feedback';
+import { garminRoutes } from './routes/garmin';
 import { jobRoutes } from './routes/jobs';
 import { onboardingRoutes } from './routes/onboarding';
 import { planRoutes } from './routes/plan';
@@ -15,6 +16,7 @@ const app = new Elysia()
   .get('/health', () => ({ status: 'ok', ts: new Date().toISOString() }))
   .use(authRoutes)
   .use(onboardingRoutes)
+  .use(garminRoutes)
   .use(planRoutes)
   .use(workoutRoutes)
   .use(jobRoutes)

@@ -11,11 +11,6 @@ export interface GarminActivity {
   raw: Record<string, unknown>;
 }
 
-async function getSidecarToken(athleteId: string): Promise<string> {
-  // Token é buscado do Supabase Vault pelo sidecar
-  return athleteId;
-}
-
 export const garminClient = {
   async getActivities(athleteId: string, days: number): Promise<GarminActivity[]> {
     const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);

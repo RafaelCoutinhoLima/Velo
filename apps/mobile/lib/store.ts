@@ -13,8 +13,10 @@ interface AthleteProfile {
 interface AuthState {
   session: { access_token: string; athlete_id: string } | null;
   profile: AthleteProfile | null;
+  onboardingComplete: boolean;
   setSession: (session: AuthState['session']) => void;
   setProfile: (profile: AthleteProfile) => void;
+  setOnboardingComplete: () => void;
   clearSession: () => void;
 }
 
@@ -29,9 +31,11 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       session: null,
       profile: null,
+      onboardingComplete: false,
       setSession: (session) => set({ session }),
       setProfile: (profile) => set({ profile }),
-      clearSession: () => set({ session: null, profile: null }),
+      setOnboardingComplete: () => set({ onboardingComplete: true }),
+      clearSession: () => set({ session: null, profile: null, onboardingComplete: false }),
     }),
     {
       name: 'fitsync-auth',

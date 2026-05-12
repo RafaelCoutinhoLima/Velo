@@ -1,11 +1,31 @@
 // US-008 — Disclaimer obrigatório LGPD antes de qualquer chamada Claude
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { useAuthStore } from '../../lib/store';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function DisclaimerScreen() {
-  function accept() {
-    // Sprint 1: salvar consentimento em tabela `consents` via API antes de avançar
-    router.push('/onboarding/profile');
+  const session = useAuthStore((s) => s.session);
+  const [loading, setLoading] = useState(false);
+
+  async function accept() {
+    if (!session?.athlete_id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/onboarding/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ athlete_id: session.athlete_id }),
+      });
+      if (!res.ok) throw new Error('Falha ao registrar consentimento');
+      router.push('/onboarding/profile');
+    } catch {
+      Alert.alert('Erro', 'Não conseguimos registrar seu aceite. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -56,8 +76,12 @@ export default function DisclaimerScreen() {
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.btn} onPress={accept}>
-        <Text style={styles.btnText}>Li e aceito os termos</Text>
+      <TouchableOpacity style={styles.btn} onPress={accept} disabled={loading}>
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.btnText}>Li e aceito os termos</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
