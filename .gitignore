@@ -6,6 +6,9 @@ docs/
 .env.local
 .env.*.local
 
+# MCP config local (contém tokens)
+.mcp.json
+
 # Python
 __pycache__/
 *.py[cod]
