@@ -4,9 +4,10 @@
 FROM oven/bun:1.2-alpine AS deps
 WORKDIR /app
 
-# Copiar apenas os manifests primeiro (cache de layers)
+# Copiar TODOS os manifests do monorepo (bun.lock referencia todos os workspaces)
 COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
+COPY apps/mobile/package.json ./apps/mobile/
 COPY packages/metrics/package.json ./packages/metrics/
 COPY packages/shared/package.json ./packages/shared/
 
