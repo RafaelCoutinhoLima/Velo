@@ -1,3 +1,10 @@
+import {
+  calculateACWR,
+  calculateATL,
+  calculateCTL,
+  calculateRTSS,
+  calculateTSB,
+} from '@fitsync/metrics';
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { logger } from '../lib/logger';
@@ -5,6 +12,7 @@ import { logger } from '../lib/logger';
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
 const SIDECAR_URL = process.env.GARMIN_SIDECAR_URL ?? 'http://localhost:8001';
+const DEFAULT_FTP_PACE_S = 330; // 5:30/km — fallback para atletas sem histórico
 
 export function createGarminPlugin(db: Db = defaultSupabase) {
   return new Elysia({ prefix: '/garmin' })
@@ -114,6 +122,12 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
           if (!error) synced++;
         }
 
+        if (synced > 0) {
+          await computeAndSaveMetrics(internalId, db).catch((err) =>
+            logger.error({ err, athlete_id: internalId }, 'Falha ao computar métricas'),
+          );
+        }
+
         logger.info({ athlete_id: internalId, synced }, 'Sync Garmin concluído');
         return { synced };
       },
@@ -127,3 +141,87 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
 }
 
 export const garminRoutes = createGarminPlugin();
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+type WorkoutRow = {
+  garmin_id: string;
+  date: string;
+  distance_m: number;
+  duration_s: number;
+  avg_hr: number | null;
+  rtss: number | null;
+};
+
+async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
+  const { data: workouts } = (await db
+    .from('workouts')
+    .select('garmin_id, date, distance_m, duration_s, avg_hr, rtss')
+    .eq('athlete_id', athleteId)
+    .order('date', { ascending: true })
+    .limit(90)) as { data: WorkoutRow[] | null };
+
+  if (!workouts || workouts.length === 0) return;
+
+  const ftpPace = estimateFtpPace(workouts);
+
+  const dailyLoads: { date: string; rtss: number }[] = [];
+
+  for (const w of workouts) {
+    let rtss = w.rtss;
+    if (rtss === null) {
+      rtss = calculateRTSS(
+        {
+          date: w.date,
+          distance_m: w.distance_m,
+          duration_s: w.duration_s,
+          avg_hr: w.avg_hr ?? 0,
+          max_hr: 0,
+        },
+        ftpPace,
+      );
+      await db
+        .from('workouts')
+        .update({ rtss })
+        .eq('athlete_id', athleteId)
+        .eq('garmin_id', w.garmin_id);
+    }
+    dailyLoads.push({ date: w.date, rtss });
+  }
+
+  const atl = calculateATL(dailyLoads);
+  const ctl = calculateCTL(dailyLoads);
+  const tsb = calculateTSB(ctl, atl);
+  const acwr = calculateACWR(dailyLoads);
+  const today = new Date().toISOString().slice(0, 10);
+
+  await db.from('metrics_daily').upsert(
+    {
+      athlete_id: athleteId,
+      date: today,
+      atl,
+      ctl,
+      tsb,
+      acwr,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'athlete_id,date' },
+  );
+
+  const distinctDates = new Set(workouts.map((w) => w.date)).size;
+  if (distinctDates >= 7) {
+    await db.from('athletes').update({ calibration_mode: false }).eq('id', athleteId);
+    logger.info({ athlete_id: athleteId, distinctDates }, 'Calibration mode desativado');
+  }
+}
+
+function estimateFtpPace(workouts: Pick<WorkoutRow, 'distance_m' | 'duration_s'>[]): number {
+  const sustained = workouts
+    .filter((w) => w.distance_m >= 5000 && w.duration_s >= 1200)
+    .map((w) => w.duration_s / (w.distance_m / 1000));
+
+  if (sustained.length === 0) return DEFAULT_FTP_PACE_S;
+
+  const bestPace = Math.min(...sustained);
+  return Math.round(bestPace * 1.05);
+}

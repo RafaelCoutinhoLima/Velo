@@ -23,6 +23,13 @@ const app = new Elysia()
   .use(feedbackRoutes)
   .onError(({ error, code }) => {
     logger.error({ code, err: error }, 'Unhandled error');
+    const message = error instanceof Error ? error.message : String(error);
+    if (process.env.NODE_ENV === 'development') {
+      return new Response(JSON.stringify({ error: message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     return { error: 'Tive um problema técnico, já avisamos a equipe.' };
   })
   .listen(process.env.PORT ?? 3000);

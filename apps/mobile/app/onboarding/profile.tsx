@@ -32,16 +32,19 @@ export default function ProfileScreen() {
         body: JSON.stringify({
           athlete_id: session.athlete_id,
           birth_year: Number(birthYear),
-          weight_kg: Number(weightKg),
+          weight_kg: Number(weightKg.replace(',', '.')),
           sex,
           weekly_frequency: frequency,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
-      if (!res.ok) throw new Error('Falha ao salvar perfil');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? body?.message ?? 'Falha ao salvar perfil');
+      }
       router.push('/onboarding/goal');
-    } catch {
-      Alert.alert('Erro', 'Não conseguimos salvar seu perfil. Tente novamente.');
+    } catch (e: any) {
+      Alert.alert('Erro', e?.message ?? 'Não conseguimos salvar seu perfil. Tente novamente.');
     } finally {
       setLoading(false);
     }

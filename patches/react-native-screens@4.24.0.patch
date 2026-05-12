@@ -1,0 +1,59 @@
+diff --git a/lib/commonjs/utils.js b/lib/commonjs/utils.js
+index 713c71f98582d489cc4a958a9a50aa80003c50fe..53ca502b37d3ef4ee5cd63224a3bad6958c4b6cc 100644
+--- a/lib/commonjs/utils.js
++++ b/lib/commonjs/utils.js
+@@ -15,13 +15,7 @@ function executeNativeBackPress() {
+   return true;
+ }
+ function parseBooleanToOptionalBooleanNativeProp(prop) {
+-  switch (prop) {
+-    case undefined:
+-      return 'undefined';
+-    case true:
+-      return 'true';
+-    case false:
+-      return 'false';
+-  }
++  if (prop === undefined) return undefined;
++  return prop;
+ }
+ //# sourceMappingURL=utils.js.map
+\ No newline at end of file
+diff --git a/src/components/ScreenStackItem.tsx b/src/components/ScreenStackItem.tsx
+index 43db4ae76d714f941fe889e6ae0e18a0bc893ae0..ea1e0356447dfe9d3075e9cda6af38b7ea8d2675 100644
+--- a/src/components/ScreenStackItem.tsx
++++ b/src/components/ScreenStackItem.tsx
+@@ -114,8 +114,8 @@ function ScreenStackItem(
+     contentStyle = contentWrapperStyles;
+   }
+ 
+-  const shouldUseSafeAreaView =
+-    Platform.OS === 'ios' && parseInt(Platform.Version, 10) >= 26;
++  // RNSSafeAreaView not yet implemented in Expo Go — disable for SDK 54 compatibility
++  const shouldUseSafeAreaView = false;
+ 
+   const content = (
+     <>
+diff --git a/src/utils.ts b/src/utils.ts
+index 02ad04edf4fa71b59b3e77fccf322738b9c4f589..2e88543ab55f50660cd6368a146299d67f2446a2 100644
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -14,16 +14,8 @@ export function executeNativeBackPress() {
+   return true;
+ }
+ 
+-type OptionalBoolean = 'undefined' | 'false' | 'true';
+ export function parseBooleanToOptionalBooleanNativeProp(
+   prop: boolean | undefined,
+-): OptionalBoolean {
+-  switch (prop) {
+-    case undefined:
+-      return 'undefined';
+-    case true:
+-      return 'true';
+-    case false:
+-      return 'false';
+-  }
++): boolean | undefined {
++  return prop;
+ }

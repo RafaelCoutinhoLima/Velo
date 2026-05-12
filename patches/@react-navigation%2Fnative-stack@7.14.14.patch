@@ -1,0 +1,13 @@
+diff --git a/lib/module/views/useHeaderConfigProps.js b/lib/module/views/useHeaderConfigProps.js
+index a42477a772f86fc4034ceccf97a9baacf7d5e507..ca2e4d37e3d58f8071d816c37b30220fa98a1ffe 100644
+--- a/lib/module/views/useHeaderConfigProps.js
++++ b/lib/module/views/useHeaderConfigProps.js
+@@ -337,7 +337,7 @@ export function useHeaderConfigProps({
+     backButtonInCustomView,
+     backgroundColor: headerBackgroundColor,
+     backTitle: headerBackTitle,
+-    backTitleVisible: isBackButtonDisplayModeAvailable ? undefined : headerBackButtonDisplayMode !== 'minimal',
++    backTitleVisible: isBackButtonDisplayModeAvailable ? true : headerBackButtonDisplayMode !== 'minimal',
+     backButtonDisplayMode: isBackButtonDisplayModeAvailable ? headerBackButtonDisplayMode : undefined,
+     backTitleFontFamily,
+     backTitleFontSize,

@@ -8,6 +8,12 @@
       ],
       "@shared/*": [
         "../../packages/shared/src/*"
+      ],
+      "@fitsync/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@fitsync/ui/*": [
+        "../../packages/ui/src/*"
       ]
     }
   },

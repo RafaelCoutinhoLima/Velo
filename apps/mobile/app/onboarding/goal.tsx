@@ -48,10 +48,13 @@ export default function GoalScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Falha ao salvar objetivo');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.message ?? 'Falha ao salvar objetivo');
+      }
       router.push('/onboarding/garmin');
-    } catch {
-      Alert.alert('Erro', 'Não conseguimos salvar seu objetivo. Tente novamente.');
+    } catch (e: any) {
+      Alert.alert('Erro', e?.message ?? 'Não conseguimos salvar seu objetivo. Tente novamente.');
     } finally {
       setLoading(false);
     }

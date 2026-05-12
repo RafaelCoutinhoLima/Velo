@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '../../lib/supabase';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   async function loginWithGoogle() {
     setLoading(true);
@@ -38,9 +41,43 @@ export default function LoginScreen() {
       });
 
       if (error) throw error;
-      router.replace('/(tabs)/plan');
+      router.replace('/');
     } catch {
       Alert.alert('Erro', 'Não conseguimos fazer login com Apple. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loginWithEmail() {
+    if (!email || !password) {
+      Alert.alert('Erro', 'Preencha email e senha.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      router.replace('/');
+    } catch (e: any) {
+      Alert.alert('Erro', e.message ?? 'Credenciais inválidas.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function signUpWithEmail() {
+    if (!email || !password) {
+      Alert.alert('Erro', 'Preencha email e senha.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      Alert.alert('Conta criada', 'Verifique seu email para confirmar a conta.');
+    } catch (e: any) {
+      Alert.alert('Erro', e.message ?? 'Não foi possível criar a conta.');
     } finally {
       setLoading(false);
     }
@@ -66,6 +103,38 @@ export default function LoginScreen() {
             style={styles.appleBtn}
             onPress={loginWithApple}
           />
+
+          <TouchableOpacity onPress={() => setShowEmailForm(!showEmailForm)} style={styles.emailToggle}>
+            <Text style={styles.emailToggleText}>
+              {showEmailForm ? 'Ocultar login por email' : 'Entrar com email'}
+            </Text>
+          </TouchableOpacity>
+
+          {showEmailForm && (
+            <View style={styles.emailForm}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Senha"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+              <TouchableOpacity style={styles.emailBtn} onPress={loginWithEmail}>
+                <Text style={styles.emailBtnText}>Entrar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.signUpBtn} onPress={signUpWithEmail}>
+                <Text style={styles.signUpText}>Criar conta</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </>
       )}
 
@@ -91,6 +160,25 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   googleText: { fontSize: 16, fontWeight: '600', color: '#111' },
-  appleBtn: { width: '100%', height: 52, marginBottom: 24 },
+  appleBtn: { width: '100%', height: 52, marginBottom: 12 },
+  emailToggle: { alignItems: 'center', marginBottom: 12 },
+  emailToggleText: { color: '#2563eb', fontSize: 14 },
+  emailForm: { gap: 10, marginBottom: 12 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+  },
+  emailBtn: {
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+  },
+  emailBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  signUpBtn: { alignItems: 'center', padding: 8 },
+  signUpText: { color: '#666', fontSize: 14 },
   disclaimer: { fontSize: 12, color: '#999', textAlign: 'center', marginTop: 'auto' },
 });

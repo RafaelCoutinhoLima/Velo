@@ -3,7 +3,7 @@ import { Elysia } from 'elysia';
 import { createGarminPlugin } from './garmin';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Fixtures
 // ──────────────────────────────────────────────────────────────────────────────
 
 const ATHLETE_UUID = 'athlete-internal-uuid';
@@ -29,6 +29,16 @@ const SAMPLE_ACTIVITIES = [
   },
 ];
 
+// 7 workouts espalhados em 7 dias distintos → dispara flip do calibration_mode
+const WORKOUTS_7_DAYS = Array.from({ length: 7 }, (_, i) => ({
+  garmin_id: `g${i}`,
+  date: `2026-04-${String(i + 1).padStart(2, '0')}`,
+  distance_m: 8000,
+  duration_s: 2800,
+  avg_hr: 150,
+  rtss: null,
+}));
+
 // ──────────────────────────────────────────────────────────────────────────────
 // DB mock factory
 // ──────────────────────────────────────────────────────────────────────────────
@@ -38,29 +48,86 @@ type MockDbOpts = {
   rpcData?: string | null;
   rpcError?: { message: string } | null;
   upsertError?: { message: string } | null;
+  workoutsData?: typeof WORKOUTS_7_DAYS;
 };
 
 function makeMockDb(opts: MockDbOpts = {}) {
-  const { athleteExists = true, rpcData = TOKEN_JSON, rpcError = null, upsertError = null } = opts;
+  const {
+    athleteExists = true,
+    rpcData = TOKEN_JSON,
+    rpcError = null,
+    upsertError = null,
+    workoutsData = [],
+  } = opts;
 
-  return {
-    from: (_table: string) => ({
-      select: () => ({
-        eq: () => ({
-          single: async () =>
-            athleteExists
-              ? { data: { id: ATHLETE_UUID }, error: null }
-              : { data: null, error: { message: 'Not found' } },
-        }),
-      }),
-      upsert: async () => ({ error: upsertError }),
-    }),
+  // Tracks calls for assertions
+  const calls = { metricsUpsert: 0, workoutsUpdate: 0, calibrationUpdate: 0 };
+
+  const db = {
+    _calls: calls,
+    from: (table: string) => {
+      if (table === 'athletes') {
+        return {
+          select: (_cols: string) => ({
+            eq: (_col: string, _val: unknown) => ({
+              single: async () =>
+                athleteExists
+                  ? { data: { id: ATHLETE_UUID }, error: null }
+                  : { data: null, error: { message: 'Not found' } },
+            }),
+          }),
+          update: (_data: unknown) => ({
+            eq: async (_col: string, _val: unknown) => {
+              calls.calibrationUpdate++;
+              return { error: null };
+            },
+          }),
+        };
+      }
+
+      if (table === 'workouts') {
+        return {
+          select: (_cols: string) => ({
+            eq: (_col: string, _val: unknown) => ({
+              order: (_col2: string, _opts: unknown) => ({
+                limit: async (_n: number) => ({ data: workoutsData, error: null }),
+              }),
+            }),
+          }),
+          upsert: async (_data: unknown, _opts?: unknown) => ({ error: upsertError }),
+          update: (_data: unknown) => ({
+            eq: (_col: string, _val: unknown) => ({
+              eq: async (_col2: string, _val2: unknown) => {
+                calls.workoutsUpdate++;
+                return { error: null };
+              },
+            }),
+          }),
+        };
+      }
+
+      if (table === 'metrics_daily') {
+        return {
+          upsert: async (_data: unknown, _opts?: unknown) => {
+            calls.metricsUpsert++;
+            return { error: null };
+          },
+        };
+      }
+
+      return {
+        select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) }),
+        upsert: async () => ({ error: null }),
+      };
+    },
     rpc: async (fn: string, _params: unknown) => {
       if (fn === 'get_garmin_token') return { data: rpcData, error: rpcError };
       if (fn === 'store_garmin_token') return { data: null, error: rpcError };
       return { data: null, error: null };
     },
   };
+
+  return db;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -191,7 +258,6 @@ describe('POST /garmin/connect', () => {
   });
 
   it('usa mensagem fallback quando body de erro do sidecar não é JSON válido', async () => {
-    // Cobre o .catch(() => ({})) no connect handler
     (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(
       async () => new Response('Internal Server Error', { status: 500 }),
     );
@@ -291,5 +357,59 @@ describe('POST /garmin/sync', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.synced).toBe(0);
+  });
+
+  it('salva metrics_daily após sync bem-sucedido', async () => {
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: SAMPLE_ACTIVITIES as never });
+    const app = makeApp(db);
+    const res = await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(res.status).toBe(200);
+    expect(db._calls.metricsUpsert).toBe(1);
+  });
+
+  it('não salva metrics_daily quando nenhuma atividade foi importada', async () => {
+    installFetchMock({ metricsBody: { activities: [] } });
+    const db = makeMockDb({ rpcData: TOKEN_JSON });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.metricsUpsert).toBe(0);
+  });
+
+  it('desativa calibration_mode quando há >= 7 dias de treino', async () => {
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: WORKOUTS_7_DAYS });
+    const app = makeApp(db);
+    const res = await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(res.status).toBe(200);
+    expect(db._calls.calibrationUpdate).toBe(1);
+  });
+
+  it('não desativa calibration_mode com menos de 7 dias de treino', async () => {
+    const fewWorkouts = WORKOUTS_7_DAYS.slice(0, 3);
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: fewWorkouts });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.calibrationUpdate).toBe(0);
+  });
+
+  it('computa rTSS para workouts sem rtss e atualiza no banco', async () => {
+    const workoutsWithoutRtss = SAMPLE_ACTIVITIES.map((a) => ({ ...a, rtss: null }));
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: workoutsWithoutRtss as never });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.workoutsUpdate).toBe(workoutsWithoutRtss.length);
+  });
+
+  it('não atualiza rtss de workouts que já têm valor calculado', async () => {
+    const workoutsWithRtss = SAMPLE_ACTIVITIES.map((a) => ({ ...a, rtss: 55.0 }));
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: workoutsWithRtss as never });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.workoutsUpdate).toBe(0);
   });
 });
