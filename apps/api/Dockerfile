@@ -5,7 +5,7 @@ FROM oven/bun:1.2-alpine AS deps
 WORKDIR /app
 
 # Copiar apenas os manifests primeiro (cache de layers)
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/metrics/package.json ./packages/metrics/
 COPY packages/shared/package.json ./packages/shared/
