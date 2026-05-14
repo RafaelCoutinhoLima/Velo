@@ -1,12 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { generatePlan } from '../claude/client';
-import { PLAN_PROMPT_VERSION } from '../claude/prompts/plan_v1';
 import { supabase as defaultSupabase } from '../db/client';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from'>;
 
-const SYNC_TIMEOUT_MS = 25_000;
+const SYNC_TIMEOUT_MS = 120_000;
 
 export function createPlanPlugin(db: Db = defaultSupabase) {
   return new Elysia({ prefix: '/plan' })
@@ -40,27 +39,72 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
     .post(
       '/generate',
       async ({ body, set }) => {
-        const { athlete_id } = body;
+        const { athlete_id: userId } = body;
+
+        const { data: athlete, error: athleteErr } = await db
+          .from('athletes')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (athleteErr || !athlete)
+          throw new Error('Atleta não encontrado. Complete o onboarding primeiro.');
+
+        const internalId = (athlete as { id: string }).id;
 
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('TIMEOUT')), SYNC_TIMEOUT_MS),
         );
 
+        const planPromise = buildPlan(internalId, athlete as Record<string, unknown>, db);
+
         try {
-          const plan = await Promise.race([buildPlan(athlete_id, db), timeoutPromise]);
+          const plan = await Promise.race([planPromise, timeoutPromise]);
           return { plan };
         } catch (err) {
           if (err instanceof Error && err.message === 'TIMEOUT') {
             const { data: job } = await db
               .from('jobs')
-              .insert({ athlete_id, type: 'plan_generate', payload: { athlete_id } })
+              .insert({
+                athlete_id: internalId,
+                type: 'plan_generate',
+                payload: { athlete_id: userId },
+                status: 'running',
+              })
               .select('id')
               .single();
 
+            const jobId = job?.id;
+
+            // buildPlan is still running — update job when it finishes
+            planPromise
+              .then(async (plan) => {
+                if (!jobId) return;
+                await db
+                  .from('jobs')
+                  .update({
+                    status: 'done',
+                    result: { plan },
+                    finished_at: new Date().toISOString(),
+                  })
+                  .eq('id', jobId);
+              })
+              .catch(async (buildErr) => {
+                if (!jobId) return;
+                await db
+                  .from('jobs')
+                  .update({
+                    status: 'failed',
+                    error: buildErr instanceof Error ? buildErr.message : String(buildErr),
+                    finished_at: new Date().toISOString(),
+                  })
+                  .eq('id', jobId);
+              });
+
             set.status = 202;
-            return { job_id: job?.id, message: 'Continuamos preparando seu plano. Te avisaremos.' };
+            return { job_id: jobId, message: 'Continuamos preparando seu plano. Te avisaremos.' };
           }
-          logger.error({ err, athlete_id }, 'Falha ao gerar plano');
+          logger.error({ err, athlete_id: userId }, 'Falha ao gerar plano');
           throw err;
         }
       },
@@ -89,7 +133,6 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
 
         if (!movingDay || !targetDayObj) throw new Error('Dia não encontrado');
 
-        // Guardrail: sem dois estímulos altos consecutivos
         const highTypes = new Set(['interval', 'tempo']);
         const prevDay = allDays.find((d) => d.day === target_day - 1);
         const nextDay = allDays.find((d) => d.day === target_day + 1);
@@ -107,7 +150,6 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
           };
         }
 
-        // Swap workout content between the two day slots (replace in weeks array to avoid stale props)
         for (const week of planJson.weeks) {
           const i1 = week.days.findIndex((d) => d.day === workout_day);
           const i2 = week.days.findIndex((d) => d.day === target_day);
@@ -180,38 +222,31 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
 
 export const planRoutes = createPlanPlugin();
 
-async function buildPlan(userId: string, db: Db) {
-  const { data: athlete, error: athleteErr } = await db
-    .from('athletes')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+async function buildPlan(internalId: string, athlete: Record<string, unknown>, db: Db) {
+  const [workoutsResult, metricsHistoryResult] = await Promise.all([
+    db
+      .from('workouts')
+      .select('date, distance_m, duration_s, avg_hr, rtss, rpe')
+      .eq('athlete_id', internalId)
+      .order('date', { ascending: false })
+      .limit(30),
+    db
+      .from('metrics_daily')
+      .select('date, atl, ctl, tsb, acwr')
+      .eq('athlete_id', internalId)
+      .order('date', { ascending: false })
+      .limit(14),
+  ]);
 
-  if (athleteErr || !athlete)
-    throw new Error('Atleta não encontrado. Complete o onboarding primeiro.');
+  const metricsHistory = ((metricsHistoryResult.data ?? []) as Record<string, unknown>[]).reverse();
+  const latestMetrics = metricsHistory.at(-1) ?? null;
 
-  const internalId = (athlete as { id: string }).id;
-
-  const { data: workouts } = await db
-    .from('workouts')
-    .select('date, distance_m, duration_s, avg_hr, rtss')
-    .eq('athlete_id', internalId)
-    .order('date', { ascending: false })
-    .limit(30);
-
-  const { data: metrics } = await db
-    .from('metrics_daily')
-    .select('date, atl, ctl, tsb, acwr')
-    .eq('athlete_id', internalId)
-    .order('date', { ascending: false })
-    .limit(1)
-    .single();
-
-  const plan = await generatePlan({
+  const result = await generatePlan({
     athleteId: internalId,
     profile: athlete,
-    recentWorkouts: workouts ?? [],
-    metrics: metrics ?? {},
+    recentWorkouts: (workoutsResult.data ?? []) as Record<string, unknown>[],
+    metrics: latestMetrics,
+    metricsHistory,
     calibrationMode: (athlete as { calibration_mode?: boolean }).calibration_mode ?? true,
   });
 
@@ -220,9 +255,9 @@ async function buildPlan(userId: string, db: Db) {
     .insert({
       athlete_id: internalId,
       week_start: new Date().toISOString().slice(0, 10),
-      plan_json: plan,
-      why_text: plan.weeks[0]?.why_text ?? '',
-      prompt_version: PLAN_PROMPT_VERSION,
+      plan_json: result.plan,
+      why_text: result.plan.weeks[0]?.why_text ?? '',
+      prompt_version: result.promptVersion,
     })
     .select('id')
     .single();
@@ -232,9 +267,12 @@ async function buildPlan(userId: string, db: Db) {
   await db.from('plan_history').insert({
     athlete_id: internalId,
     plan_id: (savedPlan as { id: string }).id,
-    plan_snapshot: plan,
-    prompt_version: PLAN_PROMPT_VERSION,
+    plan_snapshot: result.plan,
+    prompt_version: result.promptVersion,
+    input_json: result.inputJson,
+    tokens_used: result.tokensUsed.input + result.tokensUsed.output,
+    cost_usd: result.costUsd,
   });
 
-  return plan;
+  return result.plan;
 }
