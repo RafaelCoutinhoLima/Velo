@@ -16,32 +16,112 @@ import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
 
-type Sex = 'M' | 'F' | 'other';
 type Frequency = '2x' | '3x' | '4x' | '5x+';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => CURRENT_YEAR - 14 - i);
-const ITEM_W = 80;
+const ITEM_W = 72;
 const ITEM_GAP = 8;
 
-const WEIGHTS = ['40', '50', '55', '60', '65', '70', '75', '80', '85', '90', '95', '100', '105', '110', '120+'];
+const WEIGHTS = ['40', '45', '50', '55', '60', '65', '70', '75', '80', '85', '90', '95', '100', '110', '120+'];
 
-function ProgressBar({ step, total }: { step: number; total: number }) {
-  const pct = Math.round(((step + 1) / total) * 100);
+const STEPS = ['Perfil', 'Objetivo', 'Garmin', 'Pronto'];
+
+function StepBar({ current }: { current: number }) {
   return (
-    <View style={pb.wrapper}>
-      <View style={pb.track}>
-        <View style={[pb.fill, { width: `${pct}%` as `${number}%` }]} />
-      </View>
-      <Text style={pb.label}>Passo {step + 1} de {total}</Text>
+    <View style={sb.row}>
+      {STEPS.map((label, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <View key={label} style={sb.stepWrap}>
+            <View style={[sb.pill, done && sb.pillDone, active && sb.pillActive]}>
+              {done ? (
+                <Text style={sb.pillTextDone}>✓</Text>
+              ) : (
+                <Text style={[sb.pillNum, active && sb.pillNumActive]}>{i + 1}</Text>
+              )}
+            </View>
+            <Text style={[sb.label, active && sb.labelActive, done && sb.labelDone]}>{label}</Text>
+            {i < STEPS.length - 1 && <View style={[sb.connector, done && sb.connectorDone]} />}
+          </View>
+        );
+      })}
     </View>
   );
 }
-const pb = StyleSheet.create({
-  wrapper: { marginBottom: Spacing.xl },
-  track: { height: 4, backgroundColor: Colors.border, borderRadius: Radii.full, marginBottom: Spacing.sm },
-  fill: { height: 4, backgroundColor: Colors.primary, borderRadius: Radii.full },
-  label: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center' },
+
+const sb = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+    gap: 0,
+  },
+  stepWrap: {
+    alignItems: 'center',
+    position: 'relative',
+    flex: 1,
+  },
+  pill: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    zIndex: 1,
+  },
+  pillActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  pillDone: {
+    borderColor: Colors.success,
+    backgroundColor: Colors.success,
+  },
+  pillNum: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+  },
+  pillNumActive: {
+    color: Colors.surface,
+  },
+  pillTextDone: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.surface,
+  },
+  label: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: FontWeight.medium,
+    textAlign: 'center',
+  },
+  labelActive: {
+    color: Colors.primary,
+    fontWeight: FontWeight.bold,
+  },
+  labelDone: {
+    color: Colors.success,
+  },
+  connector: {
+    position: 'absolute',
+    top: 15,
+    right: '-50%',
+    left: '50%',
+    height: 2,
+    backgroundColor: Colors.border,
+    zIndex: 0,
+  },
+  connectorDone: {
+    backgroundColor: Colors.success,
+  },
 });
 
 function SectionCard({ children }: { children: React.ReactNode }) {
@@ -52,7 +132,7 @@ const sc = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Radii.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
 });
 
@@ -133,7 +213,6 @@ const yp = StyleSheet.create({
 });
 
 function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
-  const num = Number(value);
   return (
     <View>
       <View style={wp.displayRow}>
@@ -154,9 +233,6 @@ function WeightPicker({ value, onChange }: { value: string; onChange: (w: string
           </TouchableOpacity>
         ))}
       </View>
-      {value && (num < 30 || num > 200) && (
-        <Text style={wp.hint}>Digite entre 30 e 200 kg</Text>
-      )}
     </View>
   );
 }
@@ -178,59 +254,70 @@ const wp = StyleSheet.create({
   btnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   btnText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
   btnTextActive: { color: Colors.surface, fontWeight: FontWeight.bold },
-  hint: { fontSize: FontSize.xs, color: Colors.danger, marginTop: Spacing.sm },
 });
 
-function ChipGroup<T extends string>({
-  options,
-  value,
-  onChange,
-  labelMap,
-}: {
-  options: T[];
-  value: T | null;
-  onChange: (v: T) => void;
-  labelMap?: Partial<Record<T, string>>;
-}) {
+const FREQ_LABELS: Record<Frequency, string> = {
+  '2x': '2× por semana',
+  '3x': '3× por semana',
+  '4x': '4× por semana',
+  '5x+': '5× ou mais',
+};
+
+function FreqPicker({ value, onChange }: { value: Frequency | null; onChange: (f: Frequency) => void }) {
+  const options: Frequency[] = ['2x', '3x', '4x', '5x+'];
   return (
-    <View style={chip.row}>
+    <View style={fp.grid}>
       {options.map((opt) => {
-        const label = labelMap?.[opt] ?? opt;
-        const isActive = value === opt;
+        const active = value === opt;
         return (
           <TouchableOpacity
             key={opt}
-            style={[chip.base, isActive && chip.active]}
+            style={[fp.card, active && fp.cardActive]}
             onPress={() => onChange(opt)}
             accessibilityRole="radio"
-            accessibilityLabel={label}
-            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={FREQ_LABELS[opt]}
+            accessibilityState={{ selected: active }}
           >
-            {isActive && <View style={chip.dot} />}
-            <Text style={[chip.text, isActive && chip.textActive]}>{label}</Text>
+            <Text style={[fp.freq, active && fp.freqActive]}>{opt}</Text>
+            <Text style={[fp.label, active && fp.labelActive]}>
+              {FREQ_LABELS[opt].replace(opt + ' ', '')}
+            </Text>
+            {active && <View style={fp.check}><Text style={fp.checkText}>✓</Text></View>}
           </TouchableOpacity>
         );
       })}
     </View>
   );
 }
-const chip = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
-    borderRadius: Radii.full,
+const fp = StyleSheet.create({
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  card: {
+    flex: 1,
+    minWidth: '45%',
+    padding: Spacing.md,
+    borderRadius: Radii.md,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.bg,
+    position: 'relative',
   },
-  active: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  dot: { width: 6, height: 6, borderRadius: Radii.full, backgroundColor: Colors.surface },
-  text: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  textActive: { color: Colors.surface, fontWeight: FontWeight.bold },
+  cardActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
+  freq: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: 2 },
+  freqActive: { color: Colors.primary },
+  label: { fontSize: FontSize.xs, color: Colors.textMuted },
+  labelActive: { color: Colors.primary },
+  check: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkText: { fontSize: 10, color: Colors.surface, fontWeight: FontWeight.bold },
 });
 
 export default function ProfileScreen() {
@@ -239,16 +326,14 @@ export default function ProfileScreen() {
 
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [weightKg, setWeightKg] = useState('');
-  const [sex, setSex] = useState<Sex | null>(null);
   const [frequency, setFrequency] = useState<Frequency | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isValid = birthYear !== null && weightKg.length > 0 && sex !== null && frequency !== null;
+  const isValid = birthYear !== null && weightKg.length > 0 && frequency !== null;
 
   function handleYearChange(y: number) { setError(null); setBirthYear(y); }
   function handleWeightChange(w: string) { setError(null); setWeightKg(w); }
-  function handleSexChange(s: Sex) { setError(null); setSex(s); }
   function handleFreqChange(f: Frequency) { setError(null); setFrequency(f); }
 
   async function next() {
@@ -265,7 +350,6 @@ export default function ProfileScreen() {
         athlete_id: session.athlete_id,
         birth_year: birthYear,
         weight_kg: weight,
-        sex,
         weekly_frequency: frequency,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
@@ -280,10 +364,13 @@ export default function ProfileScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <ProgressBar step={1} total={4} />
 
-        <Text style={styles.title}>Seu perfil</Text>
-        <Text style={styles.subtitle}>Para calibrar os treinos corretamente</Text>
+        <View style={styles.heroSection}>
+          <Text style={styles.title}>Configure{'\n'}seu perfil</Text>
+          <Text style={styles.subtitle}>Para calibrar seus treinos com precisão</Text>
+        </View>
+
+        <StepBar current={1} />
 
         {error ? (
           <View style={{ marginBottom: Spacing.md }}>
@@ -297,27 +384,13 @@ export default function ProfileScreen() {
         </SectionCard>
 
         <SectionCard>
-          <SectionTitle>Peso</SectionTitle>
+          <SectionTitle>Peso corporal</SectionTitle>
           <WeightPicker value={weightKg} onChange={handleWeightChange} />
         </SectionCard>
 
         <SectionCard>
-          <SectionTitle>Sexo biológico</SectionTitle>
-          <ChipGroup<Sex>
-            options={['M', 'F', 'other']}
-            value={sex}
-            onChange={handleSexChange}
-            labelMap={{ M: 'Masculino', F: 'Feminino', other: 'Outro' }}
-          />
-        </SectionCard>
-
-        <SectionCard>
-          <SectionTitle>Frequência semanal de treinos</SectionTitle>
-          <ChipGroup<Frequency>
-            options={['2x', '3x', '4x', '5x+']}
-            value={frequency}
-            onChange={handleFreqChange}
-          />
+          <SectionTitle>Frequência semanal</SectionTitle>
+          <FreqPicker value={frequency} onChange={handleFreqChange} />
         </SectionCard>
 
         <Button
@@ -335,13 +408,15 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+  heroSection: { marginBottom: Spacing.xl },
   title: {
-    fontSize: FontSize['3xl'],
-    fontWeight: FontWeight.bold,
+    fontSize: 32,
+    fontWeight: FontWeight.extrabold,
     color: Colors.textPrimary,
+    lineHeight: 40,
     marginBottom: Spacing.xs,
   },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 22 },
-  btn: { marginTop: Spacing.md },
+  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, lineHeight: 22 },
+  btn: { marginTop: Spacing.sm },
 });

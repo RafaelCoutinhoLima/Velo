@@ -1,4 +1,3 @@
-// US-002 — Conectar Garmin via sidecar + US-005 importar 90 dias
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,24 +17,49 @@ import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const STEPS = ['Perfil', 'Objetivo', 'Garmin', 'Pronto'];
 
-function ProgressBar({ step, total }: { step: number; total: number }) {
+function StepBar({ current }: { current: number }) {
   return (
-    <View style={progress.wrapper}>
-      {Array.from({ length: total }, (_, i) => (
-        <View key={i} style={[progress.dot, i < step && progress.done, i === step && progress.active]} />
-      ))}
-      <Text style={progress.label}>Passo {step + 1} de {total}</Text>
+    <View style={sb.row}>
+      {STEPS.map((label, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <View key={label} style={sb.stepWrap}>
+            <View style={[sb.pill, done && sb.pillDone, active && sb.pillActive]}>
+              {done ? (
+                <Text style={sb.pillTextDone}>✓</Text>
+              ) : (
+                <Text style={[sb.pillNum, active && sb.pillNumActive]}>{i + 1}</Text>
+              )}
+            </View>
+            <Text style={[sb.label, active && sb.labelActive, done && sb.labelDone]}>{label}</Text>
+            {i < STEPS.length - 1 && <View style={[sb.connector, done && sb.connectorDone]} />}
+          </View>
+        );
+      })}
     </View>
   );
 }
-const progress = StyleSheet.create({
-  wrapper: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.xl, justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: Radii.full, backgroundColor: Colors.border },
-  active: { backgroundColor: Colors.primary, width: 24, borderRadius: Radii.full },
-  done: { backgroundColor: Colors.primaryMuted },
-  label: { fontSize: FontSize.xs, color: Colors.textMuted, marginLeft: Spacing.sm },
+const sb = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', marginBottom: Spacing.xl },
+  stepWrap: { alignItems: 'center', position: 'relative', flex: 1 },
+  pill: {
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 2, borderColor: Colors.border, backgroundColor: Colors.bg,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4, zIndex: 1,
+  },
+  pillActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  pillDone: { borderColor: Colors.success, backgroundColor: Colors.success },
+  pillNum: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textMuted },
+  pillNumActive: { color: Colors.surface },
+  pillTextDone: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.surface },
+  label: { fontSize: 10, color: Colors.textMuted, fontWeight: FontWeight.medium, textAlign: 'center' },
+  labelActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  labelDone: { color: Colors.success },
+  connector: { position: 'absolute', top: 15, right: '-50%', left: '50%', height: 2, backgroundColor: Colors.border, zIndex: 0 },
+  connectorDone: { backgroundColor: Colors.success },
 });
 
 type Step = 'form' | 'connecting' | 'importing' | 'done';
@@ -63,7 +87,6 @@ export default function GarminScreen() {
         mfa_code: mfaCode.trim() || undefined,
       });
 
-      // Limpa credenciais da memória imediatamente após envio bem-sucedido
       setPassword('');
       setMfaCode('');
 
@@ -72,20 +95,21 @@ export default function GarminScreen() {
       setStep('done');
     } catch (e: unknown) {
       setStep('form');
-      setError(e instanceof Error ? e.message : 'Erro ao conectar Garmin');
+      const msg = e instanceof Error ? e.message : 'Erro ao conectar Garmin';
+      if (msg.toLowerCase().includes('muitas tentativas') || msg.toLowerCase().includes('rate')) {
+        setError('Garmin bloqueou temporariamente. Aguarde 15 minutos e tente novamente.');
+      } else if (msg.toLowerCase().includes('credencial') || msg.toLowerCase().includes('inválid')) {
+        setError('E-mail ou senha incorretos. Verifique suas credenciais do Garmin Connect.');
+      } else {
+        setError(msg);
+      }
     }
   }
 
   async function finish() {
     setOnboardingComplete();
     if (session?.athlete_id) {
-      fetch(`${API_URL}/plan/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: session.athlete_id }),
-      }).catch(() => {
-        // Falha silenciosa — job async garante reprocessamento
-      });
+      post('/plan/generate', { athlete_id: session.athlete_id }).catch(() => {});
     }
     router.replace('/(tabs)/plan');
   }
@@ -114,12 +138,14 @@ export default function GarminScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <ProgressBar step={3} total={4} />
+        <View style={styles.heroSection}>
+          <Text style={styles.title}>Conecte{'\n'}seu Garmin</Text>
+          <Text style={styles.subtitle}>
+            Importamos seus últimos 90 dias e enviamos treinos direto pro relógio.
+          </Text>
+        </View>
 
-        <Text style={styles.title}>Conectar Garmin</Text>
-        <Text style={styles.subtitle}>
-          Usamos seu Garmin Connect para importar treinos passados e enviar treinos para o relógio.
-        </Text>
+        <StepBar current={2} />
 
         {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
 
@@ -180,10 +206,11 @@ export default function GarminScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface },
-  content: { padding: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginBottom: Spacing.md, lineHeight: 22 },
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+  heroSection: { marginBottom: Spacing.xl },
+  title: { fontSize: 32, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, lineHeight: 40, marginBottom: Spacing.xs },
+  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, lineHeight: 22 },
   trustCard: {
     backgroundColor: Colors.accentLight,
     borderRadius: Radii.md,

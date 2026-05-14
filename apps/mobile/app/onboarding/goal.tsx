@@ -1,4 +1,3 @@
-// US-004 — Prova alvo ou modo progressão geral
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -38,22 +37,49 @@ const DISTANCE_LABELS: Record<RaceDistance, string> = {
   other: 'Outra',
 };
 
-function ProgressBar({ step, total }: { step: number; total: number }) {
+const STEPS = ['Perfil', 'Objetivo', 'Garmin', 'Pronto'];
+
+function StepBar({ current }: { current: number }) {
   return (
-    <View style={progress.wrapper}>
-      {Array.from({ length: total }, (_, i) => (
-        <View key={i} style={[progress.dot, i < step && progress.done, i === step && progress.active]} />
-      ))}
-      <Text style={progress.label}>Passo {step + 1} de {total}</Text>
+    <View style={sb.row}>
+      {STEPS.map((label, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <View key={label} style={sb.stepWrap}>
+            <View style={[sb.pill, done && sb.pillDone, active && sb.pillActive]}>
+              {done ? (
+                <Text style={sb.pillTextDone}>✓</Text>
+              ) : (
+                <Text style={[sb.pillNum, active && sb.pillNumActive]}>{i + 1}</Text>
+              )}
+            </View>
+            <Text style={[sb.label, active && sb.labelActive, done && sb.labelDone]}>{label}</Text>
+            {i < STEPS.length - 1 && <View style={[sb.connector, done && sb.connectorDone]} />}
+          </View>
+        );
+      })}
     </View>
   );
 }
-const progress = StyleSheet.create({
-  wrapper: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.xl, justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: Radii.full, backgroundColor: Colors.border },
-  active: { backgroundColor: Colors.primary, width: 24, borderRadius: Radii.full },
-  done: { backgroundColor: Colors.primaryMuted },
-  label: { fontSize: FontSize.xs, color: Colors.textMuted, marginLeft: Spacing.sm },
+const sb = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', marginBottom: Spacing.xl },
+  stepWrap: { alignItems: 'center', position: 'relative', flex: 1 },
+  pill: {
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 2, borderColor: Colors.border, backgroundColor: Colors.bg,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4, zIndex: 1,
+  },
+  pillActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  pillDone: { borderColor: Colors.success, backgroundColor: Colors.success },
+  pillNum: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textMuted },
+  pillNumActive: { color: Colors.surface },
+  pillTextDone: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.surface },
+  label: { fontSize: 10, color: Colors.textMuted, fontWeight: FontWeight.medium, textAlign: 'center' },
+  labelActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  labelDone: { color: Colors.success },
+  connector: { position: 'absolute', top: 15, right: '-50%', left: '50%', height: 2, backgroundColor: Colors.border, zIndex: 0 },
+  connectorDone: { backgroundColor: Colors.success },
 });
 
 function validateDate(raw: string): string | null {
@@ -119,10 +145,12 @@ export default function GoalScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <ProgressBar step={2} total={4} />
+        <View style={styles.heroSection}>
+          <Text style={styles.title}>Seu{'\n'}objetivo</Text>
+          <Text style={styles.subtitle}>Isso define como o plano é construído</Text>
+        </View>
 
-        <Text style={styles.title}>Seu objetivo</Text>
-        <Text style={styles.subtitle}>Isso define como o plano é construído</Text>
+        <StepBar current={1} />
 
         {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
 
@@ -212,10 +240,11 @@ export default function GoalScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface },
-  content: { padding: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginBottom: Spacing.lg },
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+  heroSection: { marginBottom: Spacing.xl },
+  title: { fontSize: 32, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, lineHeight: 40, marginBottom: Spacing.xs },
+  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, lineHeight: 22 },
   modeCard: {
     flexDirection: 'row',
     alignItems: 'center',

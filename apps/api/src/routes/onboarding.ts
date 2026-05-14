@@ -13,7 +13,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
     .post(
       '/profile',
       async ({ body }) => {
-        const { athlete_id, birth_year, weight_kg, sex, weekly_frequency, timezone } = body;
+        const { athlete_id, birth_year, weight_kg, weekly_frequency, timezone } = body;
 
         const { error } = await db.from('athletes').upsert(
           {
@@ -21,7 +21,6 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
             email: '[REDACTED]',
             birth_year,
             weight_kg,
-            sex,
             modality: 'running',
             weekly_frequency,
             timezone,
@@ -74,7 +73,6 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
           athlete_id: t.String(),
           birth_year: t.Number({ minimum: 1930, maximum: 2013 }),
           weight_kg: t.Number({ minimum: 30, maximum: 200 }),
-          sex: t.Union([t.Literal('M'), t.Literal('F'), t.Literal('other')]),
           weekly_frequency: t.String(),
           timezone: t.String(),
         }),
