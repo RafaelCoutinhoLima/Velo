@@ -35,6 +35,43 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
       }),
     },
   )
+  .get(
+    '/:id',
+    async ({ params, set }) => {
+      const { id } = params;
+      const { data, error } = await supabase
+        .from('workouts')
+        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) {
+        set.status = 404;
+        return { error: 'Treino não encontrado' };
+      }
+      return { workout: data };
+    },
+    { params: t.Object({ id: t.String() }) },
+  )
+  .patch(
+    '/:id',
+    async ({ params, body, set }) => {
+      const { id } = params;
+      const { rpe } = body;
+
+      const { error } = await supabase.from('workouts').update({ rpe }).eq('id', id);
+
+      if (error) {
+        set.status = 500;
+        return { error: 'Falha ao salvar RPE' };
+      }
+      return { ok: true };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({ rpe: t.Number({ minimum: 1, maximum: 10 }) }),
+    },
+  )
   .post(
     '/sync',
     async ({ body }) => {
