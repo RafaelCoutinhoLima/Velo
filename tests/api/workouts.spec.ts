@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 const FAKE_USER_ID = '00000000-0000-0000-0000-000000000001';
+const FAKE_WORKOUT_ID = '00000000-0000-0000-0000-000000000099';
 
 test.describe('Workouts', () => {
   test.describe('GET /workouts', () => {
@@ -24,6 +25,31 @@ test.describe('Workouts', () => {
       expect(res.status()).toBe(200);
       const body = await res.json();
       expect(body.workouts.length).toBeLessThanOrEqual(5);
+    });
+  });
+
+  test.describe('GET /workouts/:id', () => {
+    test('retorna 404 para workout inexistente', async ({ request }) => {
+      const res = await request.get(`/workouts/${FAKE_WORKOUT_ID}`);
+      expect(res.status()).toBe(404);
+      const body = await res.json();
+      expect(body).toHaveProperty('error');
+    });
+  });
+
+  test.describe('PATCH /workouts/:id', () => {
+    test('rejeita rpe fora do range', async ({ request }) => {
+      const res = await request.patch(`/workouts/${FAKE_WORKOUT_ID}`, {
+        data: { rpe: 11 },
+      });
+      expect(res.status()).toBe(422);
+    });
+
+    test('rejeita body sem rpe', async ({ request }) => {
+      const res = await request.patch(`/workouts/${FAKE_WORKOUT_ID}`, {
+        data: {},
+      });
+      expect(res.status()).toBe(422);
     });
   });
 });

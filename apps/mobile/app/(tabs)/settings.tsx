@@ -215,9 +215,15 @@ export default function SettingsScreen() {
         onRequestClose={() => !isBusy && setShowGarminModal(false)}
       >
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => !isBusy && setShowGarminModal(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
           <View style={styles.modalBox}>
             {connectStep === 'idle' ? (
               <>
@@ -277,6 +283,8 @@ export default function SettingsScreen() {
               />
             )}
           </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
 
