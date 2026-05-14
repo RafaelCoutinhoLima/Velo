@@ -41,7 +41,7 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
       const { id } = params;
       const { data, error } = await supabase
         .from('workouts')
-        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe')
+        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
         .eq('id', id)
         .single();
 
@@ -49,7 +49,32 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
         set.status = 404;
         return { error: 'Treino não encontrado' };
       }
-      return { workout: data };
+
+      const raw = (data.raw_payload ?? {}) as Record<string, unknown>;
+      const avgSpeedMs = typeof raw.averageSpeed === 'number' ? raw.averageSpeed : null;
+
+      const workout = {
+        id: data.id,
+        date: data.date,
+        distance_m: data.distance_m,
+        duration_s: data.duration_s,
+        avg_hr: data.avg_hr,
+        rtss: data.rtss,
+        rpe: data.rpe,
+        max_hr: typeof raw.maxHR === 'number' ? raw.maxHR : null,
+        calories: typeof raw.calories === 'number' ? raw.calories : null,
+        elevation_gain:
+          typeof raw.elevationGain === 'number' ? Math.round(raw.elevationGain) : null,
+        elevation_loss:
+          typeof raw.elevationLoss === 'number' ? Math.round(raw.elevationLoss) : null,
+        avg_pace_s: avgSpeedMs && avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : null,
+        vo2max: typeof raw.vO2MaxValue === 'number' ? raw.vO2MaxValue : null,
+        steps: typeof raw.steps === 'number' ? raw.steps : null,
+        activity_name: typeof raw.activityName === 'string' ? raw.activityName : null,
+        location: typeof raw.locationName === 'string' ? raw.locationName : null,
+      };
+
+      return { workout };
     },
     { params: t.Object({ id: t.String() }) },
   )
