@@ -199,6 +199,56 @@ function WhyCard({ text }: { text: string }) {
   );
 }
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function formatWeekRange(weekStart: string) {
+  const start = new Date(`${weekStart}T12:00:00`);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+  return `${start.toLocaleDateString('pt-BR', opts)} – ${end.toLocaleDateString('pt-BR', opts)}`;
+}
+
+function PlanHeader({ weekStart }: { weekStart: string }) {
+  const today = new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long', day: 'numeric', month: 'long',
+  });
+
+  return (
+    <View style={headerStyles.wrapper}>
+      <View style={{ flex: 1 }}>
+        <Text style={headerStyles.greeting}>{getGreeting()}</Text>
+        <Text style={headerStyles.date}>{today}</Text>
+      </View>
+      <View style={headerStyles.badge}>
+        <Text style={headerStyles.badgeText}>{formatWeekRange(weekStart)}</Text>
+      </View>
+    </View>
+  );
+}
+const headerStyles = StyleSheet.create({
+  wrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
+  greeting: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  date: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
+  badge: {
+    backgroundColor: Colors.primaryMuted,
+    borderRadius: Radii.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  badgeText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
+});
+
 export default function PlanScreen() {
   const session = useAuthStore((s) => s.session);
   const advancedMode = useAuthStore((s) => s.profile?.advancedMode ?? false);
@@ -284,6 +334,9 @@ export default function PlanScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
+        {/* Header greeting */}
+        <PlanHeader weekStart={plan.week_start} />
+
         {/* Hero card — treino de hoje sempre no topo */}
         {todayWorkout && (
           <View style={styles.heroSection}>
@@ -419,7 +472,7 @@ export default function PlanScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xl },
+  content: { padding: Spacing.md, paddingTop: Spacing.xxl + Spacing.md, paddingBottom: Spacing.xl },
   center: { flex: 1 },
   heroSection: { marginBottom: Spacing.md },
   heroLabel: {

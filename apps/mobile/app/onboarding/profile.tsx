@@ -1,4 +1,3 @@
-// US-003 — Perfil esportivo
 import { useRef, useState } from 'react';
 import {
   FlatList,
@@ -13,7 +12,7 @@ import {
 import { router } from 'expo-router';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Spacing } from '../../lib/theme';
+import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
 
@@ -22,75 +21,164 @@ type Frequency = '2x' | '3x' | '4x' | '5x+';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => CURRENT_YEAR - 14 - i);
+const ITEM_W = 80;
+const ITEM_GAP = 8;
+
+const WEIGHTS = ['40', '50', '55', '60', '65', '70', '75', '80', '85', '90', '95', '100', '105', '110', '120+'];
 
 function ProgressBar({ step, total }: { step: number; total: number }) {
+  const pct = Math.round(((step + 1) / total) * 100);
   return (
-    <View style={progress.wrapper}>
-      {Array.from({ length: total }, (_, i) => (
-        <View key={i} style={[progress.dot, i < step && progress.done, i === step && progress.active]} />
-      ))}
-      <Text style={progress.label}>Passo {step + 1} de {total}</Text>
+    <View style={pb.wrapper}>
+      <View style={pb.track}>
+        <View style={[pb.fill, { width: `${pct}%` as `${number}%` }]} />
+      </View>
+      <Text style={pb.label}>Passo {step + 1} de {total}</Text>
     </View>
   );
 }
-const progress = StyleSheet.create({
-  wrapper: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.xl, justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: Radii.full, backgroundColor: Colors.border },
-  active: { backgroundColor: Colors.primary, width: 24, borderRadius: Radii.full },
-  done: { backgroundColor: Colors.primaryMuted },
-  label: { fontSize: FontSize.xs, color: Colors.textMuted, marginLeft: Spacing.sm },
+const pb = StyleSheet.create({
+  wrapper: { marginBottom: Spacing.xl },
+  track: { height: 4, backgroundColor: Colors.border, borderRadius: Radii.full, marginBottom: Spacing.sm },
+  fill: { height: 4, backgroundColor: Colors.primary, borderRadius: Radii.full },
+  label: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center' },
+});
+
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return <View style={[sc.card, Shadow.card]}>{children}</View>;
+}
+const sc = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+});
+
+function SectionTitle({ children }: { children: string }) {
+  return <Text style={st.text}>{children}</Text>;
+}
+const st = StyleSheet.create({
+  text: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: Spacing.md,
+  },
 });
 
 function YearPicker({ value, onChange }: { value: number | null; onChange: (y: number) => void }) {
   const listRef = useRef<FlatList>(null);
-  const initialIndex = value ? YEARS.indexOf(value) : 0;
+
+  function handleSelect(year: number, index: number) {
+    onChange(year);
+    setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    }, 50);
+  }
 
   return (
-    <View style={picker.wrapper}>
+    <View>
+      <View style={yp.displayRow}>
+        <Text style={yp.displayValue}>{value ?? '—'}</Text>
+        <Text style={yp.displayUnit}>ano</Text>
+      </View>
       <FlatList
         ref={listRef}
         data={YEARS}
         horizontal
         showsHorizontalScrollIndicator={false}
-        initialScrollIndex={Math.max(0, initialIndex)}
-        getItemLayout={(_, index) => ({ length: 72, offset: 72 * index, index })}
+        snapToInterval={ITEM_W + ITEM_GAP}
+        decelerationRate="fast"
+        initialScrollIndex={value ? Math.max(0, YEARS.indexOf(value)) : 0}
+        getItemLayout={(_, i) => ({ length: ITEM_W + ITEM_GAP, offset: (ITEM_W + ITEM_GAP) * i, index: i })}
         keyExtractor={(y) => String(y)}
-        renderItem={({ item: year }) => (
+        renderItem={({ item: year, index }) => (
           <TouchableOpacity
-            style={[picker.item, value === year && picker.itemActive]}
-            onPress={() => onChange(year)}
+            style={[yp.item, value === year && yp.itemActive]}
+            onPress={() => handleSelect(year, index)}
             accessibilityRole="button"
             accessibilityLabel={`Ano ${year}`}
             accessibilityState={{ selected: value === year }}
           >
-            <Text style={[picker.itemText, value === year && picker.itemTextActive]}>
-              {year}
-            </Text>
+            <Text style={[yp.itemText, value === year && yp.itemTextActive]}>{year}</Text>
           </TouchableOpacity>
         )}
         contentContainerStyle={{ paddingHorizontal: Spacing.xs }}
       />
-      {value ? <Text style={picker.selected}>Selecionado: {value}</Text> : null}
     </View>
   );
 }
-const picker = StyleSheet.create({
-  wrapper: { marginBottom: Spacing.sm },
+const yp = StyleSheet.create({
+  displayRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
+  displayValue: { fontSize: FontSize['4xl'], fontWeight: FontWeight.extrabold, color: Colors.primary },
+  displayUnit: { fontSize: FontSize.md, color: Colors.textMuted },
   item: {
-    width: 68,
-    height: 48,
+    width: ITEM_W,
+    height: 44,
     borderRadius: Radii.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 3,
+    marginRight: ITEM_GAP,
     backgroundColor: Colors.bg,
   },
-  itemActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
-  itemText: { fontSize: FontSize.md, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  itemTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
-  selected: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.xs, textAlign: 'center' },
+  itemActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  itemText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
+  itemTextActive: { color: Colors.surface, fontWeight: FontWeight.bold },
+});
+
+function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
+  const num = Number(value);
+  return (
+    <View>
+      <View style={wp.displayRow}>
+        <Text style={wp.displayValue}>{value || '—'}</Text>
+        <Text style={wp.displayUnit}>kg</Text>
+      </View>
+      <View style={wp.grid}>
+        {WEIGHTS.map((w) => (
+          <TouchableOpacity
+            key={w}
+            style={[wp.btn, value === w && wp.btnActive]}
+            onPress={() => onChange(w)}
+            accessibilityRole="radio"
+            accessibilityLabel={`${w} kg`}
+            accessibilityState={{ selected: value === w }}
+          >
+            <Text style={[wp.btnText, value === w && wp.btnTextActive]}>{w}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {value && (num < 30 || num > 200) && (
+        <Text style={wp.hint}>Digite entre 30 e 200 kg</Text>
+      )}
+    </View>
+  );
+}
+const wp = StyleSheet.create({
+  displayRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
+  displayValue: { fontSize: FontSize['4xl'], fontWeight: FontWeight.extrabold, color: Colors.primary },
+  displayUnit: { fontSize: FontSize.md, color: Colors.textMuted },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  btn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bg,
+    minWidth: 52,
+    alignItems: 'center',
+  },
+  btnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  btnText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
+  btnTextActive: { color: Colors.surface, fontWeight: FontWeight.bold },
+  hint: { fontSize: FontSize.xs, color: Colors.danger, marginTop: Spacing.sm },
 });
 
 function ChipGroup<T extends string>({
@@ -106,41 +194,49 @@ function ChipGroup<T extends string>({
 }) {
   return (
     <View style={chip.row}>
-      {options.map((opt) => (
-        <TouchableOpacity
-          key={opt}
-          style={[chip.base, value === opt && chip.active]}
-          onPress={() => onChange(opt)}
-          accessibilityRole="radio"
-          accessibilityLabel={labelMap?.[opt] ?? opt}
-          accessibilityState={{ selected: value === opt }}
-        >
-          <Text style={[chip.text, value === opt && chip.textActive]}>
-            {labelMap?.[opt] ?? opt}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {options.map((opt) => {
+        const label = labelMap?.[opt] ?? opt;
+        const isActive = value === opt;
+        return (
+          <TouchableOpacity
+            key={opt}
+            style={[chip.base, isActive && chip.active]}
+            onPress={() => onChange(opt)}
+            accessibilityRole="radio"
+            accessibilityLabel={label}
+            accessibilityState={{ selected: isActive }}
+          >
+            {isActive && <View style={chip.dot} />}
+            <Text style={[chip.text, isActive && chip.textActive]}>{label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 const chip = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   base: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,
-    borderRadius: Radii.md,
-    borderWidth: 1,
+    borderRadius: Radii.full,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.bg,
   },
-  active: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
+  active: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dot: { width: 6, height: 6, borderRadius: Radii.full, backgroundColor: Colors.surface },
   text: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  textActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  textActive: { color: Colors.surface, fontWeight: FontWeight.bold },
 });
 
 export default function ProfileScreen() {
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
+
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [weightKg, setWeightKg] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
@@ -150,11 +246,16 @@ export default function ProfileScreen() {
 
   const isValid = birthYear !== null && weightKg.length > 0 && sex !== null && frequency !== null;
 
+  function handleYearChange(y: number) { setError(null); setBirthYear(y); }
+  function handleWeightChange(w: string) { setError(null); setWeightKg(w); }
+  function handleSexChange(s: Sex) { setError(null); setSex(s); }
+  function handleFreqChange(f: Frequency) { setError(null); setFrequency(f); }
+
   async function next() {
     if (!isValid || !session?.athlete_id) return;
-    const weight = Number(weightKg.replace(',', '.'));
+    const weight = Number(weightKg.replace(',', '.').replace('+', ''));
     if (isNaN(weight) || weight < 30 || weight > 200) {
-      setError('Peso inválido. Digite entre 30 e 200 kg.');
+      setError('Peso inválido. Selecione entre 30 e 200 kg.');
       return;
     }
     setError(null);
@@ -184,46 +285,40 @@ export default function ProfileScreen() {
         <Text style={styles.title}>Seu perfil</Text>
         <Text style={styles.subtitle}>Para calibrar os treinos corretamente</Text>
 
-        {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
-
-        <Text style={styles.label}>Ano de nascimento</Text>
-        <YearPicker value={birthYear} onChange={setBirthYear} />
-
-        <Text style={styles.label}>Peso (kg)</Text>
-        <View style={styles.inputWrapper}>
-          <View style={styles.input}>
-            <Text style={styles.inputText}>{weightKg || ''}</Text>
+        {error ? (
+          <View style={{ marginBottom: Spacing.md }}>
+            <ErrorCard message={error} />
           </View>
-          <View style={styles.weightGrid}>
-            {['40', '50', '55', '60', '65', '70', '75', '80', '85', '90', '95', '100'].map((w) => (
-              <TouchableOpacity
-                key={w}
-                style={[styles.weightBtn, weightKg === w && styles.weightBtnActive]}
-                onPress={() => setWeightKg(w)}
-                accessibilityRole="radio"
-                accessibilityLabel={`${w} kg`}
-                accessibilityState={{ selected: weightKg === w }}
-              >
-                <Text style={[styles.weightBtnText, weightKg === w && styles.weightBtnTextActive]}>{w}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        ) : null}
 
-        <Text style={styles.label}>Sexo biológico</Text>
-        <ChipGroup<Sex>
-          options={['M', 'F', 'other']}
-          value={sex}
-          onChange={setSex}
-          labelMap={{ M: 'Masculino', F: 'Feminino', other: 'Outro' }}
-        />
+        <SectionCard>
+          <SectionTitle>Ano de nascimento</SectionTitle>
+          <YearPicker value={birthYear} onChange={handleYearChange} />
+        </SectionCard>
 
-        <Text style={styles.label}>Frequência semanal de treinos</Text>
-        <ChipGroup<Frequency>
-          options={['2x', '3x', '4x', '5x+']}
-          value={frequency}
-          onChange={setFrequency}
-        />
+        <SectionCard>
+          <SectionTitle>Peso</SectionTitle>
+          <WeightPicker value={weightKg} onChange={handleWeightChange} />
+        </SectionCard>
+
+        <SectionCard>
+          <SectionTitle>Sexo biológico</SectionTitle>
+          <ChipGroup<Sex>
+            options={['M', 'F', 'other']}
+            value={sex}
+            onChange={handleSexChange}
+            labelMap={{ M: 'Masculino', F: 'Feminino', other: 'Outro' }}
+          />
+        </SectionCard>
+
+        <SectionCard>
+          <SectionTitle>Frequência semanal de treinos</SectionTitle>
+          <ChipGroup<Frequency>
+            options={['2x', '3x', '4x', '5x+']}
+            value={frequency}
+            onChange={handleFreqChange}
+          />
+        </SectionCard>
 
         <Button
           label="Continuar"
@@ -231,6 +326,7 @@ export default function ProfileScreen() {
           loading={loading}
           disabled={!isValid}
           style={styles.btn}
+          accessibilityLabel="Continuar para próximo passo"
         />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -238,36 +334,14 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface },
+  container: { flex: 1, backgroundColor: Colors.bg },
   content: { padding: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginBottom: Spacing.lg },
-  label: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.md },
-  inputWrapper: { marginBottom: Spacing.sm },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.bg,
-    marginBottom: Spacing.sm,
-    minHeight: 50,
-    justifyContent: 'center',
+  title: {
+    fontSize: FontSize['3xl'],
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
-  inputText: { fontSize: FontSize.md, color: Colors.textPrimary },
-  weightGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  weightBtn: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bg,
-    minWidth: 52,
-    alignItems: 'center',
-  },
-  weightBtnActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
-  weightBtnText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  weightBtnTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
-  btn: { marginTop: Spacing.xl },
+  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 22 },
+  btn: { marginTop: Spacing.md },
 });
