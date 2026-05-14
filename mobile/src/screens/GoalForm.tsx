@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generatePlan, pollJobResult } from '../lib/api';
 import type { TrainingPlan } from '../lib/api';
 
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export default function GoalForm({ onPlanGenerated, onBack }: Props) {
+  const insets = useSafeAreaInsets();
   const [distance, setDistance] = useState<number | null>(null);
   const [daysPerWeek, setDaysPerWeek] = useState<number>(4);
   const [weeksToGoal, setWeeksToGoal] = useState<number>(8);
@@ -68,7 +70,7 @@ export default function GoalForm({ onPlanGenerated, onBack }: Props) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <TouchableOpacity onPress={onBack} style={styles.back}>
         <Text style={styles.backText}>← Voltar</Text>
       </TouchableOpacity>
