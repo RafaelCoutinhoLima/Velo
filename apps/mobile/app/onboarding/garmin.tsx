@@ -1,66 +1,84 @@
 // US-002 — Conectar Garmin via sidecar + US-005 importar 90 dias
 import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Platform, KeyboardAvoidingView, ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuthStore } from '../../lib/store';
+import { useApi } from '../../lib/api';
+import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { ErrorCard } from '../../components/ErrorCard';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
+function ProgressBar({ step, total }: { step: number; total: number }) {
+  return (
+    <View style={progress.wrapper}>
+      {Array.from({ length: total }, (_, i) => (
+        <View key={i} style={[progress.dot, i < step && progress.done, i === step && progress.active]} />
+      ))}
+      <Text style={progress.label}>Passo {step + 1} de {total}</Text>
+    </View>
+  );
+}
+const progress = StyleSheet.create({
+  wrapper: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.xl, justifyContent: 'center' },
+  dot: { width: 8, height: 8, borderRadius: Radii.full, backgroundColor: Colors.border },
+  active: { backgroundColor: Colors.primary, width: 24, borderRadius: Radii.full },
+  done: { backgroundColor: Colors.primaryMuted },
+  label: { fontSize: FontSize.xs, color: Colors.textMuted, marginLeft: Spacing.sm },
+});
 
 type Step = 'form' | 'connecting' | 'importing' | 'done';
 
 export default function GarminScreen() {
   const session = useAuthStore((s) => s.session);
   const setOnboardingComplete = useAuthStore((s) => s.setOnboardingComplete);
+  const { post } = useApi();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [step, setStep] = useState<Step>('form');
+  const [error, setError] = useState<string | null>(null);
 
   async function connect() {
-    if (!email || !password || !session?.athlete_id) return;
+    if (!email.trim() || !password || !session?.athlete_id) return;
+    setError(null);
     setStep('connecting');
 
     try {
-      const connectRes = await fetch(`${API_URL}/garmin/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          athlete_id: session.athlete_id,
-          email,
-          password,
-          mfa_code: mfaCode || undefined,
-        }),
+      await post('/garmin/connect', {
+        athlete_id: session.athlete_id,
+        email: email.trim(),
+        password,
+        mfa_code: mfaCode.trim() || undefined,
       });
 
-      if (!connectRes.ok) {
-        const err = (await connectRes.json().catch(() => ({}))).error ?? 'Erro ao conectar Garmin';
-        throw new Error(err);
-      }
+      // Limpa credenciais da memória imediatamente após envio bem-sucedido
+      setPassword('');
+      setMfaCode('');
 
       setStep('importing');
-      const syncRes = await fetch(`${API_URL}/garmin/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: session.athlete_id }),
-      });
-
-      if (!syncRes.ok) throw new Error('Não conseguimos importar seus treinos');
-
+      await post<{ synced: number }>('/garmin/sync', { athlete_id: session.athlete_id });
       setStep('done');
     } catch (e: unknown) {
       setStep('form');
-      const msg = e instanceof Error ? e.message : 'Erro desconhecido';
-      Alert.alert('Erro', msg);
+      setError(e instanceof Error ? e.message : 'Erro ao conectar Garmin');
     }
   }
 
   async function finish() {
     setOnboardingComplete();
     if (session?.athlete_id) {
-      // Dispara geração do primeiro plano assincronamente
       fetch(`${API_URL}/plan/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,102 +91,87 @@ export default function GarminScreen() {
   }
 
   if (step === 'connecting') {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.statusText}>Conectando ao Garmin...</Text>
-        <Text style={styles.statusSub}>Isso pode levar alguns segundos</Text>
-      </View>
-    );
+    return <LoadingScreen message="Conectando ao Garmin..." subMessage="Isso pode levar alguns segundos" />;
   }
 
   if (step === 'importing') {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.statusText}>Importando seus treinos</Text>
-        <Text style={styles.statusSub}>Buscando os últimos 90 dias do Garmin Connect</Text>
-      </View>
-    );
+    return <LoadingScreen message="Importando seus treinos" subMessage="Buscando os últimos 90 dias do Garmin Connect" />;
   }
 
   if (step === 'done') {
     return (
       <View style={styles.centered}>
         <Text style={styles.doneIcon}>✅</Text>
-        <Text style={styles.statusText}>Garmin conectado!</Text>
-        <Text style={styles.statusSub}>
+        <Text style={styles.doneTitle}>Garmin conectado!</Text>
+        <Text style={styles.doneSub}>
           Seus treinos foram importados e seu primeiro plano está sendo gerado.
         </Text>
-        <TouchableOpacity style={styles.btn} onPress={finish}>
-          <Text style={styles.btnText}>Ver meu plano</Text>
-        </TouchableOpacity>
+        <Button label="Ver meu plano" onPress={finish} style={styles.doneBtn} />
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.progress}>
-          <View style={[styles.dot, styles.dotDone]} />
-          <View style={[styles.dot, styles.dotDone]} />
-          <View style={[styles.dot, styles.dotDone]} />
-          <View style={[styles.dot, styles.dotActive]} />
-        </View>
+        <ProgressBar step={3} total={4} />
 
         <Text style={styles.title}>Conectar Garmin</Text>
         <Text style={styles.subtitle}>
           Usamos seu Garmin Connect para importar treinos passados e enviar treinos para o relógio.
         </Text>
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoText}>
-            🔒 Suas credenciais são criptografadas e nunca ficam armazenadas em texto plano.
+        {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
+
+        <View style={[styles.trustCard, Shadow.card]}>
+          <Text style={styles.trustTitle}>🔒 Conexão segura</Text>
+          <Text style={styles.trustText}>
+            Suas credenciais são criptografadas (AES-256) antes de chegar aos nossos servidores.
+            Nunca armazenamos sua senha — apenas o token de sessão temporário gerado pelo Garmin.
           </Text>
         </View>
 
-        <Text style={styles.label}>E-mail do Garmin Connect</Text>
-        <TextInput
-          style={styles.input}
+        <Input
+          label="E-mail do Garmin Connect"
           placeholder="seu@email.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           value={email}
           onChangeText={setEmail}
         />
 
-        <Text style={styles.label}>Senha</Text>
-        <TextInput
-          style={styles.input}
+        <Input
+          label="Senha"
           placeholder="••••••••"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
 
-        <Text style={styles.label}>Código MFA (se habilitado)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="123456 (opcional)"
+        <Input
+          label="Código MFA (opcional)"
+          placeholder="123456"
           keyboardType="number-pad"
           maxLength={6}
           value={mfaCode}
           onChangeText={setMfaCode}
         />
 
-        <TouchableOpacity
-          style={[styles.btn, (!email || !password) && styles.btnDisabled]}
+        <Button
+          label="Conectar e importar treinos"
           onPress={connect}
-          disabled={!email || !password}
-        >
-          <Text style={styles.btnText}>Conectar e importar treinos</Text>
-        </TouchableOpacity>
+          disabled={!email.trim() || !password}
+          style={styles.btn}
+          accessibilityLabel="Conectar Garmin e importar treinos"
+        />
 
-        <TouchableOpacity onPress={finish} style={styles.skipBtn}>
+        <TouchableOpacity
+          onPress={finish}
+          style={styles.skipBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Pular conexão do Garmin"
+        >
           <Text style={styles.skipText}>Pular por agora</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -177,46 +180,26 @@ export default function GarminScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 24, paddingTop: 56, paddingBottom: 40 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: '#fff' },
-  progress: { flexDirection: 'row', gap: 6, marginBottom: 32, justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#e5e7eb' },
-  dotActive: { backgroundColor: '#2563eb', width: 24 },
-  dotDone: { backgroundColor: '#93c5fd' },
-  title: { fontSize: 28, fontWeight: '700', color: '#111', marginBottom: 4 },
-  subtitle: { fontSize: 15, color: '#6b7280', marginBottom: 20, lineHeight: 22 },
-  infoCard: {
-    backgroundColor: '#eff6ff',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 20,
+  container: { flex: 1, backgroundColor: Colors.surface },
+  content: { padding: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+  title: { fontSize: FontSize['3xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginBottom: Spacing.md, lineHeight: 22 },
+  trustCard: {
+    backgroundColor: Colors.accentLight,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
     borderLeftWidth: 3,
-    borderLeftColor: '#2563eb',
+    borderLeftColor: Colors.accent,
   },
-  infoText: { fontSize: 13, color: '#1d4ed8', lineHeight: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 16 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    color: '#111',
-    backgroundColor: '#f9fafb',
-  },
-  btn: {
-    backgroundColor: '#2563eb',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
-    marginTop: 28,
-  },
-  btnDisabled: { backgroundColor: '#93c5fd' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  skipBtn: { alignItems: 'center', marginTop: 16, padding: 8 },
-  skipText: { color: '#6b7280', fontSize: 14 },
-  statusText: { fontSize: 20, fontWeight: '700', color: '#111', marginTop: 20, textAlign: 'center' },
-  statusSub: { fontSize: 14, color: '#6b7280', marginTop: 8, textAlign: 'center', lineHeight: 20 },
-  doneIcon: { fontSize: 56 },
+  trustTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  trustText: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 20 },
+  btn: { marginTop: Spacing.sm },
+  skipBtn: { alignItems: 'center', marginTop: Spacing.md, padding: Spacing.sm },
+  skipText: { color: Colors.textMuted, fontSize: FontSize.sm },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl, backgroundColor: Colors.surface },
+  doneIcon: { fontSize: 56, marginBottom: Spacing.md },
+  doneTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary, textAlign: 'center' },
+  doneSub: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center', lineHeight: 20, marginBottom: Spacing.xl },
+  doneBtn: { width: '100%' },
 });

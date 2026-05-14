@@ -1,31 +1,40 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
+import {
+  View, Text, TouchableOpacity, StyleSheet, TextInput,
+  ScrollView, KeyboardAvoidingView, Platform,
+} from 'react-native';
 import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '../../lib/supabase';
+import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Button } from '../../components/Button';
+import { ErrorCard } from '../../components/ErrorCard';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function loginWithGoogle() {
+    setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error: authErr } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: 'fitsync://auth/callback' },
       });
-      if (error) throw error;
+      if (authErr) throw authErr;
     } catch {
-      Alert.alert('Erro', 'Não conseguimos fazer login com Google. Tente novamente.');
+      setError('Não conseguimos fazer login com Google. Tente novamente.');
     } finally {
       setLoading(false);
     }
   }
 
   async function loginWithApple() {
+    setError(null);
     setLoading(true);
     try {
       const credential = await AppleAuthentication.signInAsync({
@@ -34,151 +43,200 @@ export default function LoginScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-
-      const { error } = await supabase.auth.signInWithIdToken({
+      const { error: authErr } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken ?? '',
       });
-
-      if (error) throw error;
+      if (authErr) throw authErr;
       router.replace('/');
     } catch {
-      Alert.alert('Erro', 'Não conseguimos fazer login com Apple. Tente novamente.');
+      setError('Não conseguimos fazer login com Apple. Tente novamente.');
     } finally {
       setLoading(false);
     }
   }
 
   async function loginWithEmail() {
-    if (!email || !password) {
-      Alert.alert('Erro', 'Preencha email e senha.');
+    if (!email.trim() || !password) {
+      setError('Preencha e-mail e senha.');
       return;
     }
+    setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (authErr) throw authErr;
       router.replace('/');
-    } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Credenciais inválidas.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Credenciais inválidas.');
     } finally {
       setLoading(false);
     }
   }
 
   async function signUpWithEmail() {
-    if (!email || !password) {
-      Alert.alert('Erro', 'Preencha email e senha.');
+    if (!email.trim() || !password) {
+      setError('Preencha e-mail e senha.');
       return;
     }
+    setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      Alert.alert('Conta criada', 'Verifique seu email para confirmar a conta.');
-    } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Não foi possível criar a conta.');
+      const { error: authErr } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (authErr) throw authErr;
+      setError(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Não foi possível criar a conta.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>FitSync AI</Text>
-      <Text style={styles.subtitle}>Seu plano de corrida com IA</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.hero}>
+          <Text style={styles.logo}>⚡</Text>
+          <Text style={styles.title}>FitSync AI</Text>
+          <Text style={styles.subtitle}>Seu plano de corrida com IA adaptativa</Text>
+        </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#2563eb" style={styles.loader} />
-      ) : (
-        <>
-          <TouchableOpacity style={styles.googleBtn} onPress={loginWithGoogle}>
-            <Text style={styles.googleText}>Continuar com Google</Text>
-          </TouchableOpacity>
+        {error ? (
+          <View style={styles.errorWrap}>
+            <ErrorCard message={error} />
+          </View>
+        ) : null}
 
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={8}
-            style={styles.appleBtn}
-            onPress={loginWithApple}
-          />
+        {/* Google primeiro — maior taxa de uso */}
+        <Button
+          label="Continuar com Google"
+          onPress={loginWithGoogle}
+          variant="secondary"
+          loading={loading}
+          style={styles.socialBtn}
+          accessibilityLabel="Entrar com Google"
+        />
 
-          <TouchableOpacity onPress={() => setShowEmailForm(!showEmailForm)} style={styles.emailToggle}>
-            <Text style={styles.emailToggleText}>
-              {showEmailForm ? 'Ocultar login por email' : 'Entrar com email'}
-            </Text>
-          </TouchableOpacity>
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={Radii.md}
+          style={styles.appleBtn}
+          onPress={loginWithApple}
+        />
 
-          {showEmailForm && (
-            <View style={styles.emailForm}>
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Senha"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-              <TouchableOpacity style={styles.emailBtn} onPress={loginWithEmail}>
-                <Text style={styles.emailBtnText}>Entrar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.signUpBtn} onPress={signUpWithEmail}>
-                <Text style={styles.signUpText}>Criar conta</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </>
-      )}
+        <TouchableOpacity
+          onPress={() => { setShowEmailForm(!showEmailForm); setError(null); }}
+          style={styles.emailToggle}
+          accessibilityRole="button"
+          accessibilityLabel="Entrar com e-mail"
+        >
+          <Text style={styles.emailToggleText}>
+            {showEmailForm ? 'Ocultar formulário' : 'Entrar com e-mail'}
+          </Text>
+        </TouchableOpacity>
 
-      <Text style={styles.disclaimer}>
-        FitSync não substitui acompanhamento médico ou profissional.
-      </Text>
-    </View>
+        {showEmailForm && (
+          <View style={[styles.emailForm, Shadow.card]}>
+            <TextInput
+              style={styles.input}
+              placeholder="E-mail"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoCorrect={false}
+              placeholderTextColor={Colors.textMuted}
+              accessibilityLabel="Campo e-mail"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Senha"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={Colors.textMuted}
+              accessibilityLabel="Campo senha"
+            />
+            <Button
+              label="Entrar"
+              onPress={loginWithEmail}
+              loading={loading}
+              style={{ marginBottom: Spacing.sm }}
+            />
+            <Button
+              label="Criar conta"
+              onPress={signUpWithEmail}
+              variant="ghost"
+              loading={loading}
+            />
+          </View>
+        )}
+
+        <Text style={styles.disclaimer}>
+          FitSync não substitui acompanhamento médico ou profissional.
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 36, fontWeight: 'bold', textAlign: 'center', color: '#111' },
-  subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 48, marginTop: 8 },
-  loader: { marginTop: 24 },
-  googleBtn: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 16,
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { padding: Spacing.lg, paddingTop: Spacing.xxl + Spacing.xl, paddingBottom: Spacing.xl, flexGrow: 1 },
+  hero: { alignItems: 'center', marginBottom: Spacing.xl },
+  logo: { fontSize: 56, marginBottom: Spacing.sm },
+  title: { fontSize: FontSize['4xl'], fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.5 },
+  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center' },
+  errorWrap: { marginBottom: Spacing.md },
+  socialBtn: { marginBottom: Spacing.sm },
+  appleBtn: { width: '100%', height: 52, marginBottom: Spacing.sm },
+  emailToggle: {
     alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  googleText: { fontSize: 16, fontWeight: '600', color: '#111' },
-  appleBtn: { width: '100%', height: 52, marginBottom: 12 },
-  emailToggle: { alignItems: 'center', marginBottom: 12 },
-  emailToggleText: { color: '#2563eb', fontSize: 14 },
-  emailForm: { gap: 10, marginBottom: 12 },
+  emailToggleText: {
+    color: Colors.primary,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+  },
+  emailForm: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
+    borderColor: Colors.border,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    fontSize: FontSize.md,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.bg,
+    minHeight: 50,
   },
-  emailBtn: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
+  disclaimer: {
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 'auto',
+    paddingTop: Spacing.lg,
+    lineHeight: 16,
   },
-  emailBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  signUpBtn: { alignItems: 'center', padding: 8 },
-  signUpText: { color: '#666', fontSize: 14 },
-  disclaimer: { fontSize: 12, color: '#999', textAlign: 'center', marginTop: 'auto' },
 });

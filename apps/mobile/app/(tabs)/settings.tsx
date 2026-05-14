@@ -1,35 +1,40 @@
 import { useState } from 'react';
 import {
-  View,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
-  Switch,
-  StyleSheet,
-  Alert,
-  Modal,
-  TextInput,
-  ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../lib/store';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { useApi } from '../../lib/api';
+import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { ErrorCard } from '../../components/ErrorCard';
 
 export default function SettingsScreen() {
   const clearSession = useAuthStore((s) => s.clearSession);
   const profile = useAuthStore((s) => s.profile);
   const setProfile = useAuthStore((s) => s.setProfile);
   const setGarminConnected = useAuthStore((s) => s.setGarminConnected);
+  const setLastGarminSync = useAuthStore((s) => s.setLastGarminSync);
   const session = useAuthStore((s) => s.session);
+  const { post } = useApi();
   const qc = useQueryClient();
 
   const advancedMode = profile?.advancedMode ?? false;
   const garminConnected = profile?.garminConnected ?? false;
+  const lastSync = profile?.lastGarminSync;
 
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState('');
@@ -37,6 +42,8 @@ export default function SettingsScreen() {
   const [garminMfa, setGarminMfa] = useState('');
   const [connectStep, setConnectStep] = useState<'idle' | 'connecting' | 'syncing'>('idle');
   const [syncCount, setSyncCount] = useState<number | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   function toggleAdvancedMode(value: boolean) {
     if (!profile) return;
@@ -46,59 +53,41 @@ export default function SettingsScreen() {
   async function handleGarminConnect() {
     if (!session) return;
     if (!garminEmail.trim() || !garminPassword.trim()) {
-      Alert.alert('Campos obrigatórios', 'Preencha e-mail e senha do Garmin.');
+      setConnectError('Preencha e-mail e senha do Garmin.');
       return;
     }
-
+    setConnectError(null);
     setConnectStep('connecting');
+
     try {
-      const connectRes = await fetch(`${API_URL}/garmin/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          athlete_id: session.athlete_id,
-          email: garminEmail.trim(),
-          password: garminPassword,
-          ...(garminMfa.trim() ? { mfa_code: garminMfa.trim() } : {}),
-        }),
+      await post('/garmin/connect', {
+        athlete_id: session.athlete_id,
+        email: garminEmail.trim(),
+        password: garminPassword,
+        ...(garminMfa.trim() ? { mfa_code: garminMfa.trim() } : {}),
       });
 
-      if (!connectRes.ok) {
-        const text = await connectRes.text().catch(() => '');
-        let body: { error?: string } = {};
-        try { body = JSON.parse(text); } catch { /* non-JSON */ }
-        throw new Error(body.error ?? `Falha ao conectar com o Garmin (HTTP ${connectRes.status})`);
-      }
+      // Limpa credenciais da memória imediatamente
+      setGarminPassword('');
+      setGarminMfa('');
 
       setConnectStep('syncing');
 
-      const syncRes = await fetch(`${API_URL}/garmin/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: session.athlete_id, days: 90 }),
+      const syncBody = await post<{ synced: number }>('/garmin/sync', {
+        athlete_id: session.athlete_id,
+        days: 90,
       });
 
-      const syncBody = (await syncRes.json().catch(() => ({}))) as { synced?: number; error?: string };
-
-      if (!syncRes.ok) {
-        throw new Error(syncBody.error ?? 'Falha ao sincronizar treinos');
-      }
-
       setGarminConnected(true);
-      setSyncCount(syncBody.synced ?? 0);
+      setLastGarminSync(new Date().toISOString());
+      setSyncCount(syncBody.synced);
       qc.invalidateQueries({ queryKey: ['plan'] });
+      qc.invalidateQueries({ queryKey: ['workouts'] });
       setShowGarminModal(false);
       setConnectStep('idle');
-
-      Alert.alert(
-        'Garmin conectado!',
-        syncBody.synced && syncBody.synced > 0
-          ? `${syncBody.synced} treino${syncBody.synced > 1 ? 's' : ''} importado${syncBody.synced > 1 ? 's' : ''}. Seu plano agora será personalizado com base no seu histórico.`
-          : 'Conta conectada. Nenhum treino de corrida encontrado nos últimos 90 dias.',
-      );
-    } catch (err) {
+    } catch (err: unknown) {
       setConnectStep('idle');
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Não conseguimos conectar ao Garmin.');
+      setConnectError(err instanceof Error ? err.message : 'Não conseguimos conectar ao Garmin.');
     }
   }
 
@@ -106,19 +95,15 @@ export default function SettingsScreen() {
     if (!session) return;
     setConnectStep('syncing');
     try {
-      const res = await fetch(`${API_URL}/garmin/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: session.athlete_id, days: 30 }),
+      const body = await post<{ synced: number }>('/garmin/sync', {
+        athlete_id: session.athlete_id,
+        days: 30,
       });
-      const body = (await res.json().catch(() => ({}))) as { synced?: number; error?: string };
-      if (!res.ok) throw new Error(body.error ?? 'Falha ao sincronizar');
-      setSyncCount(body.synced ?? 0);
+      setSyncCount(body.synced);
+      setLastGarminSync(new Date().toISOString());
       qc.invalidateQueries({ queryKey: ['plan'] });
-      Alert.alert('Sincronização concluída', `${body.synced ?? 0} treino(s) atualizado(s).`);
-    } catch (err) {
-      Alert.alert('Erro', err instanceof Error ? err.message : 'Falha ao sincronizar.');
-    } finally {
+      qc.invalidateQueries({ queryKey: ['workouts'] });
+    } catch { /* erro silencioso — usuário vê count não atualizado */ } finally {
       setConnectStep('idle');
     }
   }
@@ -129,88 +114,100 @@ export default function SettingsScreen() {
     router.replace('/(auth)/login');
   }
 
-  function confirmLogout() {
-    Alert.alert('Sair', 'Deseja sair da sua conta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: logout },
-    ]);
-  }
-
   const isBusy = connectStep !== 'idle';
+
+  function formatSync(iso: string) {
+    return new Date(iso).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
 
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Configurações</Text>
 
-        <Text style={styles.sectionLabel}>Garmin</Text>
+        {/* ── GARMIN ── */}
+        <Text style={styles.sectionLabel}>Garmin Connect</Text>
 
         {garminConnected ? (
-          <>
-            <View style={[styles.item, styles.itemRow]}>
-              <View style={styles.itemContent}>
-                <Text style={styles.itemText}>Garmin Connect</Text>
-                <Text style={styles.itemSubtextGreen}>Conta conectada</Text>
+          <View style={[styles.card, Shadow.card]}>
+            <View style={styles.connectedRow}>
+              <View style={styles.statusDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.connectedTitle}>Conta conectada</Text>
+                {lastSync ? (
+                  <Text style={styles.syncTimestamp}>Última sync: {formatSync(lastSync)}</Text>
+                ) : null}
               </View>
-              <View style={styles.connectedBadge}>
-                <Text style={styles.connectedBadgeText}>✓</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.item, isBusy && styles.itemDisabled]}
-              onPress={handleGarminSync}
-              disabled={isBusy}
-            >
-              {connectStep === 'syncing' ? (
-                <ActivityIndicator color="#2563eb" />
-              ) : (
-                <Text style={styles.itemTextBlue}>Sincronizar agora (últimos 30 dias)</Text>
+              {syncCount !== null && (
+                <View style={styles.syncBadge}>
+                  <Text style={styles.syncBadgeText}>{syncCount} treinos</Text>
+                </View>
               )}
-            </TouchableOpacity>
-            {syncCount !== null ? (
-              <Text style={styles.syncHint}>{syncCount} treino(s) na última sincronização</Text>
-            ) : null}
-          </>
+            </View>
+            <Button
+              label={connectStep === 'syncing' ? 'Sincronizando...' : 'Sincronizar agora (30 dias)'}
+              onPress={handleGarminSync}
+              variant="secondary"
+              loading={connectStep === 'syncing'}
+              disabled={isBusy}
+              style={{ marginTop: Spacing.md }}
+              accessibilityLabel="Sincronizar treinos do Garmin dos últimos 30 dias"
+            />
+          </View>
         ) : (
           <TouchableOpacity
-            style={styles.item}
-            onPress={() => {
-              setConnectStep('idle');
-              setShowGarminModal(true);
-            }}
+            style={[styles.card, styles.cardRow, Shadow.card]}
+            onPress={() => { setConnectStep('idle'); setConnectError(null); setShowGarminModal(true); }}
+            accessibilityRole="button"
+            accessibilityLabel="Conectar conta Garmin"
           >
-            <View style={styles.itemContent}>
-              <Text style={styles.itemText}>Conectar Garmin</Text>
-              <Text style={styles.itemSubtext}>
-                Importe seu histórico e personalize seu plano
-              </Text>
+            <View style={styles.disconnectedDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.connectTitle}>Conectar Garmin</Text>
+              <Text style={styles.connectDesc}>Importe seu histórico e personalize seu plano</Text>
             </View>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         )}
 
-        <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Preferências</Text>
+        {/* ── PREFERÊNCIAS ── */}
+        <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>Preferências</Text>
 
-        <View style={styles.item}>
-          <View style={styles.itemContent}>
-            <Text style={styles.itemText}>Modo Avançado</Text>
-            <Text style={styles.itemSubtext}>Exibe métricas técnicas (ACWR, CTL, TSB)</Text>
+        <View style={[styles.card, styles.cardRow, Shadow.card]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.settingTitle}>Modo Avançado</Text>
+            <Text style={styles.settingDesc}>Exibe métricas técnicas (ACWR, CTL, TSB)</Text>
           </View>
           <Switch
             value={advancedMode}
             onValueChange={toggleAdvancedMode}
-            trackColor={{ false: '#d1d5db', true: '#2563eb' }}
-            thumbColor="#fff"
+            trackColor={{ false: Colors.border, true: Colors.primary }}
+            thumbColor={Colors.surface}
+            accessibilityRole="switch"
+            accessibilityLabel="Modo avançado de métricas"
+            accessibilityState={{ checked: advancedMode }}
           />
         </View>
 
-        <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Conta</Text>
+        {/* ── CONTA ── */}
+        <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>Conta</Text>
 
-        <TouchableOpacity style={styles.item} onPress={confirmLogout}>
-          <Text style={styles.itemTextDanger}>Sair da conta</Text>
+        <TouchableOpacity
+          style={[styles.card, Shadow.card]}
+          onPress={() => setShowLogoutModal(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Sair da conta"
+        >
+          <Text style={styles.dangerText}>Sair da conta</Text>
         </TouchableOpacity>
       </ScrollView>
 
+      {/* ── MODAL GARMIN ── */}
       <Modal
         visible={showGarminModal}
         animationType="slide"
@@ -222,158 +219,128 @@ export default function SettingsScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Conectar Garmin</Text>
-            <Text style={styles.modalSubtitle}>
-              Use o e-mail e senha da sua conta Garmin Connect.
-            </Text>
-
             {connectStep === 'idle' ? (
               <>
-                <TextInput
-                  style={styles.input}
-                  placeholder="E-mail Garmin"
-                  placeholderTextColor="#9ca3af"
+                <Text style={styles.modalTitle}>Conectar Garmin</Text>
+                <Text style={styles.modalSub}>
+                  Use o e-mail e senha da sua conta Garmin Connect.
+                </Text>
+
+                {connectError ? (
+                  <View style={{ marginBottom: Spacing.md }}>
+                    <ErrorCard message={connectError} />
+                  </View>
+                ) : null}
+
+                <Input
+                  label="E-mail Garmin"
+                  placeholder="seu@email.com"
                   value={garminEmail}
                   onChangeText={setGarminEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoCorrect={false}
                 />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Senha"
-                  placeholderTextColor="#9ca3af"
+                <Input
+                  label="Senha"
+                  placeholder="••••••••"
                   value={garminPassword}
                   onChangeText={setGarminPassword}
                   secureTextEntry
                 />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Código MFA (opcional)"
-                  placeholderTextColor="#9ca3af"
+                <Input
+                  label="Código MFA (opcional)"
+                  placeholder="123456"
                   value={garminMfa}
                   onChangeText={setGarminMfa}
                   keyboardType="number-pad"
                 />
 
                 <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.btnCancel}
+                  <Button
+                    label="Cancelar"
+                    variant="secondary"
                     onPress={() => setShowGarminModal(false)}
-                  >
-                    <Text style={styles.btnCancelText}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.btnConfirm} onPress={handleGarminConnect}>
-                    <Text style={styles.btnConfirmText}>Conectar</Text>
-                  </TouchableOpacity>
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label="Conectar"
+                    onPress={handleGarminConnect}
+                    style={{ flex: 1 }}
+                  />
                 </View>
               </>
             ) : (
-              <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color="#2563eb" />
-                <Text style={styles.loadingText}>
-                  {connectStep === 'connecting'
-                    ? 'Autenticando no Garmin...'
-                    : 'Importando seus treinos...'}
-                </Text>
-                <Text style={styles.loadingSubtext}>
-                  {connectStep === 'syncing' ? 'Isso pode levar alguns segundos.' : ''}
-                </Text>
-              </View>
+              <LoadingScreen
+                message={connectStep === 'connecting' ? 'Autenticando no Garmin...' : 'Importando seus treinos...'}
+                subMessage={connectStep === 'syncing' ? 'Isso pode levar alguns segundos.' : undefined}
+              />
             )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Sair da conta"
+        message="Tem certeza que deseja sair? Seus dados permanecem salvos."
+        confirmLabel="Sair"
+        cancelLabel="Cancelar"
+        confirmVariant="danger"
+        onConfirm={logout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  content: { padding: 24, paddingBottom: 48 },
-  title: { fontSize: 24, fontWeight: '700', color: '#111', marginBottom: 24, marginTop: 48 },
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { padding: Spacing.md, paddingTop: Spacing.xxl + Spacing.md, paddingBottom: Spacing.xxl },
+  title: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.lg },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
   },
-  item: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    elevation: 1,
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  itemRow: { flexDirection: 'row' },
-  itemDisabled: { opacity: 0.5 },
-  itemContent: { flex: 1 },
-  itemText: { fontSize: 16, color: '#111', fontWeight: '500' },
-  itemSubtext: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  itemSubtextGreen: { fontSize: 12, color: '#16a34a', marginTop: 2 },
-  itemTextBlue: { fontSize: 16, color: '#2563eb', fontWeight: '500' },
-  itemTextDanger: { fontSize: 16, color: '#ef4444' },
-  chevron: { fontSize: 22, color: '#9ca3af', fontWeight: '300' },
-  connectedBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#dcfce7',
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardRow: { flexDirection: 'row', alignItems: 'center' },
+  connectedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  statusDot: { width: 10, height: 10, borderRadius: Radii.full, backgroundColor: Colors.success },
+  disconnectedDot: { width: 10, height: 10, borderRadius: Radii.full, backgroundColor: Colors.textMuted, marginRight: Spacing.sm },
+  connectedTitle: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  syncTimestamp: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  syncBadge: {
+    backgroundColor: Colors.successLight,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
   },
-  connectedBadgeText: { color: '#16a34a', fontSize: 14, fontWeight: '700' },
-  syncHint: { fontSize: 11, color: '#9ca3af', marginBottom: 4, marginLeft: 4 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
+  syncBadgeText: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.bold },
+  connectTitle: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.textPrimary },
+  connectDesc: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  chevron: { fontSize: 22, color: Colors.textMuted },
+  settingTitle: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.textPrimary },
+  settingDesc: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  dangerText: { fontSize: FontSize.md, color: Colors.danger, fontWeight: FontWeight.medium },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
   modalBox: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 40,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radii.xl,
+    borderTopRightRadius: Radii.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl + Spacing.md,
+    minHeight: 300,
   },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 6 },
-  modalSubtitle: { fontSize: 14, color: '#6b7280', marginBottom: 20, lineHeight: 20 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 15,
-    color: '#111',
-    marginBottom: 12,
-    backgroundColor: '#f9fafb',
-  },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  btnCancel: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-  },
-  btnCancelText: { fontSize: 15, color: '#374151', fontWeight: '600' },
-  btnConfirm: {
-    flex: 1,
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
-    padding: 14,
-    alignItems: 'center',
-  },
-  btnConfirmText: { fontSize: 15, color: '#fff', fontWeight: '600' },
-  loadingBox: { alignItems: 'center', paddingVertical: 32 },
-  loadingText: { marginTop: 16, fontSize: 16, color: '#111', fontWeight: '500' },
-  loadingSubtext: { marginTop: 6, fontSize: 13, color: '#6b7280' },
+  modalTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  modalSub: { fontSize: FontSize.sm, color: Colors.textMuted, marginBottom: Spacing.md, lineHeight: 20 },
+  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
 });

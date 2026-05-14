@@ -1,9 +1,12 @@
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../lib/store';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { useApi } from '../lib/api';
+import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../lib/theme';
+import { LoadingScreen } from '../components/LoadingScreen';
+import { ErrorCard } from '../components/ErrorCard';
 
 interface MetricsPoint {
   date: string;
@@ -20,39 +23,60 @@ interface CurrentMetrics {
   acwr: number;
 }
 
-function useMetrics(athleteId: string) {
-  return useQuery({
-    queryKey: ['metrics', athleteId],
-    queryFn: async () => {
-      const res = await fetch(`${API_URL}/plan/metrics?athlete_id=${athleteId}`);
-      if (!res.ok) throw new Error('Falha ao buscar métricas');
-      return res.json() as Promise<{ current: CurrentMetrics | null; history: MetricsPoint[] }>;
-    },
-    enabled: !!athleteId,
-    staleTime: 1000 * 60 * 10,
-  });
+function acwrColor(acwr: number | null): string {
+  if (acwr == null) return Colors.textMuted;
+  if (acwr > 1.3) return Colors.danger;
+  if (acwr > 1.1) return Colors.warning;
+  return Colors.success;
 }
 
-function MetricBox({ label, value, unit, color }: { label: string; value: number | null; unit?: string; color: string }) {
+function MetricBox({
+  label,
+  value,
+  unit,
+  color,
+  description,
+}: {
+  label: string;
+  value: number | null;
+  unit?: string;
+  color: string;
+  description: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <View style={[styles.metricBox, { borderTopColor: color }]}>
+    <TouchableOpacity
+      style={[styles.metricBox, { borderTopColor: color }, Shadow.card]}
+      onPress={() => setExpanded(!expanded)}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value != null ? value.toFixed(1) : 'sem dados'}${unit ? ' ' + unit : ''}. Toque para ${expanded ? 'recolher' : 'ver'} descrição`}
+    >
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={[styles.metricValue, { color }]}>
         {value != null ? value.toFixed(1) : '—'}
-        {unit ? <Text style={styles.metricUnit}> {unit}</Text> : null}
+        {unit && value != null ? <Text style={styles.metricUnit}> {unit}</Text> : null}
       </Text>
-    </View>
+      {expanded && <Text style={styles.metricDesc}>{description}</Text>}
+    </TouchableOpacity>
   );
 }
 
 function LoadChart({ history }: { history: MetricsPoint[] }) {
-  if (!history.length) return <Text style={styles.noData}>Sem dados históricos</Text>;
+  if (!history.length) {
+    return (
+      <View style={[styles.chartBox, Shadow.card]}>
+        <Text style={styles.noData}>Sem dados históricos suficientes</Text>
+      </View>
+    );
+  }
 
-  const maxCTL = Math.max(...history.map((h) => h.ctl ?? 0), 1);
   const lastN = history.slice(-42);
+  const maxCTL = Math.max(...lastN.map((h) => h.ctl ?? 0), 1);
 
   return (
-    <View style={styles.chartContainer}>
+    <View style={[styles.chartBox, Shadow.card]}>
       <Text style={styles.chartTitle}>Carga (CTL) — últimas 6 semanas</Text>
       <View style={styles.bars}>
         {lastN.map((point, i) => {
@@ -60,7 +84,7 @@ function LoadChart({ history }: { history: MetricsPoint[] }) {
           const isWeekEnd = (i + 1) % 7 === 0;
           return (
             <View key={point.date} style={styles.barWrapper}>
-              <View style={[styles.bar, { height, backgroundColor: '#2563eb' }]} />
+              <View style={[styles.bar, { height, backgroundColor: Colors.primary }]} />
               {isWeekEnd ? <View style={styles.weekDivider} /> : null}
             </View>
           );
@@ -74,33 +98,46 @@ function LoadChart({ history }: { history: MetricsPoint[] }) {
   );
 }
 
-function acwrColor(acwr: number | null): string {
-  if (acwr == null) return '#6b7280';
-  if (acwr > 1.3) return '#ef4444';
-  if (acwr > 1.1) return '#f97316';
-  return '#22c55e';
-}
-
 export default function MetricsScreen() {
   const session = useAuthStore((s) => s.session);
-  const { data, isLoading } = useMetrics(session?.athlete_id ?? '');
+  const { get } = useApi();
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['metrics', session?.athlete_id],
+    queryFn: () =>
+      get<{ current: CurrentMetrics | null; history: MetricsPoint[] }>(
+        `/plan/metrics?athlete_id=${session?.athlete_id}`,
+      ),
+    enabled: !!session?.athlete_id,
+    staleTime: 1000 * 60 * 10,
+  });
 
   if (!session) return null;
+  if (isLoading) return <LoadingScreen message="Carregando métricas..." />;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel="Voltar ao plano"
+      >
         <Text style={styles.backText}>← Voltar ao plano</Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>Métricas técnicas</Text>
+      <Text style={styles.subtitle}>Toque em uma métrica para ver a descrição</Text>
 
-      {isLoading ? (
-        <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 40 }} />
+      {isError ? (
+        <ErrorCard message="Não conseguimos carregar suas métricas. Tente novamente." />
       ) : !data?.current ? (
-        <Text style={styles.noData}>
-          Métricas disponíveis após a primeira semana de treinos sincronizados.
-        </Text>
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyIcon}>📊</Text>
+          <Text style={styles.noData}>
+            Métricas disponíveis após sincronizar pelo menos uma semana de treinos.
+          </Text>
+        </View>
       ) : (
         <>
           <View style={styles.metricsGrid}>
@@ -108,26 +145,28 @@ export default function MetricsScreen() {
               label="ACWR"
               value={data.current.acwr}
               color={acwrColor(data.current.acwr)}
+              description="Rácio de carga aguda/crônica. Ideal entre 0,8–1,3. Acima de 1,3 = risco elevado de lesão."
             />
-            <MetricBox label="CTL" value={data.current.ctl} unit="TSS" color="#2563eb" />
+            <MetricBox
+              label="CTL"
+              value={data.current.ctl}
+              unit="TSS"
+              color={Colors.primary}
+              description="Carga crônica (fitness de base). Sobe com treino consistente ao longo de semanas."
+            />
             <MetricBox
               label="TSB"
               value={data.current.tsb}
-              color={data.current.tsb > 0 ? '#22c55e' : '#f97316'}
+              color={data.current.tsb >= 0 ? Colors.success : Colors.warning}
+              description="Balanço de treino (forma). Positivo = mais descansado e fresco; negativo = fadiga acumulada."
             />
-            <MetricBox label="ATL" value={data.current.atl} unit="TSS" color="#8b5cf6" />
-          </View>
-
-          <View style={styles.glossary}>
-            <Text style={styles.glossaryItem}>
-              <Text style={styles.bold}>ACWR</Text> — Rácio de carga aguda/crônica. Ideal entre 0,8–1,3. Acima de 1,3 = risco de lesão.
-            </Text>
-            <Text style={styles.glossaryItem}>
-              <Text style={styles.bold}>CTL</Text> — Carga crônica (forma base). Sobe com consistência.
-            </Text>
-            <Text style={styles.glossaryItem}>
-              <Text style={styles.bold}>TSB</Text> — Balanço de treino (forma). Positivo = mais descansado; negativo = acúmulo de fadiga.
-            </Text>
+            <MetricBox
+              label="ATL"
+              value={data.current.atl}
+              unit="TSS"
+              color={Colors.workoutCross}
+              description="Carga aguda (fadiga recente dos últimos 7 dias). Sobe rapidamente com volume intenso."
+            />
           </View>
 
           <LoadChart history={data.history} />
@@ -138,61 +177,53 @@ export default function MetricsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  content: { padding: 20, paddingBottom: 40 },
-  backBtn: { marginTop: 48, marginBottom: 16 },
-  backText: { fontSize: 14, color: '#2563eb', fontWeight: '600' },
-  title: { fontSize: 24, fontWeight: '700', color: '#111', marginBottom: 24 },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { padding: Spacing.md, paddingBottom: Spacing.xl },
+  backBtn: { marginTop: Spacing.xxl + Spacing.lg, marginBottom: Spacing.md },
+  backText: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
+  title: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  subtitle: { fontSize: FontSize.xs, color: Colors.textMuted, marginBottom: Spacing.md },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md },
   metricBox: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
     borderTopWidth: 3,
     flex: 1,
     minWidth: '45%',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    elevation: 1,
   },
-  metricLabel: { fontSize: 11, fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', marginBottom: 8 },
-  metricValue: { fontSize: 28, fontWeight: '800' },
-  metricUnit: { fontSize: 14, fontWeight: '400', color: '#6b7280' },
-  noData: { fontSize: 14, color: '#6b7280', textAlign: 'center', marginTop: 40, lineHeight: 22 },
-  glossary: {
-    backgroundColor: '#f0f9ff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    gap: 8,
+  metricLabel: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: Spacing.sm,
   },
-  glossaryItem: { fontSize: 13, color: '#374151', lineHeight: 18 },
-  bold: { fontWeight: '700' },
-  chartContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    elevation: 1,
+  metricValue: { fontSize: 28, fontWeight: FontWeight.extrabold },
+  metricUnit: { fontSize: FontSize.sm, fontWeight: FontWeight.regular, color: Colors.textMuted },
+  metricDesc: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: Spacing.sm,
   },
-  chartTitle: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 16 },
+  noData: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  emptyWrap: { alignItems: 'center', paddingVertical: Spacing.xl },
+  emptyIcon: { fontSize: 48, marginBottom: Spacing.md },
+  chartBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+  },
+  chartTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: Spacing.md },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 88 },
   barWrapper: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   bar: { width: '100%', borderRadius: 2 },
-  weekDivider: {
-    position: 'absolute',
-    right: -1,
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: '#e5e7eb',
-  },
-  chartLegend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  legendText: { fontSize: 10, color: '#9ca3af' },
+  weekDivider: { position: 'absolute', right: -1, top: 0, bottom: 0, width: 1, backgroundColor: Colors.border },
+  chartLegend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
+  legendText: { fontSize: FontSize.xs, color: Colors.textMuted },
 });

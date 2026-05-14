@@ -9,6 +9,7 @@ interface AthleteProfile {
   goalMode: 'race' | 'general_progression';
   advancedMode: boolean;
   garminConnected?: boolean;
+  lastGarminSync?: string;
 }
 
 interface AuthState {
@@ -18,6 +19,7 @@ interface AuthState {
   setSession: (session: AuthState['session']) => void;
   setProfile: (profile: AthleteProfile) => void;
   setGarminConnected: (connected: boolean) => void;
+  setLastGarminSync: (ts: string) => void;
   setOnboardingComplete: () => void;
   clearSession: () => void;
 }
@@ -38,6 +40,8 @@ export const useAuthStore = create<AuthState>()(
       setProfile: (profile) => set({ profile }),
       setGarminConnected: (connected) =>
         set((s) => ({ profile: s.profile ? { ...s.profile, garminConnected: connected } : s.profile })),
+      setLastGarminSync: (ts) =>
+        set((s) => ({ profile: s.profile ? { ...s.profile, lastGarminSync: ts } : s.profile })),
       setOnboardingComplete: () => set({ onboardingComplete: true }),
       clearSession: () => set({ session: null, profile: null, onboardingComplete: false }),
     }),
