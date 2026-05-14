@@ -7,14 +7,20 @@ on:
     branches: [main]
 
 jobs:
-  # ─── Lint + audit: roda no host (rápido, sem Docker) ─────────────────────────
-  lint:
-    name: Lint + audit
+  # ─── Lint + audit + coverage: roda no host com Node (rápido, sem Docker) ──────
+  # @vitest/coverage-v8 usa node:inspector — não implementado no Bun/Alpine
+  # Vitest é Node.js nativo; rodá-lo no runner ubuntu (com Node) é o padrão correto
+  quality:
+    name: Quality (lint + audit + coverage ≥95%)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -29,32 +35,8 @@ jobs:
       - name: Audit vulnerabilities
         run: bun audit
 
-  # ─── API: build imagem dev → coverage dentro do container ────────────────────
-  api:
-    name: API (coverage ≥95%)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build api (dev target)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: apps/api/Dockerfile
-          target: dev
-          load: true
-          tags: fitsync-api:test
-          cache-from: type=gha,scope=api-dev
-          cache-to: type=gha,mode=max,scope=api-dev
-
-      # coverage roda em packages/metrics com threshold 95% definido em vitest.config.ts
-      # o job falha automaticamente se qualquer métrica cair abaixo de 95%
       - name: Tests + coverage (packages/metrics)
-        run: docker run --rm --workdir /app fitsync-api:test sh -c "bun run --filter @fitsync/metrics test:coverage"
+        run: bun run --filter @fitsync/metrics test:coverage
 
   # ─── Sidecar: build imagem dev → pytest dentro do container ─────────────────
   sidecar:
@@ -91,7 +73,7 @@ jobs:
     name: Prod build check
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, api, sidecar]
+    needs: [quality, sidecar]
 
     steps:
       - uses: actions/checkout@v4
