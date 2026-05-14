@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  # ─── Audit: vulnerabilidades no lockfile (roda no host, sem Docker) ──────────
-  audit:
-    name: Security audit (bun audit)
+  # ─── Lint + audit: roda no host (rápido, sem Docker) ─────────────────────────
+  lint:
+    name: Lint + audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -23,12 +23,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Lint (Biome)
+        run: bun run check
+
       - name: Audit vulnerabilities
         run: bun audit
 
-  # ─── API: build imagem dev → lint + coverage dentro do container ─────────────
+  # ─── API: build imagem dev → coverage dentro do container ────────────────────
   api:
-    name: API (lint + coverage ≥95%)
+    name: API (coverage ≥95%)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -48,13 +51,10 @@ jobs:
           cache-from: type=gha,scope=api-dev
           cache-to: type=gha,mode=max,scope=api-dev
 
-      - name: Lint (Biome)
-        run: docker run --rm fitsync-api:test sh -c "bun run check"
-
       # coverage roda em packages/metrics com threshold 95% definido em vitest.config.ts
       # o job falha automaticamente se qualquer métrica cair abaixo de 95%
       - name: Tests + coverage (packages/metrics)
-        run: docker run --rm fitsync-api:test sh -c "bun run --filter @fitsync/metrics test:coverage"
+        run: docker run --rm --workdir /app fitsync-api:test sh -c "bun run --filter @fitsync/metrics test:coverage"
 
   # ─── Sidecar: build imagem dev → pytest dentro do container ─────────────────
   sidecar:
@@ -91,7 +91,7 @@ jobs:
     name: Prod build check
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [audit, api, sidecar]
+    needs: [lint, api, sidecar]
 
     steps:
       - uses: actions/checkout@v4
