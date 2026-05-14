@@ -8,23 +8,24 @@ export interface ZoneResult {
 }
 
 export interface TrainingDay {
-  day_of_week: number;
-  workout_type: string;
-  duration_minutes: number;
-  target_zone: number | null;
-  instruction: string;
+  day: number;
+  type: 'easy' | 'interval' | 'tempo' | 'long' | 'rest' | 'cross';
+  duration_min: number;
+  distance_km: number;
+  zones: number[];
+  description: string;
 }
 
 export interface TrainingWeek {
   week_number: number;
-  days: TrainingDay[];
   total_km: number;
+  why_text: string;
+  days: TrainingDay[];
 }
 
 export interface TrainingPlan {
-  user_id: string;
-  goal_distance_km: number;
   weeks: TrainingWeek[];
+  summary: string;
 }
 
 export async function calculateZones(params: {
@@ -50,33 +51,169 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
 export async function fetchActivities() {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/activities`, { headers });
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+  const res = await fetch(`${API_URL}/workouts/?athlete_id=${encodeURIComponent(userId)}`, { headers });
   if (!res.ok) throw new Error(`Erro ao buscar atividades: ${res.status}`);
-  return res.json();
+  const json = await res.json();
+  return json.workouts ?? [];
 }
 
-export async function generatePlan(payload: {
-  goal_distance_km: number;
-  weeks: number;
-  days_per_week: number;
-}) {
+export async function fetchCurrentPlan(): Promise<TrainingPlan | null> {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/plans/generate`, {
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) return null;
+  const res = await fetch(`${API_URL}/plan/current?athlete_id=${encodeURIComponent(userId)}`, { headers });
+  if (!res.ok) return null;
+  const json = await res.json();
+  return (json.plan?.plan_json as TrainingPlan) ?? null;
+}
+
+export async function pollJobResult(jobId: string, maxWaitMs = 120_000): Promise<TrainingPlan> {
+  const headers = await getAuthHeaders();
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const res = await fetch(`${API_URL}/jobs/${jobId}`, { headers });
+    if (!res.ok) continue;
+    const job = await res.json();
+    if (job.status === 'done' && job.result?.plan) return job.result.plan as TrainingPlan;
+    if (job.status === 'failed') throw new Error(job.error ?? 'Geração de plano falhou');
+  }
+  throw new Error('Plano ainda está sendo gerado. Abra o app em alguns minutos.');
+}
+
+export async function generatePlan(params: {
+  goal_distance_km: number;
+  days_per_week: number;
+  weeks_to_goal?: number;
+}): Promise<TrainingPlan | { job_id: string; message: string }> {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // Compute race_date from weeks_to_goal
+  const weeksToGoal = params.weeks_to_goal ?? 8;
+  const raceDate = new Date(Date.now() + weeksToGoal * 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  // Garante que o perfil e objetivo existam no DB antes de gerar
+  await fetch(`${API_URL}/onboarding/profile`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      athlete_id: userId,
+      birth_year: 1995,
+      weight_kg: 70,
+      weekly_frequency: params.days_per_week <= 3 ? '1-3' : params.days_per_week <= 5 ? '3-5' : '5+',
+      timezone,
+    }),
   });
-  if (!res.ok) throw new Error(`Erro ao gerar plano: ${res.status}`);
-  return res.json();
+
+  await fetch(`${API_URL}/onboarding/goal`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      athlete_id: userId,
+      goal_mode: 'race',
+      race_distance_km: params.goal_distance_km,
+      race_date: raceDate,
+    }),
+  });
+
+  const res = await fetch(`${API_URL}/plan/generate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ athlete_id: userId }),
+  });
+
+  if (res.status === 202) {
+    const json = await res.json();
+    return { job_id: json.job_id, message: json.message };
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? `Erro ao gerar plano: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.plan as TrainingPlan;
 }
 
-export async function postFeedback(workout_id: string, rating: 'easy' | 'medium' | 'hard') {
+export async function requestFeedback(workout_id: string): Promise<{
+  texto_principal: string;
+  destaque_positivo?: string;
+  sugestao?: string;
+  emoji_resumo?: string;
+}> {
   const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
   const res = await fetch(`${API_URL}/feedback`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ workout_id, rating }),
+    body: JSON.stringify({ workout_id, athlete_id: userId }),
   });
-  if (!res.ok) throw new Error(`Erro ao salvar feedback: ${res.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error ?? `Erro ao gerar feedback: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchFeedbacks(): Promise<{ id: string; workout_id: string; feedback_md: string; created_at: string }[]> {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) return [];
+  const res = await fetch(`${API_URL}/feedback?athlete_id=${encodeURIComponent(userId)}`, { headers });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return json.feedbacks ?? [];
+}
+
+export async function connectGarmin(params: {
+  email: string;
+  password: string;
+  mfa_code?: string;
+}) {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+  const res = await fetch(`${API_URL}/garmin/connect`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ athlete_id: userId, ...params }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? `Erro ao conectar Garmin: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function syncGarmin(days = 90) {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+  const res = await fetch(`${API_URL}/garmin/sync`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ athlete_id: userId, days }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { message?: string };
+    throw new Error(err.message ?? `Erro ao sincronizar Garmin: ${res.status}`);
+  }
   return res.json();
 }
