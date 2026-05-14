@@ -233,6 +233,23 @@ export async function connectGarmin(params: {
   return res.json();
 }
 
+export async function sendWeekToGarmin(weekNumber: number) {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+  const res = await fetch(`${API_URL}/plan/send-to-garmin`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ athlete_id: userId, week_number: weekNumber }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Erro ao enviar para o Garmin: ${res.status}`);
+  }
+  return res.json() as Promise<{ ok: boolean; sent: number }>;
+}
+
 export async function syncGarmin(days = 90) {
   const headers = await getAuthHeaders();
   const { data } = await supabase.auth.getSession();

@@ -210,6 +210,7 @@ export default function App() {
             <WeekPlan
               plan={plan}
               loading={planLoading}
+              garminConnected={garminConnected}
               onGeneratePlan={() => {
                 setGoalFormOrigin('main');
                 setScreen('goalForm');

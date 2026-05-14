@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { sendWeekToGarmin } from '../lib/api';
 import type { TrainingPlan, TrainingDay } from '../lib/api';
 
 const DAY_NAMES = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -22,10 +23,11 @@ const WORKOUT_LABELS: Record<string, string> = {
   rest:     'Descanso',
 };
 
-type Props = { plan: TrainingPlan | null; loading: boolean; onGeneratePlan?: () => void };
+type Props = { plan: TrainingPlan | null; loading: boolean; garminConnected?: boolean; onGeneratePlan?: () => void };
 
-export default function WeekPlan({ plan, loading, onGeneratePlan }: Props) {
+export default function WeekPlan({ plan, loading, garminConnected, onGeneratePlan }: Props) {
   const [currentWeek, setCurrentWeek] = useState(0);
+  const [sendingToGarmin, setSendingToGarmin] = useState(false);
 
   if (loading) {
     return (
@@ -57,6 +59,18 @@ export default function WeekPlan({ plan, loading, onGeneratePlan }: Props) {
   const weeks = plan.weeks;
   const week = weeks[currentWeek];
 
+  async function handleSendToGarmin() {
+    setSendingToGarmin(true);
+    try {
+      const result = await sendWeekToGarmin(week.week_number);
+      Alert.alert('Enviado!', `${result.sent} treino(s) agendado(s) no relógio para a próxima semana.`);
+    } catch (e: unknown) {
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível enviar para o Garmin.');
+    } finally {
+      setSendingToGarmin(false);
+    }
+  }
+
   return (
     <View style={styles.container}>
       {/* Navegação de semanas */}
@@ -82,7 +96,20 @@ export default function WeekPlan({ plan, loading, onGeneratePlan }: Props) {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.totalKm}>{week.total_km} km esta semana</Text>
+      <View style={styles.kmRow}>
+        <Text style={styles.totalKm}>{week.total_km} km esta semana</Text>
+        {garminConnected && (
+          <TouchableOpacity
+            style={[styles.garminBtn, sendingToGarmin && styles.btnDisabled]}
+            onPress={handleSendToGarmin}
+            disabled={sendingToGarmin}
+          >
+            {sendingToGarmin
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={styles.garminBtnText}>⌚ Enviar pro relógio</Text>}
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Banner "por que essa semana" */}
       {week.why_text ? (
@@ -145,7 +172,11 @@ const styles = StyleSheet.create({
   navBtn: { fontSize: 32, color: '#2563eb', paddingHorizontal: 12 },
   navDisabled: { color: '#d1d5db' },
   weekLabel: { fontSize: 18, fontWeight: '600' },
-  totalKm: { color: '#6b7280', marginBottom: 10 },
+  kmRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  totalKm: { color: '#6b7280' },
+  garminBtn: { backgroundColor: '#111827', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  garminBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  btnDisabled: { opacity: 0.5 },
   whyBanner: {
     backgroundColor: '#eff6ff', borderRadius: 10,
     padding: 12, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: '#2563eb',

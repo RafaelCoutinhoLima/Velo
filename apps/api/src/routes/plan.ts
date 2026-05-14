@@ -112,6 +112,85 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
       },
       { body: t.Object({ athlete_id: t.String() }) },
     )
+    .post(
+      '/send-to-garmin',
+      async ({ body, set }) => {
+        const { athlete_id, week_number = 1 } = body;
+
+        const { data: athlete } = await db
+          .from('athletes')
+          .select('*')
+          .eq('user_id', athlete_id)
+          .single();
+
+        if (!athlete) {
+          set.status = 404;
+          return { error: 'Atleta não encontrado' };
+        }
+
+        const internalId = (athlete as { id: string }).id;
+
+        const { data: tokenJson } = await db.rpc('get_garmin_token', { p_athlete_id: internalId });
+        if (!tokenJson) {
+          set.status = 400;
+          return { error: 'Garmin não conectado. Conecte o Garmin primeiro.' };
+        }
+
+        const { data: planRow } = await db
+          .from('plans')
+          .select('plan_json')
+          .eq('athlete_id', internalId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!planRow) {
+          set.status = 404;
+          return { error: 'Nenhum plano ativo encontrado' };
+        }
+
+        const planJson = (planRow as { plan_json: { weeks: TrainingWeek[] } }).plan_json;
+        const week = planJson.weeks[week_number - 1];
+        if (!week) {
+          set.status = 404;
+          return { error: 'Semana não encontrada no plano' };
+        }
+
+        const fcMax = Number((athlete as Record<string, unknown>).fc_max ?? 0);
+        const fcRest = Number((athlete as Record<string, unknown>).fc_rest ?? 60);
+        const zonesMap = karvonenZonesMap(fcMax > 0 ? fcMax : 180, fcRest);
+
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const daysUntilMonday = dayOfWeek === 1 ? 0 : dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+        const weekStart = new Date(today.getTime() + daysUntilMonday * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
+
+        let sent = 0;
+        for (const day of week.days) {
+          if (day.type === 'rest') continue;
+          const date = planDayDate(weekStart, day.day);
+          const dayLabel = `${day.type.charAt(0).toUpperCase() + day.type.slice(1)} D${day.day}`;
+          const workout = buildGarminWorkout(day, zonesMap, `FitSync — ${dayLabel}`);
+          await garminClient.scheduleWorkout(internalId, tokenJson as string, workout, date);
+          sent++;
+          logger.info(
+            { athlete_id: internalId, date, type: day.type },
+            'Workout enviado ao Garmin (manual)',
+          );
+        }
+
+        return { ok: true, sent };
+      },
+      {
+        body: t.Object({
+          athlete_id: t.String(),
+          week_number: t.Optional(t.Number({ minimum: 1 })),
+        }),
+      },
+    )
     .patch(
       '/move',
       async ({ body }) => {
