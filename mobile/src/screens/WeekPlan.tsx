@@ -1,53 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-
-type TrainingDay = {
-  day_of_week: number;
-  workout_type: string;
-  duration_minutes: number;
-  target_zone: number | null;
-  instruction: string;
-};
-
-type TrainingWeek = {
-  week_number: number;
-  total_km: number;
-  days: TrainingDay[];
-};
+import type { TrainingPlan, TrainingDay } from '../lib/api';
 
 const DAY_NAMES = ['', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 const WORKOUT_COLORS: Record<string, string> = {
-  easy_run: '#dbeafe',
-  long_run: '#dcfce7',
-  intervals: '#fef9c3',
-  tempo_run: '#ffedd5',
-  recovery_run: '#f3e8ff',
-  rest: '#f1f5f9',
+  easy:     '#dbeafe',
+  long:     '#dcfce7',
+  interval: '#fef9c3',
+  tempo:    '#ffedd5',
+  cross:    '#f3e8ff',
+  rest:     '#f1f5f9',
 };
 
 const WORKOUT_LABELS: Record<string, string> = {
-  easy_run: 'Corrida Leve',
-  long_run: 'Longão',
-  intervals: 'Intervalado',
-  tempo_run: 'Tempo',
-  recovery_run: 'Recuperação',
-  rest: 'Descanso',
+  easy:     'Corrida Leve',
+  long:     'Longão',
+  interval: 'Intervalado',
+  tempo:    'Tempo',
+  cross:    'Cross-training',
+  rest:     'Descanso',
 };
 
-type Props = { plan: { weeks: TrainingWeek[] } | null; loading: boolean };
+type Props = { plan: TrainingPlan | null; loading: boolean; onGeneratePlan?: () => void };
 
-export default function WeekPlan({ plan, loading }: Props) {
+export default function WeekPlan({ plan, loading, onGeneratePlan }: Props) {
   const [currentWeek, setCurrentWeek] = useState(0);
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" />;
+  if (loading) {
+    return (
+      <View style={styles.empty}>
+        <ActivityIndicator size="large" color="#6366f1" style={{ marginBottom: 16 }} />
+        <Text style={styles.emptyText}>Preparando seu plano...</Text>
+        <Text style={styles.emptyHint}>Isso pode levar até 30 segundos.</Text>
+      </View>
+    );
+  }
+
   if (!plan) {
     return (
       <View style={styles.empty}>
+        <Text style={styles.emptyIcon}>🎯</Text>
         <Text style={styles.emptyText}>Nenhum plano gerado ainda.</Text>
         <Text style={styles.emptyHint}>
-          Complete o teste de 3 km e defina seu objetivo para gerar um plano.
+          Defina seu objetivo de corrida e geramos um plano semanal personalizado para você.
         </Text>
+        {onGeneratePlan && (
+          <TouchableOpacity style={styles.generateBtn} onPress={onGeneratePlan}>
+            <Text style={styles.generateBtnText}>Definir Objetivo e Gerar Plano →</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -57,10 +59,12 @@ export default function WeekPlan({ plan, loading }: Props) {
 
   return (
     <View style={styles.container}>
+      {/* Navegação de semanas */}
       <View style={styles.nav}>
         <TouchableOpacity
           onPress={() => setCurrentWeek((w) => Math.max(0, w - 1))}
           disabled={currentWeek === 0}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={[styles.navBtn, currentWeek === 0 && styles.navDisabled]}>{'‹'}</Text>
         </TouchableOpacity>
@@ -70,50 +74,110 @@ export default function WeekPlan({ plan, loading }: Props) {
         <TouchableOpacity
           onPress={() => setCurrentWeek((w) => Math.min(weeks.length - 1, w + 1))}
           disabled={currentWeek === weeks.length - 1}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={[styles.navBtn, currentWeek === weeks.length - 1 && styles.navDisabled]}>
             {'›'}
           </Text>
         </TouchableOpacity>
       </View>
+
       <Text style={styles.totalKm}>{week.total_km} km esta semana</Text>
 
-      <ScrollView>
+      {/* Banner "por que essa semana" */}
+      {week.why_text ? (
+        <View style={styles.whyBanner}>
+          <Text style={styles.whyText}>{week.why_text}</Text>
+        </View>
+      ) : null}
+
+      <ScrollView showsVerticalScrollIndicator={false}>
         {week.days.map((day) => (
-          <View
-            key={day.day_of_week}
-            style={[styles.dayCard, { backgroundColor: WORKOUT_COLORS[day.workout_type] ?? '#fff' }]}
-          >
-            <Text style={styles.dayName}>{DAY_NAMES[day.day_of_week]}</Text>
-            <Text style={styles.workoutType}>{WORKOUT_LABELS[day.workout_type] ?? day.workout_type}</Text>
-            {day.workout_type !== 'rest' && (
-              <Text style={styles.detail}>
-                {day.duration_minutes} min · Z{day.target_zone}
-              </Text>
-            )}
-            <Text style={styles.instruction}>{day.instruction}</Text>
-          </View>
+          <DayCard key={day.day} day={day} />
         ))}
+
+        {currentWeek === 0 && plan.summary ? (
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryLabel}>Sobre o seu plano</Text>
+            <Text style={styles.summaryText}>{plan.summary}</Text>
+          </View>
+        ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+function DayCard({ day }: { day: TrainingDay }) {
+  const bgColor = WORKOUT_COLORS[day.type] ?? '#fff';
+  const label = WORKOUT_LABELS[day.type] ?? day.type;
+  const zoneText = day.zones.length > 0 ? `Z${day.zones.join('+')}` : null;
+
+  return (
+    <View style={[styles.dayCard, { backgroundColor: bgColor }]}>
+      <View style={styles.dayHeader}>
+        <Text style={styles.dayName}>{DAY_NAMES[day.day] ?? `Dia ${day.day}`}</Text>
+        {zoneText && <Text style={styles.zoneTag}>{zoneText}</Text>}
+      </View>
+      <Text style={styles.workoutType}>{label}</Text>
+      {day.type !== 'rest' && (
+        <View style={styles.dayMeta}>
+          {day.duration_min > 0 && (
+            <Text style={styles.metaText}>{day.duration_min} min</Text>
+          )}
+          {day.distance_km > 0 && (
+            <Text style={styles.metaText}>{day.distance_km.toFixed(1)} km</Text>
+          )}
+        </View>
+      )}
+      {day.description ? (
+        <Text style={styles.description}>{day.description}</Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9fafb', padding: 16 },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  nav: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 4,
+  },
   navBtn: { fontSize: 32, color: '#2563eb', paddingHorizontal: 12 },
   navDisabled: { color: '#d1d5db' },
   weekLabel: { fontSize: 18, fontWeight: '600' },
-  totalKm: { color: '#6b7280', marginBottom: 16 },
-  dayCard: {
-    borderRadius: 10, padding: 14, marginBottom: 8,
+  totalKm: { color: '#6b7280', marginBottom: 10 },
+  whyBanner: {
+    backgroundColor: '#eff6ff', borderRadius: 10,
+    padding: 12, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: '#2563eb',
   },
-  dayName: { fontSize: 12, color: '#6b7280', fontWeight: '600', marginBottom: 2 },
+  whyText: { color: '#1e40af', fontSize: 13, lineHeight: 19 },
+  dayCard: { borderRadius: 10, padding: 14, marginBottom: 8 },
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  dayName: { fontSize: 12, color: '#6b7280', fontWeight: '600' },
+  zoneTag: {
+    fontSize: 11, fontWeight: '700', color: '#4b5563',
+    backgroundColor: '#e5e7eb', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
+  },
   workoutType: { fontSize: 16, fontWeight: 'bold', color: '#111827' },
-  detail: { color: '#4b5563', marginTop: 2 },
-  instruction: { color: '#374151', marginTop: 4, fontSize: 13 },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyText: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
-  emptyHint: { color: '#6b7280', textAlign: 'center' },
+  dayMeta: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  metaText: { color: '#4b5563', fontSize: 13 },
+  description: { color: '#374151', marginTop: 6, fontSize: 13, lineHeight: 18 },
+  summaryBox: {
+    backgroundColor: '#fff', borderRadius: 10, padding: 16,
+    marginTop: 8, marginBottom: 24,
+  },
+  summaryLabel: { fontSize: 12, fontWeight: '700', color: '#6b7280', marginBottom: 6 },
+  summaryText: { color: '#374151', fontSize: 13, lineHeight: 19 },
+  empty: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    padding: 32, backgroundColor: '#f9fafb',
+  },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyText: { fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
+  emptyHint: { color: '#6b7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  generateBtn: {
+    backgroundColor: '#6366f1', borderRadius: 12,
+    paddingVertical: 14, paddingHorizontal: 24, marginTop: 8,
+  },
+  generateBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

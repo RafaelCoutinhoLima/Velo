@@ -3,13 +3,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { generatePlan } from '../lib/api';
+import { generatePlan, pollJobResult } from '../lib/api';
 import type { TrainingPlan } from '../lib/api';
 
 const DISTANCE_OPTIONS = [
@@ -21,6 +20,13 @@ const DISTANCE_OPTIONS = [
 
 const DAYS_OPTIONS = [3, 4, 5];
 
+const WEEKS_OPTIONS = [
+  { label: '4 sem', value: 4 },
+  { label: '8 sem', value: 8 },
+  { label: '12 sem', value: 12 },
+  { label: '16 sem', value: 16 },
+];
+
 interface Props {
   onPlanGenerated: (plan: TrainingPlan) => void;
   onBack: () => void;
@@ -28,31 +34,32 @@ interface Props {
 
 export default function GoalForm({ onPlanGenerated, onBack }: Props) {
   const [distance, setDistance] = useState<number | null>(null);
-  const [weeks, setWeeks] = useState('12');
   const [daysPerWeek, setDaysPerWeek] = useState<number>(4);
-  const [targetTime, setTargetTime] = useState('');
+  const [weeksToGoal, setWeeksToGoal] = useState<number>(8);
   const [loading, setLoading] = useState(false);
-
-  const weeksNum = parseInt(weeks, 10);
-  const weeksValid = !isNaN(weeksNum) && weeksNum >= 4 && weeksNum <= 16;
+  const [loadingMsg, setLoadingMsg] = useState('Gerando seu plano...');
 
   async function handleGenerate() {
     if (!distance) {
       Alert.alert('Selecione a distância alvo');
       return;
     }
-    if (!weeksValid) {
-      Alert.alert('Semanas inválidas', 'Informe entre 4 e 16 semanas.');
-      return;
-    }
     setLoading(true);
+    setLoadingMsg('Gerando seu plano...');
     try {
-      const plan = await generatePlan({
+      const result = await generatePlan({
         goal_distance_km: distance,
-        weeks: weeksNum,
         days_per_week: daysPerWeek,
+        weeks_to_goal: weeksToGoal,
       });
-      onPlanGenerated(plan);
+
+      if ('job_id' in result) {
+        setLoadingMsg('Aguardando o plano ficar pronto...');
+        const plan = await pollJobResult(result.job_id);
+        onPlanGenerated(plan);
+      } else {
+        onPlanGenerated(result as TrainingPlan);
+      }
     } catch (e: any) {
       Alert.alert('Erro', e.message ?? 'Não foi possível gerar o plano.');
     } finally {
@@ -84,20 +91,6 @@ export default function GoalForm({ onPlanGenerated, onBack }: Props) {
         ))}
       </View>
 
-      <Text style={styles.label}>Semanas de treino (4–16)</Text>
-      <TextInput
-        style={[styles.input, !weeksValid && weeks.length > 0 && styles.inputError]}
-        keyboardType="number-pad"
-        value={weeks}
-        onChangeText={setWeeks}
-        maxLength={2}
-        placeholder="12"
-        placeholderTextColor="#666"
-      />
-      {!weeksValid && weeks.length > 0 && (
-        <Text style={styles.errorText}>Entre 4 e 16 semanas</Text>
-      )}
-
       <Text style={styles.label}>Dias de treino por semana</Text>
       <View style={styles.row}>
         {DAYS_OPTIONS.map((d) => (
@@ -113,22 +106,31 @@ export default function GoalForm({ onPlanGenerated, onBack }: Props) {
         ))}
       </View>
 
-      <Text style={styles.label}>Tempo alvo (opcional)</Text>
-      <TextInput
-        style={styles.input}
-        value={targetTime}
-        onChangeText={setTargetTime}
-        placeholder="ex: 1h45min"
-        placeholderTextColor="#666"
-      />
+      <Text style={styles.label}>Duração do plano</Text>
+      <View style={styles.row}>
+        {WEEKS_OPTIONS.map((opt) => (
+          <TouchableOpacity
+            key={opt.value}
+            style={[styles.chipSmall, weeksToGoal === opt.value && styles.chipSelected]}
+            onPress={() => setWeeksToGoal(opt.value)}
+          >
+            <Text style={[styles.chipText, weeksToGoal === opt.value && styles.chipTextSelected]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <TouchableOpacity
-        style={[styles.button, (!distance || !weeksValid || loading) && styles.buttonDisabled]}
+        style={[styles.button, (!distance || loading) && styles.buttonDisabled]}
         onPress={handleGenerate}
-        disabled={!distance || !weeksValid || loading}
+        disabled={!distance || loading}
       >
         {loading ? (
-          <ActivityIndicator color="#fff" />
+          <>
+            <ActivityIndicator color="#fff" style={{ marginBottom: 4 }} />
+            <Text style={[styles.buttonText, { fontSize: 13 }]}>{loadingMsg}</Text>
+          </>
         ) : (
           <Text style={styles.buttonText}>Gerar Plano →</Text>
         )}
