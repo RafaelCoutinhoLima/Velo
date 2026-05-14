@@ -71,7 +71,7 @@ export async function fetchCurrentPlan(): Promise<TrainingPlan | null> {
   return (json.plan?.plan_json as TrainingPlan) ?? null;
 }
 
-export async function pollJobResult(jobId: string, maxWaitMs = 120_000): Promise<TrainingPlan> {
+export async function pollJobResult(jobId: string, maxWaitMs = 360_000): Promise<TrainingPlan> {
   const headers = await getAuthHeaders();
   const deadline = Date.now() + maxWaitMs;
   while (Date.now() < deadline) {

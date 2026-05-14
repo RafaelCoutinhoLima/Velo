@@ -7,7 +7,7 @@ import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
-const SYNC_TIMEOUT_MS = 120_000;
+const SYNC_TIMEOUT_MS = 30_000;
 
 export function createPlanPlugin(db: Db = defaultSupabase) {
   return new Elysia({ prefix: '/plan' })

@@ -56,7 +56,7 @@ export default function GoalForm({ onPlanGenerated, onBack }: Props) {
       });
 
       if ('job_id' in result) {
-        setLoadingMsg('Aguardando o plano ficar pronto...');
+        setLoadingMsg('Montando seu plano com IA... (pode levar até 4 min)');
         const plan = await pollJobResult(result.job_id);
         onPlanGenerated(plan);
       } else {
