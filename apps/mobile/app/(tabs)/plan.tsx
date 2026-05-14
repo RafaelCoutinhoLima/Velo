@@ -95,7 +95,7 @@ function useMoveMutation(planId: string) {
 }
 
 function EmptyPlan({ athleteId, onPlanReady }: { athleteId: string; onPlanReady: () => void }) {
-  const { post } = useApi();
+  const { post, get } = useApi();
   const [generating, setGenerating] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -109,22 +109,12 @@ function EmptyPlan({ athleteId, onPlanReady }: { athleteId: string; onPlanReady:
   async function generate() {
     setGenerating(true);
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/plan/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ athlete_id: athleteId }),
-      });
-      const text = await res.text();
-      let body: { job_id?: string; error?: string } = {};
-      try { body = JSON.parse(text); } catch { /* não-JSON */ }
-
-      if (res.status === 202 && body.job_id) {
-        setJobId(body.job_id);
-        pollJob(body.job_id);
-      } else if (res.ok) {
-        onPlanReady();
+      const res = await post<{ job_id?: string; plan?: unknown }>('/plan/generate', { athlete_id: athleteId });
+      if (res?.job_id) {
+        setJobId(res.job_id);
+        pollJob(res.job_id);
       } else {
-        setGenerating(false);
+        onPlanReady();
       }
     } catch {
       setGenerating(false);
@@ -136,8 +126,7 @@ function EmptyPlan({ athleteId, onPlanReady }: { athleteId: string; onPlanReady:
     intervalRef.current = setInterval(async () => {
       attempts++;
       try {
-        const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/jobs/${id}`);
-        const body = await res.json();
+        const body = await get<{ status: string }>(`/jobs/${id}`);
         if (body.status === 'done') {
           clearInterval(intervalRef.current!);
           onPlanReady();

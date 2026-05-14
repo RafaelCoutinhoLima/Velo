@@ -9,15 +9,24 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
     async ({ query }) => {
       const { athlete_id, limit = 30 } = query;
 
+      // athlete_id from session = Supabase user UUID; resolve to internal athletes.id
+      const { data: athlete } = await supabase
+        .from('athletes')
+        .select('id')
+        .eq('user_id', athlete_id)
+        .single();
+
+      if (!athlete) return { workouts: [] };
+
       const { data, error } = await supabase
         .from('workouts')
         .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe')
-        .eq('athlete_id', athlete_id)
+        .eq('athlete_id', (athlete as { id: string }).id)
         .order('date', { ascending: false })
         .limit(limit);
 
       if (error) throw new Error('Falha ao buscar treinos');
-      return { workouts: data };
+      return { workouts: data ?? [] };
     },
     {
       query: t.Object({

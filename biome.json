@@ -30,7 +30,9 @@
       "!**/build",
       "!**/coverage",
       "!**/mobile",
-      "!**/backend"
+      "!**/backend",
+      "!playwright-report",
+      "!test-results"
     ]
   }
 }
