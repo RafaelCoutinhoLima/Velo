@@ -32,7 +32,8 @@
       "!**/mobile",
       "!**/backend",
       "!playwright-report",
-      "!test-results"
+      "!test-results",
+      "!**/.venv"
     ]
   }
 }

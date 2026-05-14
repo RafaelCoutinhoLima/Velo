@@ -1,6 +1,6 @@
 import { logger } from '../lib/logger';
 
-const SIDECAR_URL = process.env.GARMIN_SIDECAR_URL ?? 'http://localhost:8001';
+const SIDECAR_URL = process.env.GARMIN_SIDECAR_URL ?? 'http://127.0.0.1:8001';
 
 export interface GarminActivity {
   garmin_id: string;
