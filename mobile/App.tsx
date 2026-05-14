@@ -15,11 +15,13 @@ import Settings from './src/screens/Settings';
 import CooperTest from './src/screens/CooperTest';
 import ZoneDisplay from './src/screens/ZoneDisplay';
 import GoalForm from './src/screens/GoalForm';
+import ProfileForm from './src/screens/ProfileForm';
 
-// Onboarding: login → cooperTest → zoneDisplay → goalForm (only first time)
+// Onboarding: login → profileForm → cooperTest → zoneDisplay → goalForm (only first time)
 // Main app: tabs (activities | plan | feedback | settings)
 type AppScreen =
   | 'login'
+  | 'profileForm'
   | 'cooperTest'
   | 'zoneDisplay'
   | 'goalForm'
@@ -46,6 +48,7 @@ export default function App() {
 
   async function resolveScreenForUser(userId: string) {
     const done = await AsyncStorage.getItem(`fitsync_onboarding_done_${userId}`);
+    const profileDone = await AsyncStorage.getItem(`fitsync_profile_done_${userId}`);
     const garmin = await AsyncStorage.getItem(`fitsync_garmin_connected_${userId}`);
     const cooper = await AsyncStorage.getItem(`fitsync_cooper_done_${userId}`);
     if (garmin) setGarminConnected(true);
@@ -54,8 +57,10 @@ export default function App() {
       setScreen('main');
       setPlanLoading(true);
       fetchCurrentPlan().then(setPlan).finally(() => setPlanLoading(false));
-    } else {
+    } else if (profileDone) {
       setScreen('cooperTest');
+    } else {
+      setScreen('profileForm');
     }
   }
 
@@ -83,6 +88,20 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="light" />
         <Login onLogin={handleLogin} />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (screen === 'profileForm') {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <ProfileForm
+          onContinue={() => {
+            if (session) AsyncStorage.setItem(`fitsync_profile_done_${session.user.id}`, '1');
+            setScreen('cooperTest');
+          }}
+        />
       </SafeAreaProvider>
     );
   }

@@ -85,6 +85,44 @@ export async function pollJobResult(jobId: string, maxWaitMs = 120_000): Promise
   throw new Error('Plano ainda está sendo gerado. Abra o app em alguns minutos.');
 }
 
+export async function saveProfile(params: {
+  birth_year: number;
+  weight_kg: number;
+  sex: 'M' | 'F' | 'other';
+  weekly_frequency?: string;
+}) {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const res = await fetch(`${API_URL}/onboarding/profile`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ athlete_id: userId, timezone, weekly_frequency: '3-5', ...params }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Erro ao salvar perfil: ${res.status}`);
+  }
+}
+
+export async function saveZones(fc_max: number, fc_rest: number) {
+  const headers = await getAuthHeaders();
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error('Usuário não autenticado');
+  const res = await fetch(`${API_URL}/onboarding/zones`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ athlete_id: userId, fc_max, fc_rest }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Erro ao salvar zonas: ${res.status}`);
+  }
+}
+
 export async function generatePlan(params: {
   goal_distance_km: number;
   days_per_week: number;
@@ -96,24 +134,18 @@ export async function generatePlan(params: {
   if (!userId) throw new Error('Usuário não autenticado');
 
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-  // Compute race_date from weeks_to_goal
   const weeksToGoal = params.weeks_to_goal ?? 8;
   const raceDate = new Date(Date.now() + weeksToGoal * 7 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
+  const weeklyFrequency =
+    params.days_per_week <= 3 ? '1-3' : params.days_per_week <= 5 ? '3-5' : '5+';
 
-  // Garante que o perfil e objetivo existam no DB antes de gerar
+  // Update weekly_frequency and timezone; profile (birth_year, weight_kg, sex) was set in ProfileForm
   await fetch(`${API_URL}/onboarding/profile`, {
-    method: 'POST',
+    method: 'PATCH',
     headers,
-    body: JSON.stringify({
-      athlete_id: userId,
-      birth_year: 1995,
-      weight_kg: 70,
-      weekly_frequency: params.days_per_week <= 3 ? '1-3' : params.days_per_week <= 5 ? '3-5' : '5+',
-      timezone,
-    }),
+    body: JSON.stringify({ athlete_id: userId, weekly_frequency: weeklyFrequency, timezone }),
   });
 
   await fetch(`${API_URL}/onboarding/goal`, {
@@ -139,7 +171,7 @@ export async function generatePlan(params: {
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { message?: string };
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
     throw new Error(err.message ?? `Erro ao gerar plano: ${res.status}`);
   }
 

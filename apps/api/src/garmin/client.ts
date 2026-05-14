@@ -29,6 +29,7 @@ export const garminClient = {
 
   async scheduleWorkout(
     athleteId: string,
+    token: string,
     workout: Record<string, unknown>,
     date: string,
   ): Promise<void> {
@@ -36,9 +37,9 @@ export const garminClient = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Athlete-Id': athleteId,
+        'x-garmin-token': token,
       },
-      body: JSON.stringify({ workout, schedule_date: date }),
+      body: JSON.stringify({ athlete_id: athleteId, workout, schedule_date: date }),
     });
 
     if (!res.ok) {

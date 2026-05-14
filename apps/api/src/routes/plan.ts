@@ -1,9 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { generatePlan } from '../claude/client';
 import { supabase as defaultSupabase } from '../db/client';
+import { garminClient } from '../garmin/client';
+import { buildGarminWorkout, planDayDate } from '../garmin/workoutBuilder';
 import { logger } from '../lib/logger';
 
-type Db = Pick<typeof defaultSupabase, 'from'>;
+type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
 const SYNC_TIMEOUT_MS = 120_000;
 
@@ -222,6 +224,68 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
 
 export const planRoutes = createPlanPlugin();
 
+type TrainingDay = {
+  day: number;
+  type: string;
+  duration_min: number;
+  zones: number[];
+  description: string;
+};
+
+type TrainingWeek = {
+  week_number: number;
+  days: TrainingDay[];
+};
+
+async function sendPlanToGarmin(
+  internalId: string,
+  plan: { weeks: TrainingWeek[] },
+  athlete: Record<string, unknown>,
+  db: Db,
+): Promise<void> {
+  const { data: tokenJson } = await db.rpc('get_garmin_token', { p_athlete_id: internalId });
+  if (!tokenJson) return; // Garmin not connected — silently skip
+
+  // Zones from athlete profile for HR targets
+  const fcMax = Number(athlete.fc_max ?? 0);
+  const fcRest = Number(athlete.fc_rest ?? 60);
+  const zonesMap = karvonenZonesMap(fcMax > 0 ? fcMax : 180, fcRest);
+
+  const today = new Date();
+  // Week start = next Monday (or today if already Monday)
+  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+  const daysUntilMonday = dayOfWeek === 1 ? 0 : dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const weekStart = new Date(today.getTime() + daysUntilMonday * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
+  const firstWeek = plan.weeks[0];
+  if (!firstWeek) return;
+
+  for (const day of firstWeek.days) {
+    if (day.type === 'rest') continue;
+    const date = planDayDate(weekStart, day.day);
+    const dayLabel = `${day.type.charAt(0).toUpperCase() + day.type.slice(1)} D${day.day}`;
+    const workout = buildGarminWorkout(day, zonesMap, `FitSync — ${dayLabel}`);
+    await garminClient.scheduleWorkout(internalId, tokenJson as string, workout, date);
+    logger.info({ athlete_id: internalId, date, type: day.type }, 'Workout enviado ao Garmin');
+  }
+}
+
+function karvonenZonesMap(fcMax: number, fcRest: number) {
+  const pcts: [number, number][] = [
+    [0.5, 0.65],
+    [0.65, 0.75],
+    [0.75, 0.85],
+    [0.85, 0.92],
+    [0.92, 1.0],
+  ];
+  return pcts.map(([lo, hi]) => ({
+    fc_min: Math.round(fcRest + lo * (fcMax - fcRest)),
+    fc_max: Math.round(fcRest + hi * (fcMax - fcRest)),
+  }));
+}
+
 async function buildPlan(internalId: string, athlete: Record<string, unknown>, db: Db) {
   const [workoutsResult, metricsHistoryResult] = await Promise.all([
     db
@@ -273,6 +337,11 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
     tokens_used: result.tokensUsed.input + result.tokensUsed.output,
     cost_usd: result.costUsd,
   });
+
+  // Non-blocking: try to push workouts to Garmin; failure must not affect plan response
+  sendPlanToGarmin(internalId, result.plan, athlete, db).catch((err) =>
+    logger.warn({ err, athlete_id: internalId }, 'Falha ao enviar plano pro Garmin (não crítico)'),
+  );
 
   return result.plan;
 }

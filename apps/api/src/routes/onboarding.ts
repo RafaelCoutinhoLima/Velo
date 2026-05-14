@@ -2,7 +2,7 @@ import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { logger } from '../lib/logger';
 
-type Db = Pick<typeof defaultSupabase, 'from'>;
+type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
 const CONSENT_TEXT =
   'FitSync não substitui acompanhamento médico ou profissional. Em caso de dor, pare e procure médico esportivo.';
@@ -13,7 +13,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
     .post(
       '/profile',
       async ({ body }) => {
-        const { athlete_id, birth_year, weight_kg, weekly_frequency, timezone } = body;
+        const { athlete_id, birth_year, weight_kg, sex, weekly_frequency, timezone } = body;
 
         const { error } = await db.from('athletes').upsert(
           {
@@ -21,6 +21,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
             email: '[REDACTED]',
             birth_year,
             weight_kg,
+            sex,
             modality: 'running',
             weekly_frequency,
             timezone,
@@ -73,6 +74,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
           athlete_id: t.String(),
           birth_year: t.Number({ minimum: 1930, maximum: 2013 }),
           weight_kg: t.Number({ minimum: 30, maximum: 200 }),
+          sex: t.Union([t.Literal('M'), t.Literal('F'), t.Literal('other')]),
           weekly_frequency: t.String(),
           timezone: t.String(),
         }),
@@ -138,6 +140,45 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
       },
       {
         body: t.Object({ athlete_id: t.String() }),
+      },
+    )
+    .patch(
+      '/profile',
+      async ({ body }) => {
+        const { athlete_id, weekly_frequency, timezone } = body;
+        const updates: Record<string, unknown> = {};
+        if (weekly_frequency) updates.weekly_frequency = weekly_frequency;
+        if (timezone) updates.timezone = timezone;
+        if (Object.keys(updates).length === 0) return { ok: true };
+        const { error } = await db.from('athletes').update(updates).eq('user_id', athlete_id);
+        if (error) throw new Error(`Falha ao atualizar perfil: ${error.message}`);
+        return { ok: true };
+      },
+      {
+        body: t.Object({
+          athlete_id: t.String(),
+          weekly_frequency: t.Optional(t.String()),
+          timezone: t.Optional(t.String()),
+        }),
+      },
+    )
+    .post(
+      '/zones',
+      async ({ body }) => {
+        const { athlete_id, fc_max, fc_rest } = body;
+        const { error } = await db
+          .from('athletes')
+          .update({ fc_max, fc_rest })
+          .eq('user_id', athlete_id);
+        if (error) throw new Error(`Falha ao salvar zonas: ${error.message}`);
+        return { ok: true };
+      },
+      {
+        body: t.Object({
+          athlete_id: t.String(),
+          fc_max: t.Number({ minimum: 100, maximum: 230 }),
+          fc_rest: t.Number({ minimum: 30, maximum: 100 }),
+        }),
       },
     );
 }

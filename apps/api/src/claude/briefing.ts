@@ -154,17 +154,24 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
   const history = input.metricsHistory;
 
   const age = currentYear() - Number(profile.birth_year ?? 1990);
-  const fcRest = 60;
+  const storedFcRest = Number(profile.fc_rest ?? 0);
+  const storedFcMax = Number(profile.fc_max ?? 0);
+  const fcRest = storedFcRest >= 30 ? storedFcRest : 60;
 
-  // FC máxima: maior avg_hr recente * 1.08 (proxy) ou Tanaka
+  // FC máxima: cooper calibrado > garmin proxy > tanaka
   const recentHRs = (input.recentWorkouts as Array<Record<string, unknown>>)
     .map((w) => Number(w.avg_hr ?? 0))
     .filter((h) => h > 100);
   const maxObservedHR = recentHRs.length > 0 ? Math.max(...recentHRs) : 0;
   const fcMaxMeasured = maxObservedHR > 0 ? Math.round(maxObservedHR * 1.08) : 0;
   const fcMaxTanaka = tanaka(age);
-  const fcMax = fcMaxMeasured > 140 ? fcMaxMeasured : fcMaxTanaka;
-  const fcMaxFonte = fcMaxMeasured > 140 ? 'garmin_proxy' : 'tanaka_estimada';
+  const fcMax = storedFcMax > 140 ? storedFcMax : fcMaxMeasured > 140 ? fcMaxMeasured : fcMaxTanaka;
+  const fcMaxFonte =
+    storedFcMax > 140
+      ? 'cooper_calibrado'
+      : fcMaxMeasured > 140
+        ? 'garmin_proxy'
+        : 'tanaka_estimada';
 
   // Threshold pace estimado do pace médio recente
   const recentPaces = (input.recentWorkouts as Array<Record<string, unknown>>)

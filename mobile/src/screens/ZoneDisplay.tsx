@@ -1,4 +1,5 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { Alert, View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { saveZones } from '../lib/api';
 import type { ZoneResult } from '../lib/api';
 
 type Props = {
@@ -52,6 +53,17 @@ export default function ZoneDisplay({ zones, fcMax, fcRest, settingsMode, onConf
   const vo2max = fcMax && fcRest ? Math.round(15 * (fcMax / fcRest) * 10) / 10 : null;
   const vo2cat = vo2max ? vo2maxCategory(vo2max) : null;
 
+  async function handleConfirm() {
+    if (fcMax && fcRest) {
+      try {
+        await saveZones(fcMax, fcRest);
+      } catch {
+        Alert.alert('Aviso', 'Zonas calculadas, mas não foi possível salvar no servidor. Tente novamente mais tarde.');
+      }
+    }
+    onConfirm();
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TouchableOpacity onPress={onBack} style={styles.back}>
@@ -103,7 +115,7 @@ export default function ZoneDisplay({ zones, fcMax, fcRest, settingsMode, onConf
         </>
       )}
 
-      <TouchableOpacity style={styles.button} onPress={onConfirm}>
+      <TouchableOpacity style={styles.button} onPress={handleConfirm}>
         <Text style={styles.buttonText}>
           {settingsMode ? 'Salvar zonas →' : 'Confirmar e definir objetivo →'}
         </Text>
