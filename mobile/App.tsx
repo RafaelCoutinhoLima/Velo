@@ -97,8 +97,14 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="light" />
         <ProfileForm
-          onContinue={() => {
+          onContinue={async () => {
             if (session) AsyncStorage.setItem(`fitsync_profile_done_${session.user.id}`, '1');
+            try {
+              const acts = await fetchActivities();
+              setCooperActivities(acts);
+            } catch {
+              setCooperActivities([]);
+            }
             setScreen('cooperTest');
           }}
         />
@@ -120,7 +126,7 @@ export default function App() {
             setCooperFcRest(fcRest);
             setScreen('zoneDisplay');
           }}
-          onBack={() => cooperOrigin === 'main' ? setScreen('main') : supabase.auth.signOut()}
+          onBack={() => cooperOrigin === 'main' ? setScreen('main') : setScreen('profileForm')}
           onSkip={() => setScreen('main')}
         />
       </SafeAreaProvider>
