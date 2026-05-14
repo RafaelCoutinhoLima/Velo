@@ -71,7 +71,16 @@ export default function App() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (!s) setScreen('login');
+      if (!s) {
+        setScreen('login');
+        setPlan(null);
+        setZones(null);
+        setZonesCalibrated(false);
+        setGarminConnected(false);
+        setCooperActivities([]);
+        setCooperFcMax(0);
+        setCooperFcRest(RESTING_HR_DEFAULT);
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
@@ -127,7 +136,14 @@ export default function App() {
             setScreen('zoneDisplay');
           }}
           onBack={() => cooperOrigin === 'main' ? setScreen('main') : setScreen('profileForm')}
-          onSkip={() => setScreen('main')}
+          onSkip={() => {
+            if (cooperOrigin === 'onboarding') {
+              setGoalFormOrigin('onboarding');
+              setScreen('goalForm');
+            } else {
+              setScreen('main');
+            }
+          }}
         />
       </SafeAreaProvider>
     );
