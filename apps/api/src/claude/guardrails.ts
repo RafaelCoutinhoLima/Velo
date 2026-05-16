@@ -1,13 +1,30 @@
 import { supabase } from '../db/client';
 import { logger } from '../lib/logger';
-import type { PlanResponse, PlanWeek } from './schemas';
+import type { PlanResponse, PlanWeek, WorkoutDay } from './schemas';
 
 export const ACWR_MAX = 1.3;
 const WEEKLY_PROGRESSION_MAX = 0.1;
 const HIGH_INTENSITY_TYPES = new Set(['interval', 'tempo']);
+const HIGH_INTENSITY_ZONES = new Set(['Z4', 'Z5']);
 const CALIBRATION_ALLOWED_TYPES = new Set(['easy', 'long', 'rest', 'cross']);
 const RTSS_PER_MIN_EASY = 1.2; // rough: 72 rTSS/hour for easy
 const RTSS_PER_MIN_HARD = 2.2; // rough: 132 rTSS/hour for intervals
+
+// Alta intensidade: pelo tipo plano OU pela zona_alvo estruturada (superset v3)
+function isHighIntensity(day: WorkoutDay): boolean {
+  return (
+    HIGH_INTENSITY_TYPES.has(day.type) ||
+    (day.parte_principal != null && HIGH_INTENSITY_ZONES.has(day.parte_principal.zona_alvo))
+  );
+}
+
+// Usa rtss_estimado do Claude quando presente (mais preciso, generation_spec §3.1);
+// senão cai no estimador grosseiro por tipo.
+function estimatedRtss(day: WorkoutDay): number {
+  if (typeof day.rtss_estimado === 'number') return day.rtss_estimado;
+  const rpm = isHighIntensity(day) ? RTSS_PER_MIN_HARD : RTSS_PER_MIN_EASY;
+  return day.duration_min * rpm;
+}
 
 export interface GuardrailContext {
   atl: number;
@@ -61,7 +78,7 @@ function checkConsecutiveHighIntensity(week: PlanWeek, athleteId: string): void 
   for (let i = 0; i < days.length - 1; i++) {
     const today = days[i];
     const tomorrow = days[i + 1];
-    if (HIGH_INTENSITY_TYPES.has(today.type) && HIGH_INTENSITY_TYPES.has(tomorrow.type)) {
+    if (isHighIntensity(today) && isHighIntensity(tomorrow)) {
       logger.warn(
         { athleteId, week: week.week_number, day: i + 1 },
         'G3: dois estímulos altos consecutivos detectados',
@@ -70,6 +87,10 @@ function checkConsecutiveHighIntensity(week: PlanWeek, athleteId: string): void 
       tomorrow.type = 'easy';
       tomorrow.zones = [1];
       tomorrow.description = `[Ajustado automaticamente — recuperação necessária] ${tomorrow.description}`;
+      // Rebaixa a parte estruturada para manter coerência com o tipo plano
+      if (tomorrow.parte_principal) {
+        tomorrow.parte_principal.zona_alvo = 'Z1';
+      }
     }
   }
 }
@@ -129,17 +150,14 @@ function checkAcwrProjected(plan: PlanResponse, athleteId: string, ctx: Guardrai
   const week1 = plan.weeks[0];
   if (!week1) return;
 
-  const estimatedRtss = week1.days.reduce((sum, d) => {
-    const rpm = HIGH_INTENSITY_TYPES.has(d.type) ? RTSS_PER_MIN_HARD : RTSS_PER_MIN_EASY;
-    return sum + d.duration_min * rpm;
-  }, 0);
+  const weekRtss = week1.days.reduce((sum, d) => sum + estimatedRtss(d), 0);
 
-  const projectedAtl = (ctx.atl * 6 + estimatedRtss / 7) / 7;
+  const projectedAtl = (ctx.atl * 6 + weekRtss / 7) / 7;
   const projectedAcwr = projectedAtl / ctx.ctl;
 
   if (projectedAcwr > ACWR_MAX) {
     logger.warn(
-      { athleteId, projectedAcwr, ctl: ctx.ctl, estimatedRtss },
+      { athleteId, projectedAcwr, ctl: ctx.ctl, estimatedRtss: weekRtss },
       'G1: ACWR projetado excede 1.30 — reduzindo volume da semana 1',
     );
     logViolation(athleteId, 'acwr_projected', projectedAcwr, ACWR_MAX);
@@ -149,6 +167,9 @@ function checkAcwrProjected(plan: PlanResponse, athleteId: string, ctx: Guardrai
       if (!['rest', 'cross'].includes(day.type)) {
         day.duration_min = Math.max(20, Math.round(day.duration_min * scaleFactor));
         day.distance_km = Math.round(day.distance_km * scaleFactor * 10) / 10;
+        if (typeof day.rtss_estimado === 'number') {
+          day.rtss_estimado = Math.round(day.rtss_estimado * scaleFactor);
+        }
       }
     }
     week1.total_km = Math.round(week1.total_km * scaleFactor * 10) / 10;
@@ -205,16 +226,17 @@ function checkDescriptionQuality(week: PlanWeek, athleteId: string): void {
 // G10 — rTSS por sessão absurdamente alto
 function checkRtssPerSession(week: PlanWeek, athleteId: string): void {
   for (const day of week.days) {
-    const rpm = HIGH_INTENSITY_TYPES.has(day.type) ? RTSS_PER_MIN_HARD : RTSS_PER_MIN_EASY;
-    const estimatedRtss = day.duration_min * rpm;
-    if (estimatedRtss > 200) {
+    const dayRtss = estimatedRtss(day);
+    if (dayRtss > 200) {
       logger.warn(
-        { athleteId, week: week.week_number, day: day.day, estimatedRtss },
+        { athleteId, week: week.week_number, day: day.day, estimatedRtss: dayRtss },
         'G10: rTSS estimado > 200 em sessão única',
       );
-      logViolation(athleteId, 'rtss_too_high', estimatedRtss, 200);
+      logViolation(athleteId, 'rtss_too_high', dayRtss, 200);
+      const rpm = isHighIntensity(day) ? RTSS_PER_MIN_HARD : RTSS_PER_MIN_EASY;
       day.duration_min = Math.round(200 / rpm);
       day.distance_km = Math.round(day.distance_km * 0.8 * 10) / 10;
+      day.rtss_estimado = 200;
       day.description = `[Duração ajustada para segurança] ${day.description}`;
     }
   }

@@ -4,7 +4,7 @@ import { logger } from '../lib/logger';
 import { buildBriefing } from './briefing';
 import { applyGuardrails } from './guardrails';
 import { FEEDBACK_PROMPT_V1 } from './prompts/feedback_v1';
-import { PLAN_PROMPT_V2, PLAN_PROMPT_VERSION } from './prompts/plan_v2';
+import { PLAN_PROMPT_V3, PLAN_PROMPT_VERSION } from './prompts/plan_v3';
 import {
   type FeedbackInput,
   type FeedbackOutput,
@@ -49,7 +49,7 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 8192,
-        system: PLAN_PROMPT_V2,
+        system: PLAN_PROMPT_V3,
         messages: [{ role: 'user', content: JSON.stringify(briefing, null, 2) }],
       });
 
@@ -134,23 +134,51 @@ export async function generateFeedback(feedbackInput: FeedbackInput): Promise<Fe
   throw new Error('Geração de feedback falhou');
 }
 
+// Karvonen p/ Z2 (60-70% FCR) — generation_spec §1; defaults seguros se faltar FC
+function fallbackZ2Bpm(profile: Record<string, unknown>): { min: number; max: number } {
+  const fcMax = Number(profile.fc_max ?? 0);
+  const fcRest = Number(profile.fc_rest ?? 0);
+  if (fcMax > 100 && fcRest >= 30 && fcRest < fcMax) {
+    const reserve = fcMax - fcRest;
+    return {
+      min: Math.round(fcRest + 0.6 * reserve),
+      max: Math.round(fcRest + 0.7 * reserve),
+    };
+  }
+  return { min: 120, max: 145 };
+}
+
 function buildFallbackPlan(input: PlanInput): PlanResponse {
   const freq = String(input.profile.weekly_frequency ?? '3-5');
   const daysPerWeek = freq.includes('5') ? 5 : freq.includes('3') ? 4 : 3;
+  const z2 = fallbackZ2Bpm(input.profile);
 
   const days = Array.from({ length: 7 }, (_, i) => {
     const dayNum = i + 1;
     const isRunDay = dayNum <= daysPerWeek;
+    const durationMin = isRunDay ? (dayNum === 3 ? 60 : 40) : 0;
     return {
       day: dayNum,
       type: (isRunDay ? (dayNum === 3 ? 'long' : 'easy') : 'rest') as 'easy' | 'long' | 'rest',
-      duration_min: isRunDay ? (dayNum === 3 ? 60 : 40) : 0,
+      duration_min: durationMin,
       distance_km: isRunDay ? (dayNum === 3 ? 8 : 5) : 0,
       zones: isRunDay ? [2] : [],
       description: isRunDay
         ? 'Corrida leve em zona 2. Mantenha uma conversa confortável durante todo o treino. Foque na consistência.'
         : 'Dia de descanso — recuperação é parte do treinamento.',
       garmin_steps: [],
+      ...(isRunDay
+        ? {
+            rtss_estimado: Math.round(durationMin * 1.2),
+            aquecimento: { duracao_min: 8, zona: 'Z1' as const },
+            parte_principal: {
+              descricao: 'Corrida contínua confortável em ritmo conversável',
+              zona_alvo: 'Z2' as const,
+              fc_alvo_bpm: z2,
+            },
+            desaquecimento: { duracao_min: 5, zona: 'Z1' as const },
+          }
+        : { rtss_estimado: 0 }),
     };
   });
 

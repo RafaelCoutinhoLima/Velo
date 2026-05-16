@@ -29,5 +29,10 @@ class WorkoutStep(BaseModel):
 
 class WorkoutRequest(BaseModel):
     athlete_id: str
-    workout: dict
+    # DTO Garmin já montado pela API (fluxo atual). Opcional se `session` vier.
+    workout: dict = Field(default_factory=dict)
     schedule_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # Caminho alternativo: sidecar monta o DTO via converters.py (generation_spec §5)
+    session: Optional[dict] = None
+    zones: Optional[list[dict]] = None
+    workout_name: Optional[str] = None
