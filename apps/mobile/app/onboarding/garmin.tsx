@@ -128,9 +128,22 @@ export default function GarminScreen() {
         <Text style={styles.doneIcon}>✅</Text>
         <Text style={styles.doneTitle}>Garmin conectado!</Text>
         <Text style={styles.doneSub}>
-          Seus treinos foram importados e seu primeiro plano está sendo gerado.
+          Seus treinos foram importados. Calibre suas zonas com o Teste de Cooper para um plano
+          muito mais preciso — ou pule e use a estimativa por idade.
         </Text>
-        <Button label="Ver meu plano" onPress={finish} style={styles.doneBtn} />
+        <Button
+          label="Calibrar minhas zonas"
+          onPress={() => router.replace('/onboarding/cooper' as never)}
+          style={styles.doneBtn}
+          accessibilityLabel="Calibrar zonas com o Teste de Cooper"
+        />
+        <Button
+          label="Pular e ver meu plano"
+          variant="ghost"
+          onPress={finish}
+          style={styles.doneSkip}
+          accessibilityLabel="Pular calibração e ver meu plano"
+        />
       </View>
     );
   }
@@ -229,4 +242,5 @@ const styles = StyleSheet.create({
   doneTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary, textAlign: 'center' },
   doneSub: { fontSize: FontSize.sm, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center', lineHeight: 20, marginBottom: Spacing.xl },
   doneBtn: { width: '100%' },
+  doneSkip: { width: '100%', marginTop: Spacing.sm },
 });

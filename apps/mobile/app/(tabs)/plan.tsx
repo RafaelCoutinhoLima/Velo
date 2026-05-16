@@ -17,6 +17,7 @@ import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Button } from '../../components/Button';
+import { ErrorCard } from '../../components/ErrorCard';
 
 const PT_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
@@ -185,6 +186,49 @@ function WhyCard({ text }: { text: string }) {
       </View>
       {expanded && <Text style={styles.whyText}>{text}</Text>}
     </TouchableOpacity>
+  );
+}
+
+function SendToWatch({ athleteId }: { athleteId: string }) {
+  const { post } = useApi();
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function send() {
+    setStatus('sending');
+    setMessage(null);
+    try {
+      const res = await post<{ ok: boolean; sent: number }>('/plan/send-to-garmin', {
+        athlete_id: athleteId,
+        week_number: 1,
+      });
+      setStatus('sent');
+      setMessage(`${res.sent} treino${res.sent === 1 ? '' : 's'} enviado${res.sent === 1 ? '' : 's'} pro relógio.`);
+    } catch (e: unknown) {
+      setStatus('error');
+      setMessage(e instanceof Error ? e.message : 'Não conseguimos enviar pro relógio.');
+    }
+  }
+
+  return (
+    <View style={styles.sendSection}>
+      <Button
+        label={status === 'sent' ? 'Enviado ✓' : 'Enviar semana pro relógio'}
+        onPress={send}
+        variant="secondary"
+        loading={status === 'sending'}
+        disabled={status === 'sending' || status === 'sent'}
+        accessibilityLabel="Enviar treinos da semana para o relógio Garmin"
+      />
+      {status === 'error' && message ? (
+        <View style={styles.sendFeedback}>
+          <ErrorCard message={message} />
+        </View>
+      ) : null}
+      {status === 'sent' && message ? (
+        <Text style={styles.sendOk}>{message}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -429,6 +473,8 @@ export default function PlanScreen() {
           </>
         )}
 
+        <SendToWatch athleteId={session.athlete_id} />
+
         {advancedMode ? (
           <TouchableOpacity
             style={styles.advancedLink}
@@ -517,6 +563,15 @@ const styles = StyleSheet.create({
   },
   cardSelected: { borderWidth: 2, borderColor: Colors.primary, borderRadius: Radii.lg },
   cardTarget: { opacity: 0.6 },
+  sendSection: { marginTop: Spacing.md },
+  sendFeedback: { marginTop: Spacing.sm },
+  sendOk: {
+    fontSize: FontSize.sm,
+    color: Colors.success,
+    fontWeight: FontWeight.semibold,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
   advancedLink: { alignItems: 'center', paddingVertical: Spacing.md },
   advancedLinkText: { fontSize: FontSize.sm, color: Colors.accent, fontWeight: FontWeight.semibold },
   disclaimerFooter: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },

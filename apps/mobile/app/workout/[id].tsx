@@ -7,7 +7,6 @@ import {
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
@@ -77,7 +76,6 @@ interface Workout {
   activity_name: string | null;
   location: string | null;
   description?: string;
-  feedback_md?: string;
 }
 
 function StatBox({ value, label, highlight }: { value: string; label: string; highlight?: boolean }) {
@@ -108,12 +106,39 @@ function MetricRow({ items }: { items: { icon: string; value: string; label: str
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useAuthStore((s) => s.session);
-  const { get, patch } = useApi();
-  const insets = useSafeAreaInsets();
+  const { get, post, patch } = useApi();
+  const insets = { top: Spacing.xl, bottom: Spacing.md };
 
   const [rpe, setRpe] = useState<number | null>(null);
   const [savingRpe, setSavingRpe] = useState(false);
   const [rpeError, setRpeError] = useState<string | null>(null);
+
+  const [fbStatus, setFbStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [fbError, setFbError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    texto_principal: string;
+    destaque_positivo?: string;
+    sugestao?: string;
+    emoji_resumo?: string;
+  } | null>(null);
+
+  async function loadFeedback() {
+    setFbStatus('loading');
+    setFbError(null);
+    try {
+      const res = await post<{
+        texto_principal: string;
+        destaque_positivo?: string;
+        sugestao?: string;
+        emoji_resumo?: string;
+      }>('/feedback', { workout_id: id, athlete_id: session?.athlete_id });
+      setFeedback(res);
+      setFbStatus('done');
+    } catch (e: unknown) {
+      setFbStatus('error');
+      setFbError(e instanceof Error ? e.message : 'Não conseguimos gerar o feedback.');
+    }
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['workout', id],
@@ -325,17 +350,58 @@ export default function WorkoutDetailScreen() {
           ) : null}
         </View>
 
-        {/* ── Feedback CTA ── */}
-        {w.feedback_md ? (
-          <TouchableOpacity
-            style={[styles.feedbackBtn, Shadow.card]}
-            onPress={() => router.push(`/feedback?workoutId=${id}`)}
-            accessibilityRole="button"
-            accessibilityLabel="Ver análise completa do treino"
-          >
-            <Text style={styles.feedbackText}>Ver análise do treino →</Text>
-          </TouchableOpacity>
-        ) : null}
+        {/* ── Feedback do treinador ── */}
+        <View style={[styles.coachCard, Shadow.card]}>
+          <Text style={styles.coachTitle}>Feedback do treinador</Text>
+          {fbStatus === 'done' && feedback ? (
+            <>
+              <Text style={styles.coachText}>
+                {feedback.emoji_resumo ? `${feedback.emoji_resumo} ` : ''}
+                {feedback.texto_principal}
+              </Text>
+              {feedback.destaque_positivo ? (
+                <View style={styles.coachHighlight}>
+                  <Text style={styles.coachHighlightText}>✅ {feedback.destaque_positivo}</Text>
+                </View>
+              ) : null}
+              {feedback.sugestao ? (
+                <View style={styles.coachSuggestion}>
+                  <Text style={styles.coachSuggestionText}>💡 {feedback.sugestao}</Text>
+                </View>
+              ) : null}
+            </>
+          ) : fbStatus === 'error' ? (
+            <>
+              <ErrorCard message={fbError ?? 'Não conseguimos gerar o feedback.'} />
+              <TouchableOpacity
+                style={styles.coachBtn}
+                onPress={loadFeedback}
+                accessibilityRole="button"
+                accessibilityLabel="Tentar gerar o feedback novamente"
+              >
+                <Text style={styles.coachBtnText}>Tentar novamente</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.coachSub}>
+                Receba uma análise personalizada deste treino com base no seu pace, FC e histórico.
+              </Text>
+              <TouchableOpacity
+                style={[styles.coachBtn, fbStatus === 'loading' && styles.coachBtnDisabled]}
+                onPress={loadFeedback}
+                disabled={fbStatus === 'loading'}
+                accessibilityRole="button"
+                accessibilityLabel="Ver feedback do treinador para este treino"
+                accessibilityState={{ busy: fbStatus === 'loading' }}
+              >
+                <Text style={styles.coachBtnText}>
+                  {fbStatus === 'loading' ? 'Analisando seu treino…' : 'Ver feedback do treinador'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -486,14 +552,45 @@ const styles = StyleSheet.create({
   rpeBtnTextActive: { color: Colors.surface },
   rpeStatus: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.sm },
 
-  // Feedback
-  feedbackBtn: {
-    backgroundColor: Colors.accentLight,
+  // Feedback do treinador
+  coachCard: {
+    backgroundColor: Colors.surface,
     borderRadius: Radii.md,
     padding: Spacing.md,
-    alignItems: 'center',
     borderLeftWidth: 3,
     borderLeftColor: Colors.accent,
   },
-  feedbackText: { color: Colors.accent, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
+  coachTitle: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: Spacing.xs,
+  },
+  coachSub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.md },
+  coachText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 24 },
+  coachHighlight: {
+    backgroundColor: Colors.successLight,
+    borderRadius: Radii.sm,
+    padding: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  coachHighlightText: { fontSize: FontSize.sm, color: Colors.success, lineHeight: 20 },
+  coachSuggestion: {
+    backgroundColor: Colors.warningLight,
+    borderRadius: Radii.sm,
+    padding: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  coachSuggestionText: { fontSize: FontSize.sm, color: Colors.warning, lineHeight: 20 },
+  coachBtn: {
+    backgroundColor: Colors.accentLight,
+    borderRadius: Radii.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  coachBtnDisabled: { opacity: 0.6 },
+  coachBtnText: { color: Colors.accent, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
 });
