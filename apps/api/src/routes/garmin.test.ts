@@ -72,7 +72,12 @@ function makeMockDb(opts: MockDbOpts = {}) {
   } = opts;
 
   // Tracks calls for assertions
-  const calls = { metricsUpsert: 0, workoutsUpdate: 0, calibrationUpdate: 0 };
+  const calls = {
+    metricsUpsert: 0,
+    workoutsUpdate: 0,
+    calibrationUpdate: 0,
+    workoutsUpserted: [] as unknown[],
+  };
 
   const db = {
     _calls: calls,
@@ -112,7 +117,10 @@ function makeMockDb(opts: MockDbOpts = {}) {
               }),
             }),
           }),
-          upsert: async (_data: unknown, _opts?: unknown) => ({ error: upsertError }),
+          upsert: async (data: unknown, _opts?: unknown) => {
+            calls.workoutsUpserted.push(data);
+            return { error: upsertError };
+          },
           update: (_data: unknown) => ({
             eq: (_col: string, _val: unknown) => ({
               eq: async (_col2: string, _val2: unknown) => {
@@ -306,6 +314,50 @@ describe('POST /garmin/sync', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.synced).toBe(SAMPLE_ACTIVITIES.length);
+  });
+
+  it('US-015 Camada 1: importa RPE do Garmin (perceived_effort) para workouts.rpe', async () => {
+    installFetchMock({
+      metricsBody: {
+        activities: [
+          {
+            garmin_id: 'g1',
+            date: '2026-05-01',
+            distance_m: 5000,
+            duration_s: 1800,
+            avg_hr: 145,
+            perceived_effort: 7,
+            raw: {},
+          },
+          {
+            garmin_id: 'g2',
+            date: '2026-05-03',
+            distance_m: 9000,
+            duration_s: 3000,
+            avg_hr: 150,
+            perceived_effort: 12,
+            raw: {},
+          },
+          {
+            garmin_id: 'g3',
+            date: '2026-05-04',
+            distance_m: 6000,
+            duration_s: 2000,
+            avg_hr: 148,
+            raw: {},
+          },
+        ],
+      },
+    });
+    const db = makeMockDb({ rpcData: TOKEN_JSON });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    const rows = db._calls.workoutsUpserted as { garmin_id: string; rpe?: number }[];
+    const byId = (id: string) => rows.find((r) => r.garmin_id === id);
+    expect(byId('g1')?.rpe).toBe(7); // 1–10 válido → importado
+    expect('rpe' in (byId('g2') ?? {})).toBe(false); // 12 fora de 1–10 → omitido
+    expect('rpe' in (byId('g3') ?? {})).toBe(false); // sem perceived_effort → omitido (não sobrescreve)
   });
 
   it('retorna { synced: 0 } quando sidecar retorna lista vazia', async () => {

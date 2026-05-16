@@ -108,18 +108,26 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
 
         let synced = 0;
         for (const act of activities) {
-          const { error } = await db.from('workouts').upsert(
-            {
-              athlete_id: internalId,
-              garmin_id: act.garmin_id,
-              date: act.date,
-              distance_m: act.distance_m,
-              duration_s: act.duration_s,
-              avg_hr: act.avg_hr ?? null,
-              raw_payload: act.raw,
-            },
-            { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false },
-          );
+          // US-015 Camada 1: se o Garmin já trouxe RPE (perceivedEffort),
+          // importa automaticamente. `rpe` só entra no payload quando há
+          // valor válido 1–10 — assim um re-sync não sobrescreve um RPE
+          // digitado pelo atleta com null (upsert só atualiza colunas
+          // presentes no objeto em caso de conflito).
+          const importedRpe = normalizeRpe(act.perceived_effort);
+          const row: Record<string, unknown> = {
+            athlete_id: internalId,
+            garmin_id: act.garmin_id,
+            date: act.date,
+            distance_m: act.distance_m,
+            duration_s: act.duration_s,
+            avg_hr: act.avg_hr ?? null,
+            raw_payload: act.raw,
+          };
+          if (importedRpe !== null) row.rpe = importedRpe;
+
+          const { error } = await db
+            .from('workouts')
+            .upsert(row, { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false });
           if (!error) synced++;
         }
 
@@ -213,6 +221,17 @@ async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
   // ≥30 dias de dados) — não basta sincronizar alguns treinos.
   const distinctWorkoutDays = new Set(workouts.map((w) => w.date)).size;
   await evaluateCalibration(db, athleteId, { distinctWorkoutDays });
+}
+
+// Garmin `perceivedEffort` chega como número (ou ausente). Aceita só
+// 1–10 inteiro (escala RPE de US-015 / workouts.rpe); fora disso → null
+// (estado válido, não bloqueia nada — Camada 3).
+function normalizeRpe(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 1 || rounded > 10) return null;
+  return rounded;
 }
 
 function estimateFtpPace(workouts: Pick<WorkoutRow, 'distance_m' | 'duration_s'>[]): number {
