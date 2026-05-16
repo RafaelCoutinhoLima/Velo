@@ -3,6 +3,7 @@ import { generatePlan } from '../claude/client';
 import { supabase as defaultSupabase } from '../db/client';
 import { garminClient } from '../garmin/client';
 import { buildGarminWorkout, planDayDate } from '../garmin/workoutBuilder';
+import { evaluateCalibration } from '../lib/calibration';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
@@ -18,23 +19,31 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
 
         const { data: athlete } = await db
           .from('athletes')
-          .select('id')
+          .select('id, calibration_mode, created_at')
           .eq('user_id', athlete_id)
           .single();
 
-        if (!athlete) return { plan: null };
+        if (!athlete) return { plan: null, calibration_mode: true };
+
+        const a = athlete as { id: string; calibration_mode?: boolean; created_at?: string };
+
+        // US-017: avalia calibração na leitura também — flip de 14 dias
+        // acontece mesmo se o atleta só abrir o app (sem sync nem gerar plano).
+        const { calibrationMode } = await evaluateCalibration(db, a.id, {
+          athleteRow: { calibration_mode: a.calibration_mode, created_at: a.created_at },
+        });
 
         const { data, error } = await db
           .from('plans')
           .select('*')
-          .eq('athlete_id', (athlete as { id: string }).id)
+          .eq('athlete_id', a.id)
           .eq('is_active', true)
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
-        if (error || !data) return { plan: null };
-        return { plan: data };
+        if (error || !data) return { plan: null, calibration_mode: calibrationMode };
+        return { plan: data, calibration_mode: calibrationMode };
       },
       { query: t.Object({ athlete_id: t.String() }) },
     )
@@ -384,13 +393,19 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
   const metricsHistory = ((metricsHistoryResult.data ?? []) as Record<string, unknown>[]).reverse();
   const latestMetrics = metricsHistory.at(-1) ?? null;
 
+  // US-017: reavalia (e persiste) calibração antes de gerar — garante que o
+  // prompt receba o estado correto mesmo sem um sync Garmin recente.
+  const { calibrationMode } = await evaluateCalibration(db, internalId, {
+    athleteRow: athlete as { calibration_mode?: boolean; created_at?: string },
+  });
+
   const result = await generatePlan({
     athleteId: internalId,
     profile: athlete,
     recentWorkouts: (workoutsResult.data ?? []) as Record<string, unknown>[],
     metrics: latestMetrics,
     metricsHistory,
-    calibrationMode: (athlete as { calibration_mode?: boolean }).calibration_mode ?? true,
+    calibrationMode,
   });
 
   const { data: savedPlan, error: saveErr } = await db

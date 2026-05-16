@@ -7,6 +7,7 @@ import {
 } from '@fitsync/metrics';
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
+import { evaluateCalibration } from '../lib/calibration';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
@@ -208,11 +209,10 @@ async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
     { onConflict: 'athlete_id,date' },
   );
 
-  const distinctDates = new Set(workouts.map((w) => w.date)).size;
-  if (distinctDates >= 7) {
-    await db.from('athletes').update({ calibration_mode: false }).eq('id', athleteId);
-    logger.info({ athlete_id: athleteId, distinctDates }, 'Calibration mode desativado');
-  }
+  // US-017: a saída de calibração tem regra própria (≥14 dias de app E
+  // ≥30 dias de dados) — não basta sincronizar alguns treinos.
+  const distinctWorkoutDays = new Set(workouts.map((w) => w.date)).size;
+  await evaluateCalibration(db, athleteId, { distinctWorkoutDays });
 }
 
 function estimateFtpPace(workouts: Pick<WorkoutRow, 'distance_m' | 'duration_s'>[]): number {

@@ -41,6 +41,11 @@ interface Plan {
   plan_json: { weeks: { days: WorkoutDay[]; why_text: string }[] };
 }
 
+interface PlanResponse {
+  plan: Plan | null;
+  calibration_mode?: boolean;
+}
+
 function getDayLabel(n: number) { return PT_DAYS[(n - 1) % 7]; }
 
 function getDayDateLabel(weekStart: string, dayNumber: number): string {
@@ -80,7 +85,7 @@ function usePlan(athleteId: string) {
   const { get } = useApi();
   return useQuery({
     queryKey: ['plan', athleteId],
-    queryFn: () => get<{ plan: Plan | null }>(`/plan/current?athlete_id=${athleteId}`),
+    queryFn: () => get<PlanResponse>(`/plan/current?athlete_id=${athleteId}`),
     enabled: !!athleteId,
     staleTime: 1000 * 60 * 5,
   });
@@ -193,6 +198,41 @@ function WhyCard({ text }: { text: string }) {
   );
 }
 
+function CalibrationBanner() {
+  return (
+    <View style={styles.calibBanner} accessibilityRole="alert">
+      <Text style={styles.calibIcon}>🧪</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.calibTitle}>Modo calibração</Text>
+        <Text style={styles.calibText}>
+          Estamos aprendendo seu corpo. Daqui ~2 semanas o plano fica mais agressivo.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function CalibrationDoneNotice({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <TouchableOpacity
+      style={styles.calibDone}
+      onPress={onDismiss}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Calibração concluída. Toque para dispensar."
+    >
+      <Text style={styles.calibIcon}>✅</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.calibDoneTitle}>Calibração concluída</Text>
+        <Text style={styles.calibText}>
+          Já conhecemos seu condicionamento — seu plano agora progride normalmente.
+        </Text>
+      </View>
+      <Text style={styles.calibDismiss}>✕</Text>
+    </TouchableOpacity>
+  );
+}
+
 function SendToWatch({ athleteId }: { athleteId: string }) {
   const { post } = useApi();
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -288,10 +328,26 @@ const headerStyles = StyleSheet.create({
 
 export default function PlanScreen() {
   const session = useAuthStore((s) => s.session);
-  const advancedMode = useAuthStore((s) => s.profile?.advancedMode ?? false);
+  const profile = useAuthStore((s) => s.profile);
+  const setProfile = useAuthStore((s) => s.setProfile);
+  const advancedMode = profile?.advancedMode ?? false;
   const { data, isLoading, refetch, isRefetching } = usePlan(session?.athlete_id ?? '');
 
   const plan = data?.plan;
+  const calibrationMode = data?.calibration_mode ?? profile?.calibrationMode ?? false;
+  const [showCalibDone, setShowCalibDone] = useState(false);
+
+  // US-017: detecta a transição calibração → concluída e persiste o novo
+  // estado no profile (para o aviso aparecer só uma vez).
+  useEffect(() => {
+    const serverMode = data?.calibration_mode;
+    if (serverMode === undefined || !profile) return;
+    if (profile.calibrationMode === serverMode) return;
+    if (profile.calibrationMode === true && serverMode === false) {
+      setShowCalibDone(true);
+    }
+    setProfile({ ...profile, calibrationMode: serverMode });
+  }, [data?.calibration_mode, profile, setProfile]);
   const planId = plan?.id ?? '';
   const moveMutation = useMoveMutation(planId);
 
@@ -373,6 +429,11 @@ export default function PlanScreen() {
       >
         {/* Header greeting */}
         <PlanHeader weekStart={plan.week_start} />
+
+        {showCalibDone ? (
+          <CalibrationDoneNotice onDismiss={() => setShowCalibDone(false)} />
+        ) : null}
+        {calibrationMode ? <CalibrationBanner /> : null}
 
         {/* Hero card — treino de hoje sempre no topo */}
         {todayWorkout && (
@@ -534,6 +595,33 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     letterSpacing: 0.3,
   },
+  calibBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.accentLight,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.accent,
+  },
+  calibDone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.successLight,
+    borderRadius: Radii.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.success,
+  },
+  calibIcon: { fontSize: FontSize.xl },
+  calibTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.accent },
+  calibDoneTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.success },
+  calibText: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 17, marginTop: 2 },
+  calibDismiss: { fontSize: FontSize.md, color: Colors.textMuted, paddingHorizontal: Spacing.xs },
   whyCard: {
     backgroundColor: Colors.primaryMuted,
     borderRadius: Radii.md,

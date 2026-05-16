@@ -29,15 +29,22 @@ const SAMPLE_ACTIVITIES = [
   },
 ];
 
-// 7 workouts espalhados em 7 dias distintos → dispara flip do calibration_mode
-const WORKOUTS_7_DAYS = Array.from({ length: 7 }, (_, i) => ({
-  garmin_id: `g${i}`,
-  date: `2026-04-${String(i + 1).padStart(2, '0')}`,
-  distance_m: 8000,
-  duration_s: 2800,
-  avg_hr: 150,
-  rtss: null,
-}));
+function makeWorkouts(distinctDays: number) {
+  return Array.from({ length: distinctDays }, (_, i) => ({
+    garmin_id: `g${i}`,
+    date: `2026-04-${String((i % 30) + 1).padStart(2, '0')}`,
+    distance_m: 8000,
+    duration_s: 2800,
+    avg_hr: 150,
+    rtss: null,
+  }));
+}
+
+// US-017: a saída de calibração exige ≥30 dias de dados E ≥14 dias de app.
+const WORKOUTS_7_DAYS = makeWorkouts(7);
+const WORKOUTS_30_DAYS = makeWorkouts(30);
+
+const DAYS_AGO = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DB mock factory
@@ -49,6 +56,8 @@ type MockDbOpts = {
   rpcError?: { message: string } | null;
   upsertError?: { message: string } | null;
   workoutsData?: typeof WORKOUTS_7_DAYS;
+  calibrationMode?: boolean;
+  createdAt?: string;
 };
 
 function makeMockDb(opts: MockDbOpts = {}) {
@@ -58,6 +67,8 @@ function makeMockDb(opts: MockDbOpts = {}) {
     rpcError = null,
     upsertError = null,
     workoutsData = [],
+    calibrationMode = true,
+    createdAt = DAYS_AGO(40),
   } = opts;
 
   // Tracks calls for assertions
@@ -72,7 +83,14 @@ function makeMockDb(opts: MockDbOpts = {}) {
             eq: (_col: string, _val: unknown) => ({
               single: async () =>
                 athleteExists
-                  ? { data: { id: ATHLETE_UUID }, error: null }
+                  ? {
+                      data: {
+                        id: ATHLETE_UUID,
+                        calibration_mode: calibrationMode,
+                        created_at: createdAt,
+                      },
+                      error: null,
+                    }
                   : { data: null, error: { message: 'Not found' } },
             }),
           }),
@@ -377,8 +395,13 @@ describe('POST /garmin/sync', () => {
     expect(db._calls.metricsUpsert).toBe(0);
   });
 
-  it('desativa calibration_mode quando há >= 7 dias de treino', async () => {
-    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: WORKOUTS_7_DAYS });
+  // US-017: saída de calibração exige ≥14 dias de app E ≥30 dias de dados.
+  it('desativa calibration_mode com >=30 dias de dados E >=14 dias de app', async () => {
+    const db = makeMockDb({
+      rpcData: TOKEN_JSON,
+      workoutsData: WORKOUTS_30_DAYS,
+      createdAt: DAYS_AGO(20),
+    });
     const app = makeApp(db);
     const res = await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
@@ -386,9 +409,37 @@ describe('POST /garmin/sync', () => {
     expect(db._calls.calibrationUpdate).toBe(1);
   });
 
-  it('não desativa calibration_mode com menos de 7 dias de treino', async () => {
-    const fewWorkouts = WORKOUTS_7_DAYS.slice(0, 3);
-    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: fewWorkouts });
+  it('NÃO desativa com <30 dias de dados (mesmo após 14 dias de app)', async () => {
+    const db = makeMockDb({
+      rpcData: TOKEN_JSON,
+      workoutsData: WORKOUTS_7_DAYS,
+      createdAt: DAYS_AGO(20),
+    });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.calibrationUpdate).toBe(0);
+  });
+
+  it('NÃO desativa nas primeiras 2 semanas (mesmo com 30 dias de dados)', async () => {
+    const db = makeMockDb({
+      rpcData: TOKEN_JSON,
+      workoutsData: WORKOUTS_30_DAYS,
+      createdAt: DAYS_AGO(5),
+    });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.calibrationUpdate).toBe(0);
+  });
+
+  it('é idempotente: não reavalia se já saiu da calibração', async () => {
+    const db = makeMockDb({
+      rpcData: TOKEN_JSON,
+      workoutsData: WORKOUTS_30_DAYS,
+      createdAt: DAYS_AGO(20),
+      calibrationMode: false,
+    });
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
