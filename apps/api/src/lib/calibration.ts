@@ -1,5 +1,6 @@
 import type { supabase as defaultSupabase } from '../db/client';
 import { logger } from './logger';
+import { sendExpoPush } from './push';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
@@ -77,5 +78,21 @@ export async function evaluateCalibration(
     { athlete_id: athleteInternalId, daysSinceCreated, distinctWorkoutDays },
     'Modo calibração concluído',
   );
+
+  // US-017: notificação "Calibração concluída" (US-015 entrega o canal push).
+  // Evento raro (1x na vida do atleta) → 1 query extra do token é ok.
+  // Fire-and-forget: sendExpoPush nunca lança.
+  const { data: tokenRow } = await db
+    .from('athletes')
+    .select('push_token')
+    .eq('id', athleteInternalId)
+    .single();
+  await sendExpoPush(
+    (tokenRow as { push_token?: string } | null)?.push_token,
+    'Calibração concluída 🎉',
+    'Já conhecemos seu condicionamento — seu plano agora progride normalmente.',
+    { type: 'calibration_done' },
+  );
+
   return { calibrationMode: false, justExited: true };
 }

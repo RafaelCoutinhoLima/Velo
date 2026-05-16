@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { queryClient, persister } from '../lib/queryClient';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../lib/store';
+import { registerPushToken } from '../lib/push';
 import { Colors } from '../lib/theme';
 
 export default function RootLayout() {
@@ -18,12 +19,15 @@ export default function RootLayout() {
           access_token: data.session.access_token,
           athlete_id: data.session.user.id,
         });
+        // US-015 Camada 2 — best-effort, nunca bloqueia
+        registerPushToken(data.session.user.id, data.session.access_token);
       }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setSession({ access_token: session.access_token, athlete_id: session.user.id });
+        registerPushToken(session.user.id, session.access_token);
       } else {
         clearSession();
       }

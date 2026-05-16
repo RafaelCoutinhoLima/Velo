@@ -8,6 +8,7 @@ import { garminRoutes } from './routes/garmin';
 import { jobRoutes } from './routes/jobs';
 import { onboardingRoutes } from './routes/onboarding';
 import { planRoutes } from './routes/plan';
+import { pushRoutes } from './routes/push';
 import { workoutRoutes } from './routes/workouts';
 
 const app = new Elysia()
@@ -21,6 +22,7 @@ const app = new Elysia()
   .use(workoutRoutes)
   .use(jobRoutes)
   .use(feedbackRoutes)
+  .use(pushRoutes)
   .onError(({ error, code }) => {
     logger.error({ code, err: error }, 'Unhandled error');
     const message = error instanceof Error ? error.message : String(error);
