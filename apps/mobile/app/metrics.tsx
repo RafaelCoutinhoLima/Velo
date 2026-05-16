@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: Spacing.sm,
   },
-  metricValue: { fontSize: 28, fontWeight: FontWeight.extrabold },
+  metricValue: { fontSize: 28, fontWeight: FontWeight.extrabold, fontVariant: ['tabular-nums'] },
   metricUnit: { fontSize: FontSize.sm, fontWeight: FontWeight.regular, color: Colors.textMuted },
   metricDesc: {
     fontSize: FontSize.xs,

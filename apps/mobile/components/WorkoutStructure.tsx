@@ -190,8 +190,13 @@ const styles = StyleSheet.create({
   },
   rowBody: { gap: Spacing.xs },
   rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
-  rowDuration: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
-  rowPace: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  rowDuration: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
+  rowPace: { fontSize: FontSize.sm, color: Colors.textSecondary, fontVariant: ['tabular-nums'] },
   mainDesc: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 21 },
   repsBox: {
     backgroundColor: Colors.surfaceAlt,
@@ -200,7 +205,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     gap: 2,
   },
-  repsText: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  repsText: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
   repsZone: { color: Colors.primary },
   recoveryText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   zoneChip: {
@@ -217,7 +227,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 4,
   },
-  loadChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.accent },
+  loadChipText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
+    color: Colors.accent,
+    fontVariant: ['tabular-nums'],
+  },
   notesBox: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
