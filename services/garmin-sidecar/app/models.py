@@ -16,23 +16,8 @@ class MetricsResponse(BaseModel):
     activities: list[dict]
 
 
-class WorkoutStep(BaseModel):
-    order: int
-    step_type: str
-    duration_type: Optional[str] = None
-    duration_value: Optional[int] = None
-    target_type: Optional[str] = None
-    target_value_low: Optional[int] = None
-    target_value_high: Optional[int] = None
-    description: Optional[str] = None
-
-
 class WorkoutRequest(BaseModel):
     athlete_id: str
-    # DTO Garmin já montado pela API (fluxo atual). Opcional se `session` vier.
-    workout: dict = Field(default_factory=dict)
+    # DTO Garmin montado pela API (workoutBuilder.ts) — fonte única.
+    workout: dict
     schedule_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    # Caminho alternativo: sidecar monta o DTO via converters.py (generation_spec §5)
-    session: Optional[dict] = None
-    zones: Optional[list[dict]] = None
-    workout_name: Optional[str] = None

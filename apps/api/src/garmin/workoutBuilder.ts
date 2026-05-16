@@ -1,3 +1,13 @@
+// ─── Adaptador de dispositivo: GARMIN ───────────────────────────────────────
+// Fonte ÚNICA da conversão "treino FitSync → formato do relógio". Era
+// duplicado em Python (services/garmin-sidecar/app/converters.py, removido):
+// o sidecar agora só faz upload do DTO montado aqui.
+//
+// Cada relógio tem seu padrão próprio. Hoje só Garmin (MVP = Garmin only,
+// CLAUDE.md). Fase 2 (Apple/Coros) entra como NOVOS adaptadores irmãos deste
+// arquivo (ex: appleWorkoutBuilder.ts) consumindo o mesmo PlanDay — sem
+// duplicar lógica e sem tocar no sidecar.
+//
 // Converts a FitSync plan day into the Garmin Connect workout JSON format.
 // Ref: garminconnect upload_workout — expects the standard Garmin workout DTO.
 // Suporta o superset estruturado (generation_spec.md §2.3/§5): aquecimento,
