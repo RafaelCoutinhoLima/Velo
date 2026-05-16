@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, persister } from '../lib/queryClient';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../lib/store';
+import { Colors } from '../lib/theme';
 
 export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
@@ -32,7 +34,14 @@ export default function RootLayout() {
 
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar style="light" backgroundColor={Colors.bg} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: Colors.bg },
+          animation: 'fade',
+        }}
+      />
     </PersistQueryClientProvider>
   );
 }

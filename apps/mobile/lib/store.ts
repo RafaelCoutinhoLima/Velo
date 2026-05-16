@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import * as SecureStore from 'expo-secure-store';
+import { chunkedSecureStorage } from './secureStorage';
 
 interface AthleteProfile {
   id: string;
@@ -24,12 +24,6 @@ interface AuthState {
   clearSession: () => void;
 }
 
-const secureStorage = {
-  getItem: (key: string) => SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
-  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
-};
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -47,7 +41,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'fitsync-auth',
-      storage: createJSONStorage(() => secureStorage),
+      storage: createJSONStorage(() => chunkedSecureStorage),
     },
   ),
 );

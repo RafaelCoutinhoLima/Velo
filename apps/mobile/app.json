@@ -5,22 +5,14 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "fitsync",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f8fafc",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.fitsync.mobile",
       "usesAppleSignIn": true
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
       "package": "app.fitsync.mobile"
     },
     "plugins": [
@@ -29,8 +21,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#2563eb"
+          "color": "#1e40af"
         }
       ]
     ],

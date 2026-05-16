@@ -57,14 +57,16 @@ export function ConfirmModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.72)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.lg,
   },
   box: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceAlt,
     borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderStrong,
     padding: Spacing.lg,
     width: '100%',
     maxWidth: 360,
@@ -103,7 +105,7 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: FontSize.md,
-    color: Colors.surface,
-    fontWeight: FontWeight.bold,
+    color: Colors.onAccent,
+    fontWeight: FontWeight.extrabold,
   },
 });

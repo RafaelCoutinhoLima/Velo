@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   settingTitle: { fontSize: FontSize.md, fontWeight: FontWeight.medium, color: Colors.textPrimary },
   settingDesc: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
   dangerText: { fontSize: FontSize.md, color: Colors.danger, fontWeight: FontWeight.medium },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' },
   modalBox: {
     backgroundColor: Colors.surface,
     borderTopLeftRadius: Radii.xl,

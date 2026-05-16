@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, type ViewStyle } from 'react-native';
-import { Colors, FontSize, FontWeight, Radii, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing, Tracking } from '../lib/theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -16,27 +16,27 @@ interface ButtonProps {
 const variantStyles = {
   primary: {
     container: { backgroundColor: Colors.primary },
-    text: { color: Colors.surface },
-    indicator: Colors.surface,
-    disabled: { backgroundColor: Colors.primaryMuted },
+    text: { color: Colors.onAccent },
+    indicator: Colors.onAccent,
+    glow: true,
   },
   secondary: {
-    container: { backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.primary },
+    container: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.primary },
     text: { color: Colors.primary },
     indicator: Colors.primary,
-    disabled: { backgroundColor: Colors.bg, borderColor: Colors.border },
+    glow: false,
   },
   ghost: {
     container: { backgroundColor: 'transparent' },
     text: { color: Colors.primary },
     indicator: Colors.primary,
-    disabled: { backgroundColor: 'transparent' },
+    glow: false,
   },
   danger: {
     container: { backgroundColor: Colors.danger },
-    text: { color: Colors.surface },
-    indicator: Colors.surface,
-    disabled: { backgroundColor: Colors.dangerLight },
+    text: { color: Colors.onAccent },
+    indicator: Colors.onAccent,
+    glow: false,
   },
 } as const;
 
@@ -54,18 +54,26 @@ export function Button({
 
   return (
     <TouchableOpacity
-      style={[styles.base, v.container, isDisabled && v.disabled, style]}
+      style={[
+        styles.base,
+        v.container,
+        v.glow && !isDisabled ? Shadow.glow : null,
+        isDisabled && styles.disabled,
+        style,
+      ]}
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
     >
       {loading ? (
-        <ActivityIndicator color={v.indicator} size="small" />
+        <ActivityIndicator color={isDisabled ? Colors.textMuted : v.indicator} size="small" />
       ) : (
-        <Text style={[styles.label, v.text]}>{label}</Text>
+        <Text style={[styles.label, v.text, isDisabled && styles.disabledLabel]}>
+          {label.toUpperCase()}
+        </Text>
       )}
     </TouchableOpacity>
   );
@@ -82,6 +90,14 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FontSize.md,
-    fontWeight: FontWeight.bold,
+    fontWeight: FontWeight.extrabold,
+    letterSpacing: Tracking.wide,
+  },
+  disabled: {
+    backgroundColor: Colors.surfaceAlt,
+    borderColor: Colors.border,
+  },
+  disabledLabel: {
+    color: Colors.textMuted,
   },
 });

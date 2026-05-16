@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
-import { Colors, FontSize, FontWeight, Radii, Spacing } from '../lib/theme';
+import { Colors, FontSize, FontWeight, Radii, Spacing, Tracking } from '../lib/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -23,20 +23,22 @@ export function Input({ label, error, style, ...props }: InputProps) {
 const styles = StyleSheet.create({
   wrapper: { marginBottom: Spacing.md },
   label: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
     marginBottom: Spacing.xs,
   },
   input: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     borderRadius: Radii.md,
     paddingVertical: Spacing.md - 2,
     paddingHorizontal: Spacing.md,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.surfaceAlt,
     minHeight: 50,
   },
   inputError: {

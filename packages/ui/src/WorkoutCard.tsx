@@ -25,21 +25,21 @@ const TYPE_LABELS: Record<WorkoutType, string> = {
   cross: 'Cross-training',
 };
 
-// matches apps/mobile/lib/theme.ts Colors
+// Performance Dark — espelha apps/mobile/lib/theme.ts Colors
 const TYPE_ACCENT: Record<WorkoutType, string> = {
-  easy: '#10b981',
-  interval: '#ef4444',
-  tempo: '#f59e0b',
-  long: '#1e40af',
-  rest: '#94a3b8',
-  cross: '#8b5cf6',
+  easy: '#3DDC84',
+  interval: '#FF5C5C',
+  tempo: '#F5A623',
+  long: '#5B8DEF',
+  rest: '#5C6B7A',
+  cross: '#A98BFF',
 };
 
 const STATUS_ACCENT: Record<WorkoutStatus, string> = {
-  done: '#10b981',
-  today: '#1e40af',
-  future: '#94a3b8',
-  rest: '#94a3b8',
+  done: '#3DDC84',
+  today: '#C8FF3D',
+  future: '#5C6B7A',
+  rest: '#5C6B7A',
 };
 
 export function WorkoutCard({
@@ -125,28 +125,31 @@ export function WorkoutCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: '#131A24',
+    borderRadius: 14,
     padding: 16,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#232C38',
     borderLeftWidth: 4,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
   },
   todayCard: {
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    backgroundColor: '#161F12',
+    borderColor: '#33414F',
     borderLeftWidth: 5,
+    shadowColor: '#C8FF3D',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 6,
   },
   dragging: {
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
+    shadowColor: '#C8FF3D',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
     elevation: 8,
-    opacity: 0.95,
+    opacity: 0.97,
     transform: [{ scale: 1.01 }],
   },
   header: {
@@ -167,16 +170,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statusDotText: { fontSize: 10, color: '#fff', fontWeight: '700' },
+  statusDotText: { fontSize: 10, color: '#0A0E14', fontWeight: '900' },
   dayLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#E8EDF2',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  dayLabelToday: { color: '#1e40af' },
+  dayLabelToday: { color: '#C8FF3D' },
   dateLabel: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: '#5C6B7A',
     marginTop: 1,
   },
   typeChip: {
@@ -185,13 +190,15 @@ const styles = StyleSheet.create({
     borderRadius: 99,
   },
   typeChipText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 8,
+    gap: 20,
+    marginBottom: 10,
   },
   statItem: {
     flexDirection: 'row',
@@ -199,36 +206,39 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   statValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#E8EDF2',
+    fontVariant: ['tabular-nums'],
   },
   statUnit: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: '#5C6B7A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   description: {
     fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
+    color: '#9AA7B5',
+    lineHeight: 19,
   },
   restText: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: '#5C6B7A',
     fontStyle: 'italic',
   },
   dragOverlay: {
     position: 'absolute',
     bottom: 8,
     right: 12,
-    backgroundColor: '#1e40af22',
+    backgroundColor: 'rgba(200,255,61,0.16)',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   dragOverlayText: {
     fontSize: 11,
-    color: '#1e40af',
-    fontWeight: '600',
+    color: '#C8FF3D',
+    fontWeight: '800',
   },
 });
