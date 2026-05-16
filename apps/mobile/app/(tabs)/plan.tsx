@@ -18,10 +18,14 @@ import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
+import {
+  WorkoutStructure,
+  type WorkoutStructureData,
+} from '../../components/WorkoutStructure';
 
 const PT_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
-interface WorkoutDay {
+interface WorkoutDay extends WorkoutStructureData {
   day: number;
   type: WorkoutType;
   duration_min: number;
@@ -407,6 +411,7 @@ export default function PlanScreen() {
                 />
               </TouchableOpacity>
             </Animated.View>
+            <WorkoutStructure data={todayWorkout} advancedMode={advancedMode} />
             {/* Drag handle hint */}
             <Text style={styles.dragHandle}>⠿ Segure para mover de dia</Text>
           </View>
@@ -467,6 +472,7 @@ export default function PlanScreen() {
                       />
                     </TouchableOpacity>
                   </Animated.View>
+                  <WorkoutStructure data={item} advancedMode={advancedMode} />
                 </View>
               );
             })}
