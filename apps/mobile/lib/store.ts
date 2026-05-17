@@ -8,8 +8,6 @@ interface AthleteProfile {
   calibrationMode: boolean;
   goalMode: 'race' | 'general_progression';
   advancedMode: boolean;
-  garminConnected?: boolean;
-  lastGarminSync?: string;
 }
 
 interface AuthState {
@@ -22,6 +20,10 @@ interface AuthState {
   // Último calibration_mode visto do servidor — usado para disparar o aviso
   // "calibração concluída" uma única vez, sem depender de `profile`.
   lastSeenCalibrationMode: boolean | null;
+  // Status Garmin — setado após connect/sync com sucesso. Fora do `profile`
+  // (sempre-null sem hidratação), senão o badge nunca atualiza.
+  garminConnected: boolean;
+  lastGarminSync: string | null;
   setSession: (session: AuthState['session']) => void;
   setProfile: (profile: AthleteProfile) => void;
   setGarminConnected: (connected: boolean) => void;
@@ -40,12 +42,12 @@ export const useAuthStore = create<AuthState>()(
       onboardingComplete: false,
       advancedMode: false,
       lastSeenCalibrationMode: null,
+      garminConnected: false,
+      lastGarminSync: null,
       setSession: (session) => set({ session }),
       setProfile: (profile) => set({ profile }),
-      setGarminConnected: (connected) =>
-        set((s) => ({ profile: s.profile ? { ...s.profile, garminConnected: connected } : s.profile })),
-      setLastGarminSync: (ts) =>
-        set((s) => ({ profile: s.profile ? { ...s.profile, lastGarminSync: ts } : s.profile })),
+      setGarminConnected: (connected) => set({ garminConnected: connected }),
+      setLastGarminSync: (ts) => set({ lastGarminSync: ts }),
       setOnboardingComplete: () => set({ onboardingComplete: true }),
       setAdvancedMode: (value) => set({ advancedMode: value }),
       setLastSeenCalibrationMode: (value) => set({ lastSeenCalibrationMode: value }),
@@ -55,6 +57,8 @@ export const useAuthStore = create<AuthState>()(
           profile: null,
           onboardingComplete: false,
           lastSeenCalibrationMode: null,
+          garminConnected: false,
+          lastGarminSync: null,
         }),
     }),
     {

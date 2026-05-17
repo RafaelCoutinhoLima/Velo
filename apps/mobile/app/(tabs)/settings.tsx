@@ -24,17 +24,15 @@ import { ErrorCard } from '../../components/ErrorCard';
 
 export default function SettingsScreen() {
   const clearSession = useAuthStore((s) => s.clearSession);
-  const profile = useAuthStore((s) => s.profile);
   const advancedMode = useAuthStore((s) => s.advancedMode);
   const setAdvancedMode = useAuthStore((s) => s.setAdvancedMode);
+  const garminConnected = useAuthStore((s) => s.garminConnected);
+  const lastSync = useAuthStore((s) => s.lastGarminSync);
   const setGarminConnected = useAuthStore((s) => s.setGarminConnected);
   const setLastGarminSync = useAuthStore((s) => s.setLastGarminSync);
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
   const qc = useQueryClient();
-
-  const garminConnected = profile?.garminConnected ?? false;
-  const lastSync = profile?.lastGarminSync;
 
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState('');
