@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
     overflow: 'hidden',
   },
   header: {

@@ -23,7 +23,8 @@ import {
   type WorkoutStructureData,
 } from '../../components/WorkoutStructure';
 
-const PT_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+// Indexado por Date.getDay() (0 = domingo … 6 = sábado).
+const PT_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 interface WorkoutDay extends WorkoutStructureData {
   day: number;
@@ -46,13 +47,26 @@ interface PlanResponse {
   calibration_mode?: boolean;
 }
 
-function getDayLabel(n: number) { return PT_DAYS[(n - 1) % 7]; }
-
-function getDayDateLabel(weekStart: string, dayNumber: number): string {
+// Data real do dia N do plano = week_start + (N-1). Meio-dia evita
+// problemas de DST/fuso ao somar dias.
+function planDayDate(weekStart: string, dayNumber: number): Date {
   const start = new Date(`${weekStart}T12:00:00`);
   const d = new Date(start);
   d.setDate(start.getDate() + (dayNumber - 1));
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return d;
+}
+
+// Nome do dia derivado da DATA real — não do índice. O dia 1 do plano
+// não é necessariamente segunda-feira (depende de week_start).
+function getDayLabel(weekStart: string, dayNumber: number): string {
+  return PT_WEEKDAYS[planDayDate(weekStart, dayNumber).getDay()];
+}
+
+function getDayDateLabel(weekStart: string, dayNumber: number): string {
+  return planDayDate(weekStart, dayNumber).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
 }
 
 function getTodayDayNumber(weekStart: string): number | null {
@@ -328,26 +342,27 @@ const headerStyles = StyleSheet.create({
 
 export default function PlanScreen() {
   const session = useAuthStore((s) => s.session);
-  const profile = useAuthStore((s) => s.profile);
-  const setProfile = useAuthStore((s) => s.setProfile);
-  const advancedMode = profile?.advancedMode ?? false;
+  const advancedMode = useAuthStore((s) => s.advancedMode);
+  const lastSeenCalibrationMode = useAuthStore((s) => s.lastSeenCalibrationMode);
+  const setLastSeenCalibrationMode = useAuthStore((s) => s.setLastSeenCalibrationMode);
   const { data, isLoading, refetch, isRefetching } = usePlan(session?.athlete_id ?? '');
 
   const plan = data?.plan;
-  const calibrationMode = data?.calibration_mode ?? profile?.calibrationMode ?? false;
+  const calibrationMode = data?.calibration_mode ?? lastSeenCalibrationMode ?? false;
   const [showCalibDone, setShowCalibDone] = useState(false);
 
-  // US-017: detecta a transição calibração → concluída e persiste o novo
-  // estado no profile (para o aviso aparecer só uma vez).
+  // US-017: detecta a transição calibração → concluída uma única vez,
+  // comparando o valor do servidor com o último visto (persistido no
+  // store — independe de `profile`, que pode estar null).
   useEffect(() => {
     const serverMode = data?.calibration_mode;
-    if (serverMode === undefined || !profile) return;
-    if (profile.calibrationMode === serverMode) return;
-    if (profile.calibrationMode === true && serverMode === false) {
+    if (serverMode === undefined) return;
+    if (lastSeenCalibrationMode === serverMode) return;
+    if (lastSeenCalibrationMode === true && serverMode === false) {
       setShowCalibDone(true);
     }
-    setProfile({ ...profile, calibrationMode: serverMode });
-  }, [data?.calibration_mode, profile, setProfile]);
+    setLastSeenCalibrationMode(serverMode);
+  }, [data?.calibration_mode, lastSeenCalibrationMode, setLastSeenCalibrationMode]);
   const planId = plan?.id ?? '';
   const moveMutation = useMoveMutation(planId);
 
@@ -455,7 +470,7 @@ export default function PlanScreen() {
                 accessibilityHint="Segure para mover de dia"
               >
                 <WorkoutCard
-                  dayLabel={getDayLabel(todayWorkout.day)}
+                  dayLabel={getDayLabel(plan.week_start, todayWorkout.day)}
                   dateLabel={getDayDateLabel(plan.week_start, todayWorkout.day)}
                   type={todayWorkout.type}
                   duration_min={todayWorkout.duration_min}
@@ -483,7 +498,7 @@ export default function PlanScreen() {
         {selectedDay !== null ? (
           <View style={styles.moveBanner}>
             <Text style={styles.moveBannerText}>
-              Segurando {getDayLabel(selectedDay)} — toque em outro dia para mover
+              Segurando {getDayLabel(plan.week_start, selectedDay)} — toque em outro dia para mover
             </Text>
             <TouchableOpacity
               onPress={() => setSelectedDay(null)}
@@ -503,7 +518,7 @@ export default function PlanScreen() {
               const isSelected = selectedDay === item.day;
               const isTarget = selectedDay !== null && selectedDay !== item.day;
               return (
-                <View key={item.day}>
+                <View key={item.day} style={styles.dayBlock}>
                   <Animated.View style={isSelected ? { transform: [{ scale: pulseAnim }] } : undefined}>
                     <TouchableOpacity
                       onLongPress={() => handleLongPress(item.day)}
@@ -516,11 +531,11 @@ export default function PlanScreen() {
                       }}
                       activeOpacity={0.85}
                       delayLongPress={400}
-                      accessibilityLabel={`${getDayLabel(item.day)}: ${item.type}, ${item.duration_min} minutos`}
+                      accessibilityLabel={`${getDayLabel(plan.week_start, item.day)}: ${item.type}, ${item.duration_min} minutos`}
                       accessibilityHint="Segure para mover de dia"
                     >
                       <WorkoutCard
-                        dayLabel={getDayLabel(item.day)}
+                        dayLabel={getDayLabel(plan.week_start, item.day)}
                         dateLabel={getDayDateLabel(plan.week_start, item.day)}
                         type={item.type}
                         duration_min={item.duration_min}
@@ -584,9 +599,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     marginBottom: Spacing.sm,
   },
+  // O destaque do "hoje" vem do glow lime do próprio WorkoutCard
+  // (todayCard). NÃO empilhar Shadow.elevated aqui: a sombra preta de
+  // raio 20 vazava por cima do card "Estrutura do treino" logo abaixo.
   heroCard: {
-    ...Shadow.elevated,
     borderRadius: Radii.lg,
+  },
+  dayBlock: {
+    marginBottom: Spacing.md,
   },
   dragHandle: {
     fontSize: FontSize.xs,

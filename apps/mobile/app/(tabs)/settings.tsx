@@ -25,14 +25,14 @@ import { ErrorCard } from '../../components/ErrorCard';
 export default function SettingsScreen() {
   const clearSession = useAuthStore((s) => s.clearSession);
   const profile = useAuthStore((s) => s.profile);
-  const setProfile = useAuthStore((s) => s.setProfile);
+  const advancedMode = useAuthStore((s) => s.advancedMode);
+  const setAdvancedMode = useAuthStore((s) => s.setAdvancedMode);
   const setGarminConnected = useAuthStore((s) => s.setGarminConnected);
   const setLastGarminSync = useAuthStore((s) => s.setLastGarminSync);
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
   const qc = useQueryClient();
 
-  const advancedMode = profile?.advancedMode ?? false;
   const garminConnected = profile?.garminConnected ?? false;
   const lastSync = profile?.lastGarminSync;
 
@@ -46,8 +46,7 @@ export default function SettingsScreen() {
   const [connectError, setConnectError] = useState<string | null>(null);
 
   function toggleAdvancedMode(value: boolean) {
-    if (!profile) return;
-    setProfile({ ...profile, advancedMode: value });
+    setAdvancedMode(value);
   }
 
   async function handleGarminConnect() {
