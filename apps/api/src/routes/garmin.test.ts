@@ -473,7 +473,9 @@ describe('POST /garmin/sync', () => {
     expect(db._calls.calibrationUpdate).toBe(0);
   });
 
-  it('NÃO desativa nas primeiras 2 semanas (mesmo com 30 dias de dados)', async () => {
+  // Decisão 2026-05-17: histórico Garmin importado conta para a janela de
+  // 14 dias. Conta nova (5 dias) mas com ≥30 dias de histórico → SAI.
+  it('desativa com conta nova SE há ≥30 dias de histórico importado', async () => {
     const db = makeMockDb({
       rpcData: TOKEN_JSON,
       workoutsData: WORKOUTS_30_DAYS,
@@ -482,7 +484,7 @@ describe('POST /garmin/sync', () => {
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
-    expect(db._calls.calibrationUpdate).toBe(0);
+    expect(db._calls.calibrationUpdate).toBe(1);
   });
 
   it('é idempotente: não reavalia se já saiu da calibração', async () => {

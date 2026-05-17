@@ -6,16 +6,26 @@ type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
 // US-017 / RF-030 — Modo calibração nas 2 primeiras semanas.
 //
-// Critério de aceite:
-//  - calibration_mode = true por padrão enquanto days_with_data < 30
-//    OU o atleta ainda está nas primeiras 2 semanas de app.
-//  - Após 14 dias (desde created_at) E com ≥30 dias de dados, vira false
-//    automaticamente ("calibração concluída").
+// Critério de aceite (decisão do dono, 2026-05-17: histórico Garmin
+// importado CONTA para a janela de 14 dias — quem chega com histórico
+// não precisa esperar 14 dias de conta nova):
+//  - A "janela de observação" é contada a partir do sinal mais antigo
+//    disponível: o treino mais antigo importado OU a criação da conta,
+//    o que for mais antigo. Sem histórico → cai na criação da conta.
+//  - Após ≥14 dias dessa janela E com ≥30 dias distintos de dados, vira
+//    false automaticamente ("calibração concluída").
 //
-// Regra de saída = `daysSinceCreated >= 14 && distinctWorkoutDays >= 30`.
+// Regra de saída = `daysObserved >= 14 && distinctWorkoutDays >= 30`.
 // Enquanto qualquer das duas condições não fechou, segue em calibração.
 const MIN_DAYS_IN_APP = 14;
 const MIN_DAYS_WITH_DATA = 30;
+
+// Menor (mais antiga) entre duas datas ISO; ignora undefined.
+function earliestIso(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a).getTime() <= new Date(b).getTime() ? a : b;
+}
 
 function daysBetween(fromIso: string, to: Date): number {
   const from = new Date(fromIso);
@@ -36,12 +46,17 @@ interface AthleteCalibrationRow {
  * (sem PII — só athlete_id UUID).
  *
  * @param distinctWorkoutDays passe se já tiver contado (evita query extra)
+ * @param earliestWorkoutDate treino mais antigo, p/ a janela contar histórico
  * @param athleteRow passe se já tiver o row carregado (evita query extra)
  */
 export async function evaluateCalibration(
   db: Db,
   athleteInternalId: string,
-  opts: { athleteRow?: AthleteCalibrationRow; distinctWorkoutDays?: number } = {},
+  opts: {
+    athleteRow?: AthleteCalibrationRow;
+    distinctWorkoutDays?: number;
+    earliestWorkoutDate?: string;
+  } = {},
 ): Promise<{ calibrationMode: boolean; justExited: boolean }> {
   let row = opts.athleteRow;
   if (row?.calibration_mode === undefined || row.created_at === undefined) {
@@ -55,27 +70,39 @@ export async function evaluateCalibration(
 
   // Já fora de calibração → nada a fazer (idempotente, sem custo de query).
   if (row.calibration_mode === false) return { calibrationMode: false, justExited: false };
-  if (!row.created_at) return { calibrationMode: true, justExited: false };
 
-  const daysSinceCreated = daysBetween(row.created_at, new Date());
-
+  // Precisamos do nº de dias distintos E da data do treino mais antigo
+  // (para a janela contar o histórico importado). Uma query só serve aos
+  // dois — buscamos se algum não veio pronto do caller.
   let distinctWorkoutDays = opts.distinctWorkoutDays;
-  if (distinctWorkoutDays === undefined) {
+  let earliestWorkoutDate = opts.earliestWorkoutDate;
+  if (distinctWorkoutDays === undefined || earliestWorkoutDate === undefined) {
     const { data: workouts } = await db
       .from('workouts')
       .select('date')
       .eq('athlete_id', athleteInternalId);
-    distinctWorkoutDays = new Set(((workouts ?? []) as { date: string }[]).map((w) => w.date)).size;
+    const dates = ((workouts ?? []) as { date: string }[]).map((w) => w.date).filter(Boolean);
+    if (distinctWorkoutDays === undefined) distinctWorkoutDays = new Set(dates).size;
+    if (earliestWorkoutDate === undefined) {
+      earliestWorkoutDate = dates.length
+        ? dates.reduce((a, b) => (new Date(a).getTime() <= new Date(b).getTime() ? a : b))
+        : undefined;
+    }
   }
 
-  const shouldExit =
-    daysSinceCreated >= MIN_DAYS_IN_APP && distinctWorkoutDays >= MIN_DAYS_WITH_DATA;
+  // Janela de observação: do sinal mais antigo (histórico OU conta) até hoje.
+  const referenceStart = earliestIso(row.created_at, earliestWorkoutDate);
+  if (!referenceStart) return { calibrationMode: true, justExited: false };
+
+  const daysObserved = daysBetween(referenceStart, new Date());
+
+  const shouldExit = daysObserved >= MIN_DAYS_IN_APP && distinctWorkoutDays >= MIN_DAYS_WITH_DATA;
 
   if (!shouldExit) return { calibrationMode: true, justExited: false };
 
   await db.from('athletes').update({ calibration_mode: false }).eq('id', athleteInternalId);
   logger.info(
-    { athlete_id: athleteInternalId, daysSinceCreated, distinctWorkoutDays },
+    { athlete_id: athleteInternalId, daysObserved, distinctWorkoutDays },
     'Modo calibração concluído',
   );
 

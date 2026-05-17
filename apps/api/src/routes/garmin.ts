@@ -217,10 +217,12 @@ async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
     { onConflict: 'athlete_id,date' },
   );
 
-  // US-017: a saída de calibração tem regra própria (≥14 dias de app E
-  // ≥30 dias de dados) — não basta sincronizar alguns treinos.
+  // US-017: a saída de calibração tem regra própria (≥14 dias de janela E
+  // ≥30 dias de dados). `workouts` vem ordenado por date asc → [0] é o mais
+  // antigo (histórico importado conta para a janela — decisão 2026-05-17).
   const distinctWorkoutDays = new Set(workouts.map((w) => w.date)).size;
-  await evaluateCalibration(db, athleteId, { distinctWorkoutDays });
+  const earliestWorkoutDate = workouts[0]?.date;
+  await evaluateCalibration(db, athleteId, { distinctWorkoutDays, earliestWorkoutDate });
 }
 
 // Garmin `perceivedEffort` chega como número (ou ausente). Aceita só
