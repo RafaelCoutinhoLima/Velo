@@ -175,7 +175,7 @@ function installFetchMock(opts: FetchMockOpts = {}) {
     metricsBody = { activities: SAMPLE_ACTIVITIES },
   } = opts;
 
-  (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(async (url: string) => {
+  (globalThis as unknown as { fetch: unknown }).fetch = mock(async (url: string) => {
     if (url.includes('/auth')) {
       return new Response(JSON.stringify(authBody), {
         status: authOk ? 200 : 401,
@@ -192,13 +192,18 @@ function installFetchMock(opts: FetchMockOpts = {}) {
   });
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: mock type for Elysia generics
+type AnyElysia = Elysia<any, any, any, any, any, any, any>;
+
 function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
-    .use(createGarminPlugin(db as Parameters<typeof createGarminPlugin>[0]));
+    .use(
+      createGarminPlugin(db as unknown as Parameters<typeof createGarminPlugin>[0]),
+    ) as AnyElysia;
 }
 
-function post(app: Elysia, path: string, body: object) {
+function post(app: AnyElysia, path: string, body: object) {
   return app.handle(
     new Request(`http://localhost${path}`, {
       method: 'POST',
@@ -396,7 +401,7 @@ describe('POST /garmin/sync', () => {
 
   it('usa days padrão de 90 quando não informado', async () => {
     let capturedUrl = '';
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(async (url: string) => {
+    (globalThis as unknown as { fetch: unknown }).fetch = mock(async (url: string) => {
       capturedUrl = url;
       return new Response(JSON.stringify({ activities: [] }), { status: 200 });
     });
@@ -409,7 +414,7 @@ describe('POST /garmin/sync', () => {
 
   it('respeita days customizado', async () => {
     let capturedUrl = '';
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(async (url: string) => {
+    (globalThis as unknown as { fetch: unknown }).fetch = mock(async (url: string) => {
       capturedUrl = url;
       return new Response(JSON.stringify({ activities: [] }), { status: 200 });
     });

@@ -49,9 +49,9 @@ function makeDb(opts: MockOpts = {}) {
 type Db = Parameters<typeof evaluateCalibration>[0];
 
 beforeEach(() => {
-  (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(
+  globalThis.fetch = mock(
     async () => new Response('{}', { status: 200 }),
-  );
+  ) as unknown as typeof fetch;
 });
 
 describe('evaluateCalibration', () => {
