@@ -130,13 +130,17 @@ export default function LoginScreen() {
           accessibilityLabel="Entrar com Google"
         />
 
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-          cornerRadius={Radii.md}
-          style={styles.appleBtn}
-          onPress={loginWithApple}
-        />
+        {/* Apple Sign-In só existe no iOS — renderizar no Android quebra/
+            fica em branco (funnel drop-off). Gate por plataforma. */}
+        {Platform.OS === 'ios' ? (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={Radii.md}
+            style={styles.appleBtn}
+            onPress={loginWithApple}
+          />
+        ) : null}
 
         <TouchableOpacity
           onPress={() => { setShowEmailForm(!showEmailForm); setError(null); }}
