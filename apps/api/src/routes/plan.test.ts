@@ -1,5 +1,41 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+
+// generatePlan chama a Claude API real — mockado para o teste do /generate.
+mock.module('../claude/client', () => ({
+  generatePlan: mock(async () => ({
+    plan: {
+      weeks: [
+        {
+          week_number: 1,
+          total_km: 30,
+          why_text: 'Base aeróbica',
+          days: [
+            {
+              day: 1,
+              type: 'easy',
+              duration_min: 40,
+              distance_km: 6,
+              zones: [2],
+              description: 'Leve',
+            },
+          ],
+        },
+      ],
+      summary: 'Plano de teste',
+    },
+    promptVersion: 'test_v1',
+    inputJson: {},
+    tokensUsed: { input: 10, output: 20 },
+    costUsd: 0.001,
+  })),
+}));
+
+// garminClient faz upload real — mockado para o teste do /send-to-garmin.
+mock.module('../garmin/client', () => ({
+  garminClient: { scheduleWorkout: mock(async () => ({ ok: true })) },
+}));
+
 import { createPlanPlugin } from './plan';
 
 const PLAN_ROW = {
@@ -287,6 +323,143 @@ describe('PATCH /plan/move', () => {
     const app = makeApp(makeMockDb());
     const res = await patch(app, '/plan/move', { plan_id: 'plan-uuid' });
     expect(res.status).toBe(422);
+  });
+});
+
+function post(app: Elysia, path: string, body: object) {
+  return app.handle(
+    new Request(`http://localhost${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+const RECENT_ISO = new Date(Date.now() - 3 * 86_400_000).toISOString();
+
+// Mock para /generate: athletes(*) → buildPlan(workouts/metrics/calibração)
+// → plans.insert → plan_history.insert → rpc(get_garmin_token)=null.
+function makeGenDb(
+  opts: {
+    athlete?: unknown;
+    saveErr?: { message: string } | null;
+    token?: string | null;
+    planRow?: unknown;
+  } = {},
+) {
+  const {
+    athlete = { id: 'int-1', user_id: 'user-uuid', calibration_mode: true, created_at: RECENT_ISO },
+    saveErr = null,
+    token = null,
+    planRow = null,
+  } = opts;
+  const listP = Promise.resolve({ data: [], error: null });
+  const awaitableEq = Object.assign(Promise.resolve({ data: [], error: null }), {
+    order: () => ({ limit: () => listP }),
+  });
+  return {
+    from: (table: string) => {
+      if (table === 'athletes') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: async () =>
+                athlete ? { data: athlete, error: null } : { data: null, error: { message: 'no' } },
+            }),
+          }),
+        };
+      }
+      if (table === 'plans' || table === 'plan_history' || table === 'jobs') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                order: () => ({
+                  limit: () => ({ single: async () => ({ data: planRow, error: null }) }),
+                }),
+              }),
+            }),
+          }),
+          insert: () =>
+            Object.assign(Promise.resolve({ error: saveErr }), {
+              select: () => ({ single: async () => ({ data: { id: 'p-new' }, error: saveErr }) }),
+            }),
+          update: () => ({ eq: async () => ({ error: null }) }),
+        };
+      }
+      // workouts / metrics_daily
+      return { select: () => ({ eq: () => awaitableEq }) };
+    },
+    rpc: async () => ({ data: token, error: null }),
+  };
+}
+
+describe('POST /plan/generate', () => {
+  it('gera o plano (happy path, Claude mockado)', async () => {
+    const app = makeApp(makeGenDb() as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/generate', { athlete_id: 'user-uuid' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.plan.weeks[0].week_number).toBe(1);
+    expect(body.plan.summary).toBe('Plano de teste');
+  });
+
+  it('falha quando atleta não existe', async () => {
+    const app = makeApp(makeGenDb({ athlete: null }) as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/generate', { athlete_id: 'ghost' });
+    expect(res.status).toBe(500);
+  });
+
+  it('422 quando body é inválido', async () => {
+    const app = makeApp(makeGenDb() as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/generate', {});
+    expect(res.status).toBe(422);
+  });
+});
+
+describe('POST /plan/send-to-garmin', () => {
+  const PLAN = { plan_json: PLAN_ROW.plan_json };
+
+  it('envia os treinos da semana pro relógio (happy path)', async () => {
+    const db = makeGenDb({ token: 'garmin-tok', planRow: PLAN });
+    const app = makeApp(db as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/send-to-garmin', { athlete_id: 'user-uuid' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.sent).toBe(5); // 7 dias - 2 rest
+  });
+
+  it('404 quando atleta não existe', async () => {
+    const app = makeApp(makeGenDb({ athlete: null }) as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/send-to-garmin', { athlete_id: 'ghost' });
+    expect(res.status).toBe(404);
+  });
+
+  it('400 quando Garmin não está conectado', async () => {
+    const app = makeApp(makeGenDb({ token: null }) as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/send-to-garmin', { athlete_id: 'user-uuid' });
+    expect(res.status).toBe(400);
+  });
+
+  it('404 quando não há plano ativo', async () => {
+    const app = makeApp(
+      makeGenDb({ token: 'tok', planRow: null }) as Parameters<typeof makeApp>[0],
+    );
+    const res = await post(app, '/plan/send-to-garmin', { athlete_id: 'user-uuid' });
+    expect(res.status).toBe(404);
+  });
+
+  it('404 quando a semana não existe no plano', async () => {
+    const app = makeApp(
+      makeGenDb({ token: 'tok', planRow: PLAN }) as Parameters<typeof makeApp>[0],
+    );
+    const res = await post(app, '/plan/send-to-garmin', {
+      athlete_id: 'user-uuid',
+      week_number: 9,
+    });
+    expect(res.status).toBe(404);
   });
 });
 
