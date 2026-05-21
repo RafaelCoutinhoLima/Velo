@@ -10,6 +10,15 @@ const CONSENT_VERSION = '1.0';
 
 export function createOnboardingPlugin(db: Db = defaultSupabase) {
   return new Elysia({ prefix: '/onboarding' })
+    .get(
+      '/profile-status',
+      async ({ query }) => {
+        const { athlete_id } = query;
+        const { data } = await db.from('athletes').select('id').eq('user_id', athlete_id).single();
+        return { profile_complete: !!data };
+      },
+      { query: t.Object({ athlete_id: t.String() }) },
+    )
     .post(
       '/profile',
       async ({ body }) => {

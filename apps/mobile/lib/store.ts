@@ -11,6 +11,7 @@ interface AthleteProfile {
 }
 
 interface AuthState {
+  _hasHydrated: boolean;
   session: { access_token: string; athlete_id: string } | null;
   profile: AthleteProfile | null;
   onboardingComplete: boolean;
@@ -28,6 +29,7 @@ interface AuthState {
   setProfile: (profile: AthleteProfile) => void;
   setGarminConnected: (connected: boolean) => void;
   setLastGarminSync: (ts: string) => void;
+  setHasHydrated: (v: boolean) => void;
   setOnboardingComplete: () => void;
   setAdvancedMode: (value: boolean) => void;
   setLastSeenCalibrationMode: (value: boolean) => void;
@@ -37,6 +39,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
+      _hasHydrated: false,
       session: null,
       profile: null,
       onboardingComplete: false,
@@ -48,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
       setProfile: (profile) => set({ profile }),
       setGarminConnected: (connected) => set({ garminConnected: connected }),
       setLastGarminSync: (ts) => set({ lastGarminSync: ts }),
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
       setOnboardingComplete: () => set({ onboardingComplete: true }),
       setAdvancedMode: (value) => set({ advancedMode: value }),
       setLastSeenCalibrationMode: (value) => set({ lastSeenCalibrationMode: value }),
@@ -64,6 +68,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'fitsync-auth',
       storage: createJSONStorage(() => chunkedSecureStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );
