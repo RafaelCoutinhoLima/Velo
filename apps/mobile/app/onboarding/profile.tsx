@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -17,13 +18,13 @@ import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
 
 type Frequency = '2x' | '3x' | '4x' | '5x+';
+type Sex = 'M' | 'F';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => CURRENT_YEAR - 14 - i);
 const ITEM_W = 72;
 const ITEM_GAP = 8;
 
-const WEIGHTS = ['40', '45', '50', '55', '60', '65', '70', '75', '80', '85', '90', '95', '100', '110', '120+'];
 
 const STEPS = ['Perfil', 'Objetivo', 'Garmin', 'Pronto'];
 
@@ -214,46 +215,34 @@ const yp = StyleSheet.create({
 
 function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
   return (
-    <View>
-      <View style={wp.displayRow}>
-        <Text style={wp.displayValue}>{value || '—'}</Text>
-        <Text style={wp.displayUnit}>kg</Text>
-      </View>
-      <View style={wp.grid}>
-        {WEIGHTS.map((w) => (
-          <TouchableOpacity
-            key={w}
-            style={[wp.btn, value === w && wp.btnActive]}
-            onPress={() => onChange(w)}
-            accessibilityRole="radio"
-            accessibilityLabel={`${w} kg`}
-            accessibilityState={{ selected: value === w }}
-          >
-            <Text style={[wp.btnText, value === w && wp.btnTextActive]}>{w}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+    <View style={wp.row}>
+      <TextInput
+        style={wp.input}
+        value={value}
+        onChangeText={onChange}
+        keyboardType="decimal-pad"
+        placeholder="0"
+        placeholderTextColor={Colors.textMuted}
+        maxLength={6}
+        accessibilityLabel="Peso em kg"
+      />
+      <Text style={wp.unit}>kg</Text>
     </View>
   );
 }
 const wp = StyleSheet.create({
-  displayRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
-  displayValue: { fontSize: FontSize['4xl'], fontWeight: FontWeight.extrabold, color: Colors.primary },
-  displayUnit: { fontSize: FontSize.md, color: Colors.textMuted },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  btn: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radii.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bg,
-    minWidth: 52,
-    alignItems: 'center',
+  row: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
+  input: {
+    fontSize: FontSize['4xl'],
+    fontWeight: FontWeight.extrabold,
+    color: Colors.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.primary,
+    minWidth: 100,
+    paddingVertical: Spacing.xs,
+    textAlign: 'center',
   },
-  btnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  btnText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  btnTextActive: { color: Colors.surface, fontWeight: FontWeight.bold },
+  unit: { fontSize: FontSize.md, color: Colors.textMuted },
 });
 
 const FREQ_LABELS: Record<Frequency, string> = {
@@ -289,6 +278,35 @@ function FreqPicker({ value, onChange }: { value: Frequency | null; onChange: (f
     </View>
   );
 }
+const SEX_LABELS: Record<Sex, string> = {
+  M: 'Masculino',
+  F: 'Feminino',
+};
+
+function SexPicker({ value, onChange }: { value: Sex | null; onChange: (s: Sex) => void }) {
+  const options: Sex[] = ['M', 'F'];
+  return (
+    <View style={fp.grid}>
+      {options.map((opt) => {
+        const active = value === opt;
+        return (
+          <TouchableOpacity
+            key={opt}
+            style={[fp.card, active && fp.cardActive]}
+            onPress={() => onChange(opt)}
+            accessibilityRole="radio"
+            accessibilityLabel={SEX_LABELS[opt]}
+            accessibilityState={{ selected: active }}
+          >
+            <Text style={[fp.freq, active && fp.freqActive]}>{SEX_LABELS[opt]}</Text>
+            {active && <View style={fp.check}><Text style={fp.checkText}>✓</Text></View>}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 const fp = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   card: {
@@ -326,14 +344,16 @@ export default function ProfileScreen() {
 
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [weightKg, setWeightKg] = useState('');
+  const [sex, setSex] = useState<Sex | null>(null);
   const [frequency, setFrequency] = useState<Frequency | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isValid = birthYear !== null && weightKg.length > 0 && frequency !== null;
+  const isValid = birthYear !== null && weightKg.length > 0 && sex !== null && frequency !== null;
 
   function handleYearChange(y: number) { setError(null); setBirthYear(y); }
   function handleWeightChange(w: string) { setError(null); setWeightKg(w); }
+  function handleSexChange(s: Sex) { setError(null); setSex(s); }
   function handleFreqChange(f: Frequency) { setError(null); setFrequency(f); }
 
   async function next() {
@@ -350,6 +370,7 @@ export default function ProfileScreen() {
         athlete_id: session.athlete_id,
         birth_year: birthYear,
         weight_kg: weight,
+        sex,
         weekly_frequency: frequency,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
@@ -386,6 +407,11 @@ export default function ProfileScreen() {
         <SectionCard>
           <SectionTitle>Peso corporal</SectionTitle>
           <WeightPicker value={weightKg} onChange={handleWeightChange} />
+        </SectionCard>
+
+        <SectionCard>
+          <SectionTitle>Sexo biológico</SectionTitle>
+          <SexPicker value={sex} onChange={handleSexChange} />
         </SectionCard>
 
         <SectionCard>
