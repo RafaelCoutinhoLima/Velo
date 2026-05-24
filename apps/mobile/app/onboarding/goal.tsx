@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Type } from '../../lib/theme';
+import { Fonts, FontSize, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
 import { StepBar } from '../../components/StepBar';
@@ -52,6 +52,8 @@ function validateDate(raw: string): string | null {
 export default function GoalScreen() {
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [mode, setMode] = useState<GoalMode | null>(null);
   const [raceDistance, setRaceDistance] = useState<RaceDistance | null>(null);
   const [raceDate, setRaceDate] = useState('');
@@ -97,6 +99,39 @@ export default function GoalScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function ModeCard({
+    icon,
+    active,
+    title,
+    desc,
+    onPress,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    active: boolean;
+    title: string;
+    desc: string;
+    onPress: () => void;
+  }) {
+    return (
+      <TouchableOpacity
+        style={[styles.modeCard, active && styles.modeCardActive]}
+        onPress={onPress}
+        accessibilityRole="radio"
+        accessibilityLabel={title}
+        accessibilityState={{ selected: active }}
+      >
+        <View style={[styles.modeIcon, active && styles.modeIconActive]}>
+          <Ionicons name={icon} size={20} color={active ? theme.colors.onAccent : theme.colors.textSecondary} />
+        </View>
+        <View style={styles.modeBody}>
+          <Text style={[styles.modeTitle, active && styles.modeTitleActive]}>{title}</Text>
+          <Text style={styles.modeDesc}>{desc}</Text>
+        </View>
+        {active ? <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} /> : null}
+      </TouchableOpacity>
+    );
   }
 
   return (
@@ -154,7 +189,7 @@ export default function GoalScreen() {
               maxLength={10}
               value={raceDate}
               onChangeText={handleDateChange}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={theme.colors.textMuted}
               accessibilityLabel="Data da prova"
             />
             {dateError ? (
@@ -177,108 +212,76 @@ export default function GoalScreen() {
   );
 }
 
-function ModeCard({
-  icon,
-  active,
-  title,
-  desc,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  active: boolean;
-  title: string;
-  desc: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.modeCard, active && styles.modeCardActive]}
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityLabel={title}
-      accessibilityState={{ selected: active }}
-    >
-      <View style={[styles.modeIcon, active && styles.modeIconActive]}>
-        <Ionicons name={icon} size={20} color={active ? Colors.onAccent : Colors.textSecondary} />
-      </View>
-      <View style={styles.modeBody}>
-        <Text style={[styles.modeTitle, active && styles.modeTitleActive]}>{title}</Text>
-        <Text style={styles.modeDesc}>{desc}</Text>
-      </View>
-      {active ? <Ionicons name="checkmark-circle" size={22} color={Colors.primary} /> : null}
-    </TouchableOpacity>
-  );
-}
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+    hero: { marginBottom: Spacing.lg },
+    title: { ...theme.type.display, color: theme.colors.textPrimary },
+    subtitle: { ...theme.type.body, color: theme.colors.textMuted, marginTop: Spacing.xs },
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  hero: { marginBottom: Spacing.lg },
-  title: { ...Type.display, color: Colors.textPrimary },
-  subtitle: { ...Type.body, color: Colors.textMuted, marginTop: Spacing.xs },
+    modeCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: Radii.lg,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      marginBottom: Spacing.sm,
+      gap: Spacing.md,
+      backgroundColor: theme.colors.surface,
+    },
+    modeCardActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primaryMuted },
+    modeIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    modeIconActive: { backgroundColor: theme.colors.primary },
+    modeBody: { flex: 1 },
+    modeTitle: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
+    modeTitleActive: { color: theme.colors.primary },
+    modeDesc: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, marginTop: 2 },
 
-  modeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: Radii.lg,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-    gap: Spacing.md,
-    backgroundColor: Colors.surface,
-  },
-  modeCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
-  modeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modeIconActive: { backgroundColor: Colors.primary },
-  modeBody: { flex: 1 },
-  modeTitle: { ...Type.bodyStrong, color: Colors.textPrimary },
-  modeTitleActive: { color: Colors.primary },
-  modeDesc: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-
-  label: { ...Type.label, color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.md },
-  distanceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  distanceCard: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.sm,
-    minHeight: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceAlt,
-  },
-  distanceCardActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
-  distanceText: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  distanceTextActive: { color: Colors.primary },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    fontFamily: Fonts.data,
-    fontSize: FontSize.md,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.surfaceAlt,
-    minHeight: 50,
-  },
-  inputError: { borderColor: Colors.danger, backgroundColor: Colors.dangerLight },
-  fieldError: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.danger, marginTop: Spacing.xs },
-  fieldOk: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.success, marginTop: Spacing.xs },
-  btn: { marginTop: Spacing.xl },
-});
+    label: { ...theme.type.label, color: theme.colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.md },
+    distanceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    distanceCard: {
+      flexGrow: 1,
+      flexBasis: '30%',
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.sm,
+      minHeight: 56,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    distanceCardActive: { backgroundColor: theme.colors.primaryMuted, borderColor: theme.colors.primary },
+    distanceText: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.xs,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 16,
+    },
+    distanceTextActive: { color: theme.colors.primary },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.colors.borderStrong,
+      borderRadius: Radii.md,
+      padding: Spacing.md,
+      fontFamily: Fonts.data,
+      fontSize: FontSize.md,
+      color: theme.colors.textPrimary,
+      backgroundColor: theme.colors.surfaceAlt,
+      minHeight: 50,
+    },
+    inputError: { borderColor: theme.colors.danger, backgroundColor: theme.colors.dangerLight },
+    fieldError: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.danger, marginTop: Spacing.xs },
+    fieldOk: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.success, marginTop: Spacing.xs },
+    btn: { marginTop: Spacing.xl },
+  });

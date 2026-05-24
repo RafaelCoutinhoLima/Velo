@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { chunkedSecureStorage } from './secureStorage';
+import type { ThemeName } from './themes/types';
 
 interface AthleteProfile {
   id: string;
@@ -88,3 +89,24 @@ export const useUIStore = create<UIState>()((set) => ({
   setToast: (message) => set({ toastMessage: message }),
   setShowPlanDiff: (show) => set({ showPlanDiff: show }),
 }));
+
+// Preferências persistidas que não pertencem ao auth state (tema visual,
+// futuras prefs de UX). Persistidas via mesmo secure storage do auth — a
+// chave é distinta (`fitsync-prefs`), então não colide com sessão.
+interface PrefsState {
+  themeName: ThemeName;
+  setThemeName: (name: ThemeName) => void;
+}
+
+export const usePrefsStore = create<PrefsState>()(
+  persist(
+    (set) => ({
+      themeName: 'interstellar',
+      setThemeName: (name) => set({ themeName: name }),
+    }),
+    {
+      name: 'fitsync-prefs',
+      storage: createJSONStorage(() => chunkedSecureStorage),
+    },
+  ),
+);

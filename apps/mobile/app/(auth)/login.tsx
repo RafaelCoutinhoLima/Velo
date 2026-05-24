@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform,
@@ -7,12 +7,14 @@ import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ErrorCard } from '../../components/ErrorCard';
 
 export default function LoginScreen() {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -113,7 +115,7 @@ export default function LoginScreen() {
         {/* ── Hero ── */}
         <View style={styles.hero}>
           <View style={styles.logoBadge}>
-            <Ionicons name="flash" size={38} color={Colors.onAccent} />
+            <Ionicons name="flash" size={38} color={theme.colors.onAccent} />
           </View>
           <Text style={styles.title}>FitSync AI</Text>
           <Text style={styles.subtitle}>Seu plano de corrida com IA adaptativa</Text>
@@ -132,7 +134,7 @@ export default function LoginScreen() {
           variant="secondary"
           loading={loading}
           style={styles.socialBtn}
-          icon={<Ionicons name="logo-google" size={18} color={Colors.textPrimary} />}
+          icon={<Ionicons name="logo-google" size={18} color={theme.colors.textPrimary} />}
           accessibilityLabel="Entrar com Google"
         />
 
@@ -141,7 +143,7 @@ export default function LoginScreen() {
         {Platform.OS === 'ios' ? (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
             cornerRadius={Radii.full}
             style={styles.appleBtn}
             onPress={loginWithApple}
@@ -200,64 +202,65 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: {
-    padding: Spacing.lg,
-    paddingTop: Spacing.xxl + Spacing.xl,
-    paddingBottom: Spacing.xl,
-    flexGrow: 1,
-  },
-  hero: { alignItems: 'center', marginBottom: Spacing.xl },
-  logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: Radii.xl,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  title: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: FontSize['4xl'],
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
-    letterSpacing: Tracking.tight,
-  },
-  subtitle: {
-    ...Type.body,
-    color: Colors.textMuted,
-    marginTop: Spacing.xs,
-    textAlign: 'center',
-  },
-  errorWrap: { marginBottom: Spacing.md },
-  socialBtn: { marginBottom: Spacing.sm },
-  appleBtn: { width: '100%', height: 52, marginBottom: Spacing.sm },
-  emailToggle: {
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  emailToggleText: {
-    fontFamily: Fonts.bodySemiBold,
-    color: Colors.accent,
-    fontSize: FontSize.sm,
-  },
-  emailForm: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  disclaimer: {
-    ...Type.bodySm,
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 'auto',
-    paddingTop: Spacing.lg,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    content: {
+      padding: Spacing.lg,
+      paddingTop: Spacing.xxl + Spacing.xl,
+      paddingBottom: Spacing.xl,
+      flexGrow: 1,
+    },
+    hero: { alignItems: 'center', marginBottom: Spacing.xl },
+    logoBadge: {
+      width: 80,
+      height: 80,
+      borderRadius: Radii.xl,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.md,
+    },
+    title: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: FontSize['4xl'],
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.textPrimary,
+      letterSpacing: Tracking.tight,
+    },
+    subtitle: {
+      ...theme.type.body,
+      color: theme.colors.textMuted,
+      marginTop: Spacing.xs,
+      textAlign: 'center',
+    },
+    errorWrap: { marginBottom: Spacing.md },
+    socialBtn: { marginBottom: Spacing.sm },
+    appleBtn: { width: '100%', height: 52, marginBottom: Spacing.sm },
+    emailToggle: {
+      alignItems: 'center',
+      paddingVertical: Spacing.sm,
+      marginBottom: Spacing.sm,
+    },
+    emailToggleText: {
+      fontFamily: Fonts.bodySemiBold,
+      color: theme.colors.accent,
+      fontSize: FontSize.sm,
+    },
+    emailForm: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
+    },
+    disclaimer: {
+      ...theme.type.bodySm,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      textAlign: 'center',
+      marginTop: 'auto',
+      paddingTop: Spacing.lg,
+    },
+  });

@@ -1,9 +1,10 @@
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View, RefreshControl } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Shadow, Spacing, Tracking, Type } from '../../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 import { TopBar } from '../../components/TopBar';
@@ -52,43 +53,11 @@ function computeWeekStreak(dates: string[]): number {
   return streak;
 }
 
-function StatCard({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
-  return (
-    <View style={styles.statCard}>
-      <Ionicons name={icon} size={22} color={Colors.accent} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function MilestoneBadge({ m }: { m: Milestone }) {
-  const unlocked = m.current >= m.threshold;
-  const pct = Math.min(m.current / m.threshold, 1);
-  return (
-    <View style={styles.badge}>
-      <View style={[styles.badgeRing, unlocked ? styles.badgeRingOn : styles.badgeRingOff]}>
-        <Ionicons
-          name={unlocked ? m.icon : 'lock-closed'}
-          size={26}
-          color={unlocked ? Colors.primary : Colors.textMuted}
-        />
-      </View>
-      <Text style={[styles.badgeLabel, !unlocked && { color: Colors.textMuted }]}>{m.label}</Text>
-      {unlocked ? (
-        <Text style={styles.badgeDone}>Desbloqueada</Text>
-      ) : (
-        <View style={styles.badgeBarTrack}>
-          <View style={[styles.badgeBarFill, { width: `${pct * 100}%` }]} />
-        </View>
-      )}
-    </View>
-  );
-}
-
 export default function ConquistasScreen() {
   const session = useAuthStore((s) => s.session);
   const { get } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['workouts', session?.athlete_id],
@@ -124,6 +93,40 @@ export default function ConquistasScreen() {
   ];
   const unlockedCount = milestones.filter((m) => m.current >= m.threshold).length;
 
+  function StatCard({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
+    return (
+      <View style={styles.statCard}>
+        <Ionicons name={icon} size={22} color={theme.colors.accent} />
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+    );
+  }
+
+  function MilestoneBadge({ m }: { m: Milestone }) {
+    const unlocked = m.current >= m.threshold;
+    const pct = Math.min(m.current / m.threshold, 1);
+    return (
+      <View style={styles.badge}>
+        <View style={[styles.badgeRing, unlocked ? styles.badgeRingOn : styles.badgeRingOff]}>
+          <Ionicons
+            name={unlocked ? m.icon : 'lock-closed'}
+            size={26}
+            color={unlocked ? theme.colors.primary : theme.colors.textMuted}
+          />
+        </View>
+        <Text style={[styles.badgeLabel, !unlocked && { color: theme.colors.textMuted }]}>{m.label}</Text>
+        {unlocked ? (
+          <Text style={styles.badgeDone}>Desbloqueada</Text>
+        ) : (
+          <View style={styles.badgeBarTrack}>
+            <View style={[styles.badgeBarFill, { width: `${pct * 100}%` }]} />
+          </View>
+        )}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <TopBar />
@@ -131,7 +134,7 @@ export default function ConquistasScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.colors.primary} />
         }
       >
         <Text style={styles.screenTitle}>Conquistas</Text>
@@ -144,7 +147,7 @@ export default function ConquistasScreen() {
             <View style={styles.streakCard}>
               <View style={styles.streakGlow} />
               <View style={styles.streakIcon}>
-                <Ionicons name="flame" size={44} color={Colors.primary} />
+                <Ionicons name="flame" size={44} color={theme.colors.primary} />
               </View>
               <Text style={styles.streakNumber}>{streak}</Text>
               <Text style={styles.streakLabel}>
@@ -182,123 +185,125 @@ export default function ConquistasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.md },
-  screenTitle: { ...Type.headline, color: Colors.textPrimary },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    content: { padding: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.md },
+    screenTitle: { ...theme.type.headline, color: theme.colors.textPrimary },
 
-  // Streak hero
-  streakCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.xl,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    overflow: 'hidden',
-    ...Shadow.glow,
-  },
-  streakGlow: {
-    position: 'absolute',
-    top: -60,
-    width: 200,
-    height: 200,
-    borderRadius: Radii.full,
-    backgroundColor: 'rgba(195,244,0,0.10)',
-  },
-  streakIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.primaryMuted,
-    borderWidth: 2,
-    borderColor: 'rgba(195,244,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  streakNumber: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: 72,
-    lineHeight: 78,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.primary,
-  },
-  streakLabel: { ...Type.subtitle, fontSize: FontSize.md, color: Colors.textPrimary, textAlign: 'center' },
+    // Streak hero
+    streakCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.xl,
+      borderWidth: 1,
+      borderColor: theme.colors.primary,
+      padding: Spacing.lg,
+      alignItems: 'center',
+      overflow: 'hidden',
+      ...theme.shadow.glow,
+    },
+    streakGlow: {
+      position: 'absolute',
+      top: -60,
+      width: 200,
+      height: 200,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primaryMuted,
+      opacity: 0.5,
+    },
+    streakIcon: {
+      width: 84,
+      height: 84,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primaryMuted,
+      borderWidth: 2,
+      borderColor: theme.colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.sm,
+    },
+    streakNumber: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: 72,
+      lineHeight: 78,
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.primary,
+    },
+    streakLabel: { ...theme.type.subtitle, fontSize: FontSize.md, color: theme.colors.textPrimary, textAlign: 'center' },
 
-  // Stats
-  statRow: { flexDirection: 'row', gap: Spacing.sm },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    alignItems: 'center',
-    gap: 4,
-  },
-  statValue: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xl,
-    color: Colors.textPrimary,
-  },
-  statLabel: { ...Type.bodySm, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+    // Stats
+    statRow: { flexDirection: 'row', gap: Spacing.sm },
+    statCard: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      alignItems: 'center',
+      gap: 4,
+    },
+    statValue: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xl,
+      color: theme.colors.textPrimary,
+    },
+    statLabel: { ...theme.type.bodySm, fontSize: 11, color: theme.colors.textMuted, textAlign: 'center' },
 
-  // Section header
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: Spacing.xs,
-  },
-  sectionTitle: { ...Type.title, color: Colors.textPrimary },
-  sectionCount: { fontFamily: Fonts.data, fontSize: FontSize.xs, color: Colors.textMuted },
+    // Section header
+    sectionHead: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      marginTop: Spacing.xs,
+    },
+    sectionTitle: { ...theme.type.title, color: theme.colors.textPrimary },
+    sectionCount: { fontFamily: Fonts.data, fontSize: FontSize.xs, color: theme.colors.textMuted },
 
-  // Badge grid
-  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  badge: {
-    width: '31%',
-    flexGrow: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    alignItems: 'center',
-    gap: 8,
-  },
-  badgeRing: {
-    width: 56,
-    height: 56,
-    borderRadius: Radii.full,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeRingOn: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
-  badgeRingOff: { borderColor: Colors.border, backgroundColor: Colors.surfaceAlt },
-  badgeLabel: {
-    ...Type.bodySm,
-    fontSize: 11,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  badgeDone: {
-    fontFamily: Fonts.data,
-    fontSize: 9,
-    color: Colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-  },
-  badgeBarTrack: {
-    width: '100%',
-    height: 4,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.surfaceAlt,
-    overflow: 'hidden',
-  },
-  badgeBarFill: { height: 4, borderRadius: Radii.full, backgroundColor: Colors.accent },
+    // Badge grid
+    badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    badge: {
+      width: '31%',
+      flexGrow: 1,
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      alignItems: 'center',
+      gap: 8,
+    },
+    badgeRing: {
+      width: 56,
+      height: 56,
+      borderRadius: Radii.full,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeRingOn: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primaryMuted },
+    badgeRingOff: { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceAlt },
+    badgeLabel: {
+      ...theme.type.bodySm,
+      fontSize: 11,
+      color: theme.colors.textPrimary,
+      textAlign: 'center',
+    },
+    badgeDone: {
+      fontFamily: Fonts.data,
+      fontSize: 9,
+      color: theme.colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+    },
+    badgeBarTrack: {
+      width: '100%',
+      height: 4,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.surfaceAlt,
+      overflow: 'hidden',
+    },
+    badgeBarFill: { height: 4, borderRadius: Radii.full, backgroundColor: theme.colors.accent },
 
-  emptyNote: { ...Type.bodySm, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },
-});
+    emptyNote: { ...theme.type.bodySm, color: theme.colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },
+  });

@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, type ViewStyle } from 'react-native';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Shadow, Spacing, Tracking } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../lib/theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -16,33 +16,6 @@ interface ButtonProps {
   icon?: ReactNode;
 }
 
-const variantStyles = {
-  primary: {
-    container: { backgroundColor: Colors.primary },
-    text: { color: Colors.onAccent },
-    indicator: Colors.onAccent,
-    glow: true,
-  },
-  secondary: {
-    container: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.borderStrong },
-    text: { color: Colors.textPrimary },
-    indicator: Colors.textPrimary,
-    glow: false,
-  },
-  ghost: {
-    container: { backgroundColor: 'transparent' },
-    text: { color: Colors.primary },
-    indicator: Colors.primary,
-    glow: false,
-  },
-  danger: {
-    container: { backgroundColor: Colors.danger },
-    text: { color: Colors.onAccent },
-    indicator: Colors.onAccent,
-    glow: false,
-  },
-} as const;
-
 export function Button({
   label,
   onPress,
@@ -53,6 +26,36 @@ export function Button({
   accessibilityLabel,
   icon,
 }: ButtonProps) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const variantStyles = {
+    primary: {
+      container: { backgroundColor: theme.colors.primary },
+      text: { color: theme.colors.onAccent },
+      indicator: theme.colors.onAccent,
+      glow: true,
+    },
+    secondary: {
+      container: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: theme.colors.borderStrong },
+      text: { color: theme.colors.textPrimary },
+      indicator: theme.colors.textPrimary,
+      glow: false,
+    },
+    ghost: {
+      container: { backgroundColor: 'transparent' },
+      text: { color: theme.colors.primary },
+      indicator: theme.colors.primary,
+      glow: false,
+    },
+    danger: {
+      container: { backgroundColor: theme.colors.danger },
+      text: { color: theme.colors.onAccent },
+      indicator: theme.colors.onAccent,
+      glow: false,
+    },
+  } as const;
+
   const v = variantStyles[variant];
   const isDisabled = disabled || loading;
 
@@ -61,7 +64,7 @@ export function Button({
       style={[
         styles.base,
         v.container,
-        v.glow && !isDisabled ? Shadow.glow : null,
+        v.glow && !isDisabled ? theme.shadow.glow : null,
         isDisabled && styles.disabled,
         style,
       ]}
@@ -73,7 +76,7 @@ export function Button({
       accessibilityState={{ disabled: isDisabled, busy: loading }}
     >
       {loading ? (
-        <ActivityIndicator color={isDisabled ? Colors.textMuted : v.indicator} size="small" />
+        <ActivityIndicator color={isDisabled ? theme.colors.textMuted : v.indicator} size="small" />
       ) : (
         <View style={styles.content}>
           {icon ? <View style={styles.icon}>{icon}</View> : null}
@@ -86,38 +89,39 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  // Pill-shaped (Stitch "Kinetic Precision": botões de alta prioridade são
-  // totalmente arredondados — distingue elementos clicáveis de cards estáticos).
-  base: {
-    borderRadius: Radii.full,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 52,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-  icon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    fontFamily: Fonts.display,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.extrabold,
-    letterSpacing: Tracking.wide,
-  },
-  disabled: {
-    backgroundColor: Colors.surfaceAlt,
-    borderColor: Colors.border,
-  },
-  disabledLabel: {
-    color: Colors.textMuted,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    // Pill-shaped: botões de alta prioridade são totalmente arredondados —
+    // distingue elementos clicáveis de cards estáticos.
+    base: {
+      borderRadius: Radii.full,
+      paddingVertical: Spacing.md,
+      paddingHorizontal: Spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 52,
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+    },
+    icon: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    label: {
+      fontFamily: Fonts.display,
+      fontSize: FontSize.md,
+      fontWeight: FontWeight.extrabold,
+      letterSpacing: Tracking.wide,
+    },
+    disabled: {
+      backgroundColor: theme.colors.surfaceAlt,
+      borderColor: theme.colors.border,
+    },
+    disabledLabel: {
+      color: theme.colors.textMuted,
+    },
+  });

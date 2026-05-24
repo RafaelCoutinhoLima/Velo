@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '../lib/store';
-import { Colors } from '../lib/theme';
+import { useTheme } from '../lib/theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -12,6 +12,7 @@ export default function Index() {
   const onboardingComplete = useAuthStore((s) => s.onboardingComplete);
   const setOnboardingComplete = useAuthStore((s) => s.setOnboardingComplete);
   const [checking, setChecking] = useState(false);
+  const { theme } = useTheme();
 
   // When a session exists but local store says onboarding incomplete,
   // ask the server — the user may have completed it on another device.
@@ -33,8 +34,8 @@ export default function Index() {
 
   if (!_hasHydrated || checking) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={Colors.primary} />
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={theme.colors.primary} />
       </View>
     );
   }

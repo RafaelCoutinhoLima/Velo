@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import { Fonts, FontSize, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 import { Button } from '../../components/Button';
@@ -22,6 +22,8 @@ export default function FeedbackScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [status, setStatus] = useState<'loading' | 'done' | 'error'>('loading');
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -66,7 +68,7 @@ export default function FeedbackScreen() {
           accessibilityRole="button"
           accessibilityLabel="Voltar"
         >
-          <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+          <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -95,11 +97,11 @@ export default function FeedbackScreen() {
             {/* ── Destaque positivo ── */}
             {feedback.destaque_positivo ? (
               <View style={[styles.insightCard, styles.positiveCard]}>
-                <View style={[styles.insightIcon, { backgroundColor: Colors.successLight }]}>
-                  <Ionicons name="trophy" size={18} color={Colors.success} />
+                <View style={[styles.insightIcon, { backgroundColor: theme.colors.successLight }]}>
+                  <Ionicons name="trophy" size={18} color={theme.colors.success} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.insightLabel, { color: Colors.success }]}>Destaque</Text>
+                  <Text style={[styles.insightLabel, { color: theme.colors.success }]}>Destaque</Text>
                   <Text style={styles.insightText}>{feedback.destaque_positivo}</Text>
                 </View>
               </View>
@@ -108,11 +110,11 @@ export default function FeedbackScreen() {
             {/* ── Sugestão ── */}
             {feedback.sugestao ? (
               <View style={[styles.insightCard, styles.suggestionCard]}>
-                <View style={[styles.insightIcon, { backgroundColor: Colors.warningLight }]}>
-                  <Ionicons name="bulb" size={18} color={Colors.warning} />
+                <View style={[styles.insightIcon, { backgroundColor: theme.colors.warningLight }]}>
+                  <Ionicons name="bulb" size={18} color={theme.colors.warning} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.insightLabel, { color: Colors.warning }]}>Próximo passo</Text>
+                  <Text style={[styles.insightLabel, { color: theme.colors.warning }]}>Próximo passo</Text>
                   <Text style={styles.insightText}>{feedback.sugestao}</Text>
                 </View>
               </View>
@@ -131,84 +133,85 @@ export default function FeedbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xl + Spacing.xs,
-    paddingBottom: Spacing.sm,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radii.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: { padding: Spacing.lg, gap: Spacing.md },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    header: {
+      flexDirection: 'row',
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.xl + Spacing.xs,
+      paddingBottom: Spacing.sm,
+    },
+    backBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: Radii.md,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    content: { padding: Spacing.lg, gap: Spacing.md },
 
-  hero: { alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm },
-  emojiCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.primaryMuted,
-    borderWidth: 2,
-    borderColor: 'rgba(195,244,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  emoji: { fontSize: 44 },
-  eyebrow: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.accent,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wider,
-  },
-  heroTitle: { ...Type.headline, color: Colors.textPrimary },
+    hero: { alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm },
+    emojiCircle: {
+      width: 96,
+      height: 96,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primaryMuted,
+      borderWidth: 2,
+      borderColor: theme.colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.sm,
+    },
+    emoji: { fontSize: 44 },
+    eyebrow: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.accent,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wider,
+    },
+    heroTitle: { ...theme.type.headline, color: theme.colors.textPrimary },
 
-  mainCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-  },
-  mainText: {
-    fontFamily: Fonts.body,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
-    lineHeight: 26,
-  },
+    mainCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.lg,
+    },
+    mainText: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.lg,
+      color: theme.colors.textPrimary,
+      lineHeight: 26,
+    },
 
-  insightCard: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    padding: Spacing.md,
-  },
-  positiveCard: { backgroundColor: Colors.surface, borderColor: 'rgba(61,220,132,0.3)' },
-  suggestionCard: { backgroundColor: Colors.surface, borderColor: 'rgba(245,166,35,0.3)' },
-  insightIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  insightLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: FontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-    marginBottom: 3,
-  },
-  insightText: { ...Type.bodySm, color: Colors.textPrimary },
-});
+    insightCard: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      padding: Spacing.md,
+    },
+    positiveCard: { backgroundColor: theme.colors.surface, borderColor: theme.colors.successLight },
+    suggestionCard: { backgroundColor: theme.colors.surface, borderColor: theme.colors.warningLight },
+    insightIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    insightLabel: {
+      fontFamily: Fonts.bodyBold,
+      fontSize: FontSize.xs,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+      marginBottom: 3,
+    },
+    insightText: { ...theme.type.bodySm, color: theme.colors.textPrimary },
+  });

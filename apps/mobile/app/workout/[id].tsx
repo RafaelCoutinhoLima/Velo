@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -11,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 
@@ -20,26 +20,10 @@ const PT_WEEKDAYS_FULL = [
   'Quinta-feira', 'Sexta-feira', 'Sábado',
 ];
 
-const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  easy:     { label: 'Regenerativo', color: Colors.workoutEasy },
-  interval: { label: 'Intervalado',  color: Colors.workoutInterval },
-  tempo:    { label: 'Tempo',        color: Colors.workoutTempo },
-  long:     { label: 'Longo',        color: Colors.workoutLong },
-  rest:     { label: 'Descanso',     color: Colors.workoutRest },
-  cross:    { label: 'Cross',        color: Colors.workoutCross },
-};
-
 const RPE_LABELS: Record<number, string> = {
   1: 'Muito fácil', 2: 'Fácil', 3: 'Leve', 4: 'Moderado', 5: 'Razoável',
   6: 'Intenso', 7: 'Difícil', 8: 'Muito difícil', 9: 'Extenuante', 10: 'Máximo',
 };
-
-function rpeColor(n: number): string {
-  if (n <= 3) return Colors.workoutEasy;
-  if (n <= 5) return Colors.workoutTempo;
-  if (n <= 7) return Colors.warning;
-  return Colors.danger;
-}
 
 function formatPace(paceS: number): string {
   const min = Math.floor(paceS / 60);
@@ -86,57 +70,28 @@ interface Workout {
   description?: string;
 }
 
-// Painel grande dividido em duas métricas (Distância | Duração).
-function SplitPanel({
-  left,
-  right,
-}: {
-  left: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
-  right: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
-}) {
-  return (
-    <View style={styles.splitPanel}>
-      <View style={styles.splitSide}>
-        <View style={styles.splitLabelRow}>
-          <Ionicons name={left.icon} size={15} color={Colors.accent} />
-          <Text style={styles.splitLabel}>{left.label}</Text>
-        </View>
-        <Text style={styles.splitValue}>
-          {left.value}
-          <Text style={styles.splitUnit}> {left.unit}</Text>
-        </Text>
-      </View>
-      <View style={styles.splitDivider} />
-      <View style={[styles.splitSide, { alignItems: 'flex-end' }]}>
-        <View style={styles.splitLabelRow}>
-          <Ionicons name={right.icon} size={15} color={Colors.accent} />
-          <Text style={styles.splitLabel}>{right.label}</Text>
-        </View>
-        <Text style={styles.splitValue}>
-          {right.value}
-          <Text style={styles.splitUnit}> {right.unit}</Text>
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function GridStat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
-  return (
-    <View style={styles.gridStat}>
-      <Ionicons name={icon} size={18} color={Colors.textMuted} />
-      <View>
-        <Text style={styles.gridValue}>{value}</Text>
-        <Text style={styles.gridLabel}>{label}</Text>
-      </View>
-    </View>
-  );
-}
-
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useAuthStore((s) => s.session);
   const { get, patch } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+    easy:     { label: 'Regenerativo', color: theme.colors.workoutEasy },
+    interval: { label: 'Intervalado',  color: theme.colors.workoutInterval },
+    tempo:    { label: 'Tempo',        color: theme.colors.workoutTempo },
+    long:     { label: 'Longo',        color: theme.colors.workoutLong },
+    rest:     { label: 'Descanso',     color: theme.colors.workoutRest },
+    cross:    { label: 'Cross',        color: theme.colors.workoutCross },
+  };
+
+  function rpeColor(n: number): string {
+    if (n <= 3) return theme.colors.workoutEasy;
+    if (n <= 5) return theme.colors.workoutTempo;
+    if (n <= 7) return theme.colors.warning;
+    return theme.colors.danger;
+  }
 
   const [rpe, setRpe] = useState<number | null>(null);
   const [savingRpe, setSavingRpe] = useState(false);
@@ -173,8 +128,54 @@ export default function WorkoutDetailScreen() {
         accessibilityRole="button"
         accessibilityLabel="Voltar"
       >
-        <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+        <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
       </TouchableOpacity>
+    );
+  }
+
+  function SplitPanel({
+    left,
+    right,
+  }: {
+    left: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
+    right: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
+  }) {
+    return (
+      <View style={styles.splitPanel}>
+        <View style={styles.splitSide}>
+          <View style={styles.splitLabelRow}>
+            <Ionicons name={left.icon} size={15} color={theme.colors.accent} />
+            <Text style={styles.splitLabel}>{left.label}</Text>
+          </View>
+          <Text style={styles.splitValue}>
+            {left.value}
+            <Text style={styles.splitUnit}> {left.unit}</Text>
+          </Text>
+        </View>
+        <View style={styles.splitDivider} />
+        <View style={[styles.splitSide, { alignItems: 'flex-end' }]}>
+          <View style={styles.splitLabelRow}>
+            <Ionicons name={right.icon} size={15} color={theme.colors.accent} />
+            <Text style={styles.splitLabel}>{right.label}</Text>
+          </View>
+          <Text style={styles.splitValue}>
+            {right.value}
+            <Text style={styles.splitUnit}> {right.unit}</Text>
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  function GridStat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
+    return (
+      <View style={styles.gridStat}>
+        <Ionicons name={icon} size={18} color={theme.colors.textMuted} />
+        <View>
+          <Text style={styles.gridValue}>{value}</Text>
+          <Text style={styles.gridLabel}>{label}</Text>
+        </View>
+      </View>
     );
   }
 
@@ -222,7 +223,7 @@ export default function WorkoutDetailScreen() {
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {w.location ? (
             <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={15} color={Colors.textMuted} />
+              <Ionicons name="location-outline" size={15} color={theme.colors.textMuted} />
               <Text style={styles.locationText}>{w.location}</Text>
             </View>
           ) : null}
@@ -241,7 +242,7 @@ export default function WorkoutDetailScreen() {
 
         {/* ── FC média (destaque) ── */}
         <View style={styles.hrPanel}>
-          <Ionicons name="heart" size={34} color={Colors.danger} />
+          <Ionicons name="heart" size={34} color={theme.colors.danger} />
           <Text style={styles.hrValue}>
             {w.avg_hr != null ? w.avg_hr : '—'}
             <Text style={styles.hrUnit}>  BPM Médio</Text>
@@ -331,7 +332,7 @@ export default function WorkoutDetailScreen() {
           {savingRpe ? (
             <Text style={styles.rpeStatus}>Salvando…</Text>
           ) : rpe && !rpeError ? (
-            <Text style={[styles.rpeStatus, { color: Colors.success }]}>Salvo ✓</Text>
+            <Text style={[styles.rpeStatus, { color: theme.colors.success }]}>Salvo ✓</Text>
           ) : null}
           {rpeError ? (
             <View style={{ marginTop: Spacing.sm }}>
@@ -343,7 +344,7 @@ export default function WorkoutDetailScreen() {
         {/* ── Feedback do treinador ── */}
         <View style={styles.coachCard}>
           <View style={styles.coachHead}>
-            <Ionicons name="sparkles" size={18} color={Colors.accent} />
+            <Ionicons name="sparkles" size={18} color={theme.colors.accent} />
             <Text style={styles.coachLabel}>Feedback do treinador</Text>
           </View>
           <Text style={styles.cardSub}>
@@ -356,7 +357,7 @@ export default function WorkoutDetailScreen() {
             accessibilityLabel="Ver feedback do treinador para este treino"
           >
             <Text style={styles.coachBtnText}>Ver feedback do treinador</Text>
-            <Ionicons name="arrow-forward" size={16} color={Colors.accent} />
+            <Ionicons name="arrow-forward" size={16} color={theme.colors.accent} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -364,199 +365,200 @@ export default function WorkoutDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
 
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xl + Spacing.xs,
-    paddingBottom: Spacing.sm,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radii.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  typePill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: Radii.sm,
-  },
-  typePillText: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: Colors.onAccent,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-  },
+    // Header
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.xl + Spacing.xs,
+      paddingBottom: Spacing.sm,
+    },
+    backBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: Radii.md,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    typePill: {
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 6,
+      borderRadius: Radii.sm,
+    },
+    typePillText: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      fontWeight: FontWeight.bold,
+      color: theme.colors.onAccent,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+    },
 
-  scroll: { flex: 1 },
-  content: { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
+    scroll: { flex: 1 },
+    content: { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
 
-  // Hero
-  hero: { gap: Spacing.sm },
-  heroPills: { flexDirection: 'row', gap: Spacing.sm },
-  datePill: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.onAccent,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: 5,
-    borderRadius: Radii.sm,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-    overflow: 'hidden',
-  },
-  datePillMuted: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    backgroundColor: Colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: 5,
-    borderRadius: Radii.sm,
-    overflow: 'hidden',
-  },
-  heroTitle: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: 42,
-    lineHeight: 46,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
-    letterSpacing: Tracking.tight,
-    textTransform: 'uppercase',
-  },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { ...Type.bodySm, color: Colors.textMuted },
+    // Hero
+    hero: { gap: Spacing.sm },
+    heroPills: { flexDirection: 'row', gap: Spacing.sm },
+    datePill: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.onAccent,
+      backgroundColor: theme.colors.primary,
+      paddingHorizontal: Spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: Radii.sm,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+      overflow: 'hidden',
+    },
+    datePillMuted: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.textSecondary,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: Spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: Radii.sm,
+      overflow: 'hidden',
+    },
+    heroTitle: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: 42,
+      lineHeight: 46,
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.textPrimary,
+      letterSpacing: Tracking.tight,
+      textTransform: 'uppercase',
+    },
+    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    locationText: { ...theme.type.bodySm, color: theme.colors.textMuted },
 
-  // Split panel
-  splitPanel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radii.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-  },
-  splitSide: { flex: 1, gap: Spacing.xs },
-  splitLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  splitLabel: {
-    fontFamily: Fonts.data,
-    fontSize: 11,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-  },
-  splitValue: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: 34,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
-  },
-  splitUnit: { fontFamily: Fonts.display, fontSize: FontSize.md, color: Colors.textMuted },
-  splitDivider: { width: 1, height: 48, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
+    // Split panel
+    splitPanel: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: Radii.xl,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.lg,
+    },
+    splitSide: { flex: 1, gap: Spacing.xs },
+    splitLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    splitLabel: {
+      fontFamily: Fonts.data,
+      fontSize: 11,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+    },
+    splitValue: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: 34,
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.textPrimary,
+    },
+    splitUnit: { fontFamily: Fonts.display, fontSize: FontSize.md, color: theme.colors.textMuted },
+    splitDivider: { width: 1, height: 48, backgroundColor: theme.colors.border, marginHorizontal: Spacing.md },
 
-  // HR panel
-  hrPanel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: Spacing.lg,
-  },
-  hrValue: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: 38,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
-  },
-  hrUnit: { fontFamily: Fonts.display, fontSize: FontSize.md, color: Colors.textMuted },
+    // HR panel
+    hrPanel: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.xl,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingVertical: Spacing.lg,
+    },
+    hrValue: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: 38,
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.textPrimary,
+    },
+    hrUnit: { fontFamily: Fonts.display, fontSize: FontSize.md, color: theme.colors.textMuted },
 
-  // Metrics grid
-  gridCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-  },
-  gridRow: { flexDirection: 'row', paddingVertical: Spacing.sm },
-  gridStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  gridValue: { fontFamily: Fonts.data, fontSize: FontSize.md, color: Colors.textPrimary },
-  gridLabel: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 1 },
-  gridSep: { height: 1, backgroundColor: Colors.border },
+    // Metrics grid
+    gridCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+    },
+    gridRow: { flexDirection: 'row', paddingVertical: Spacing.sm },
+    gridStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    gridValue: { fontFamily: Fonts.data, fontSize: FontSize.md, color: theme.colors.textPrimary },
+    gridLabel: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, marginTop: 1 },
+    gridSep: { height: 1, backgroundColor: theme.colors.border },
 
-  // Generic card
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-  },
-  cardLabel: { ...Type.label, color: Colors.textMuted, marginBottom: 3 },
-  cardSub: { ...Type.bodySm, color: Colors.textSecondary, marginBottom: Spacing.md },
+    // Generic card
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+    },
+    cardLabel: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: 3 },
+    cardSub: { ...theme.type.bodySm, color: theme.colors.textSecondary, marginBottom: Spacing.md },
 
-  // RPE
-  rpeSelected: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, marginBottom: Spacing.sm },
-  rpeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  rpeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radii.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceAlt,
-  },
-  rpeBtnText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: Colors.textMuted },
-  rpeBtnTextActive: { color: Colors.onAccent },
-  rpeStatus: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.sm },
+    // RPE
+    rpeSelected: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, marginBottom: Spacing.sm },
+    rpeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+    rpeBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: Radii.full,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    rpeBtnText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textMuted },
+    rpeBtnTextActive: { color: theme.colors.onAccent },
+    rpeStatus: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, marginTop: Spacing.sm },
 
-  // Coach card
-  coachCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.accent,
-    borderTopWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderTopColor: Colors.border,
-    borderRightColor: Colors.border,
-    borderBottomColor: Colors.border,
-    padding: Spacing.md,
-  },
-  coachHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-  coachLabel: { ...Type.label, color: Colors.accent },
-  coachBtn: {
-    flexDirection: 'row',
-    backgroundColor: Colors.accentLight,
-    borderRadius: Radii.full,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  coachBtnText: { fontFamily: Fonts.display, fontSize: FontSize.md, color: Colors.accent },
-});
+    // Coach card
+    coachCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.colors.accent,
+      borderTopWidth: 1,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
+      borderTopColor: theme.colors.border,
+      borderRightColor: theme.colors.border,
+      borderBottomColor: theme.colors.border,
+      padding: Spacing.md,
+    },
+    coachHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+    coachLabel: { ...theme.type.label, color: theme.colors.accent },
+    coachBtn: {
+      flexDirection: 'row',
+      backgroundColor: theme.colors.accentLight,
+      borderRadius: Radii.full,
+      paddingVertical: Spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      marginTop: Spacing.sm,
+    },
+    coachBtnText: { fontFamily: Fonts.display, fontSize: FontSize.md, color: theme.colors.accent },
+  });

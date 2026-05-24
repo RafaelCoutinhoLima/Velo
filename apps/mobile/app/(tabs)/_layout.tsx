@@ -1,9 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Fonts, FontSize, Tracking } from '../../lib/theme';
+import { Fonts, FontSize, Tracking, useTheme } from '../../lib/theme';
 
-// Bottom bar do Stitch "Kinetic Precision": 4 abas, ícone linear + label
-// uppercase, accent lima na aba ativa.
+// Bottom bar: 4 abas, ícone linear + label uppercase, primary do tema na
+// aba ativa. Cores se atualizam ao trocar identidade visual.
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
 const ICONS: Record<string, { on: IoniconName; off: IoniconName }> = {
@@ -21,16 +21,18 @@ function tabIcon(name: string) {
 }
 
 export default function TabsLayout() {
+  const { theme } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        sceneStyle: { backgroundColor: Colors.bg },
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textMuted,
+        sceneStyle: { backgroundColor: theme.colors.bg },
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
           borderTopWidth: 1,
           height: 68,
           paddingTop: 8,

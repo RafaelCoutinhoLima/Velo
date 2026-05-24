@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, useTheme, type Theme } from '../lib/theme';
 
 // Espelha o superset estruturado de apps/api/src/claude/schemas.ts
 // (generation_spec.md §2.3). Campos opcionais — plano legado não os tem.
@@ -41,7 +41,7 @@ export function hasStructure(d: WorkoutStructureData): boolean {
   );
 }
 
-function ZoneChip({ zona }: { zona: ZoneLabel }) {
+function ZoneChip({ zona, styles }: { zona: ZoneLabel; styles: ReturnType<typeof createStyles> }) {
   return (
     <View style={styles.zoneChip}>
       <Text style={styles.zoneChipText}>{zona}</Text>
@@ -49,14 +49,22 @@ function ZoneChip({ zona }: { zona: ZoneLabel }) {
   );
 }
 
-function WarmCoolRow({ label, block }: { label: string; block: WarmCool }) {
+function WarmCoolRow({
+  label,
+  block,
+  styles,
+}: {
+  label: string;
+  block: WarmCool;
+  styles: ReturnType<typeof createStyles>;
+}) {
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <View style={styles.rowBody}>
         <View style={styles.rowMeta}>
           <Text style={styles.rowDuration}>{block.duracao_min} min</Text>
-          <ZoneChip zona={block.zona} />
+          <ZoneChip zona={block.zona} styles={styles} />
           {block.pace_alvo ? <Text style={styles.rowPace}>{block.pace_alvo}</Text> : null}
         </View>
       </View>
@@ -64,7 +72,13 @@ function WarmCoolRow({ label, block }: { label: string; block: WarmCool }) {
   );
 }
 
-function MainRow({ block }: { block: PartePrincipal }) {
+function MainRow({
+  block,
+  styles,
+}: {
+  block: PartePrincipal;
+  styles: ReturnType<typeof createStyles>;
+}) {
   const hasReps = typeof block.repeticoes === 'number' && block.repeticoes > 1;
   return (
     <View style={styles.row}>
@@ -87,7 +101,7 @@ function MainRow({ block }: { block: PartePrincipal }) {
           </View>
         ) : null}
         <View style={styles.rowMeta}>
-          <ZoneChip zona={block.zona_alvo} />
+          <ZoneChip zona={block.zona_alvo} styles={styles} />
           <Text style={styles.rowPace}>
             {block.fc_alvo_bpm.min}–{block.fc_alvo_bpm.max} bpm
           </Text>
@@ -105,6 +119,8 @@ export function WorkoutStructure({
   data: WorkoutStructureData;
   advancedMode: boolean;
 }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [expanded, setExpanded] = useState(false);
 
   if (!hasStructure(data)) return null;
@@ -126,11 +142,11 @@ export function WorkoutStructure({
       {expanded ? (
         <View style={styles.body}>
           {data.aquecimento ? (
-            <WarmCoolRow label="Aquecimento" block={data.aquecimento} />
+            <WarmCoolRow label="Aquecimento" block={data.aquecimento} styles={styles} />
           ) : null}
-          {data.parte_principal ? <MainRow block={data.parte_principal} /> : null}
+          {data.parte_principal ? <MainRow block={data.parte_principal} styles={styles} /> : null}
           {data.desaquecimento ? (
-            <WarmCoolRow label="Desaquecimento" block={data.desaquecimento} />
+            <WarmCoolRow label="Desaquecimento" block={data.desaquecimento} styles={styles} />
           ) : null}
 
           {typeof data.rtss_estimado === 'number' ? (
@@ -153,109 +169,130 @@ export function WorkoutStructure({
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginTop: Spacing.md,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  headerLabel: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textSecondary,
-  },
-  chevron: { fontSize: FontSize.xs, color: Colors.textMuted },
-  body: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
-    gap: Spacing.md,
-  },
-  row: { gap: 4 },
-  rowLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  rowBody: { gap: Spacing.xs },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
-  rowDuration: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textPrimary,
-    fontVariant: ['tabular-nums'],
-  },
-  rowPace: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    fontVariant: ['tabular-nums'],
-  },
-  mainDesc: { fontFamily: Fonts.body, fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 21 },
-  repsBox: {
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radii.sm,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    gap: 2,
-  },
-  repsText: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    fontVariant: ['tabular-nums'],
-  },
-  repsZone: { color: Colors.primary },
-  recoveryText: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: Colors.textSecondary },
-  zoneChip: {
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-  },
-  zoneChipText: { fontFamily: Fonts.data, fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary },
-  loadChip: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.accentLight,
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
-  },
-  loadChipText: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.semibold,
-    color: Colors.accent,
-    fontVariant: ['tabular-nums'],
-  },
-  notesBox: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingTop: Spacing.sm,
-    gap: 4,
-  },
-  notesLabel: {
-    fontFamily: Fonts.bodyBold,
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  notesText: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19, fontStyle: 'italic' },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    wrapper: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginTop: Spacing.md,
+      overflow: 'hidden',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+    },
+    headerLabel: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.sm,
+      fontWeight: FontWeight.semibold,
+      color: theme.colors.textSecondary,
+    },
+    chevron: { fontSize: FontSize.xs, color: theme.colors.textMuted },
+    body: {
+      paddingHorizontal: Spacing.md,
+      paddingBottom: Spacing.md,
+      gap: Spacing.md,
+    },
+    row: { gap: 4 },
+    rowLabel: {
+      fontFamily: Fonts.bodyBold,
+      fontSize: FontSize.xs,
+      fontWeight: FontWeight.bold,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    rowBody: { gap: Spacing.xs },
+    rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
+    rowDuration: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.md,
+      fontWeight: FontWeight.semibold,
+      color: theme.colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    rowPace: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.sm,
+      color: theme.colors.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
+    mainDesc: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.md,
+      color: theme.colors.textPrimary,
+      lineHeight: 21,
+    },
+    repsBox: {
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: Radii.sm,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      gap: 2,
+    },
+    repsText: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.lg,
+      fontWeight: FontWeight.bold,
+      color: theme.colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    repsZone: { color: theme.colors.primary },
+    recoveryText: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.sm,
+      color: theme.colors.textSecondary,
+    },
+    zoneChip: {
+      backgroundColor: theme.colors.primaryMuted,
+      borderRadius: Radii.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+    },
+    zoneChipText: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      fontWeight: FontWeight.bold,
+      color: theme.colors.primary,
+    },
+    loadChip: {
+      alignSelf: 'flex-start',
+      backgroundColor: theme.colors.accentLight,
+      borderRadius: Radii.full,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 4,
+    },
+    loadChipText: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      fontWeight: FontWeight.semibold,
+      color: theme.colors.accent,
+      fontVariant: ['tabular-nums'],
+    },
+    notesBox: {
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+      paddingTop: Spacing.sm,
+      gap: 4,
+    },
+    notesLabel: {
+      fontFamily: Fonts.bodyBold,
+      fontSize: FontSize.xs,
+      fontWeight: FontWeight.bold,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    notesText: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.sm,
+      color: theme.colors.textSecondary,
+      lineHeight: 19,
+      fontStyle: 'italic',
+    },
+  });

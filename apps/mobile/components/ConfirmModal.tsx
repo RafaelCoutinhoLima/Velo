@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Shadow, Spacing } from '../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, useTheme, type Theme } from '../lib/theme';
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -22,12 +23,14 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
-  const confirmBg = confirmVariant === 'danger' ? Colors.danger : Colors.primary;
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const confirmBg = confirmVariant === 'danger' ? theme.colors.danger : theme.colors.primary;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
-        <View style={[styles.box, Shadow.elevated]}>
+        <View style={[styles.box, theme.shadow.elevated]}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
           <View style={styles.actions}>
@@ -54,62 +57,59 @@ export function ConfirmModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  box: {
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    padding: Spacing.lg,
-    width: '100%',
-    maxWidth: 360,
-  },
-  title: {
-    fontFamily: Fonts.display,
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  message: {
-    fontFamily: Fonts.body,
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: Spacing.lg,
-  },
-  actions: { flexDirection: 'row', gap: Spacing.sm },
-  cancelBtn: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: Radii.md,
-    paddingVertical: Spacing.md - 2,
-    alignItems: 'center',
-  },
-  cancelText: {
-    fontFamily: Fonts.bodySemiBold,
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-    fontWeight: FontWeight.semibold,
-  },
-  confirmBtn: {
-    flex: 1,
-    borderRadius: Radii.md,
-    paddingVertical: Spacing.md - 2,
-    alignItems: 'center',
-  },
-  confirmText: {
-    fontFamily: Fonts.display,
-    fontSize: FontSize.md,
-    color: Colors.onAccent,
-    fontWeight: FontWeight.extrabold,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: Spacing.lg,
+    },
+    box: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.lg,
+      width: '100%',
+      maxWidth: 360,
+    },
+    title: {
+      ...theme.type.title,
+      color: theme.colors.textPrimary,
+      marginBottom: Spacing.sm,
+    },
+    message: {
+      ...theme.type.body,
+      color: theme.colors.textSecondary,
+      marginBottom: Spacing.lg,
+    },
+    actions: { flexDirection: 'row', gap: Spacing.sm },
+    cancelBtn: {
+      flex: 1,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      borderRadius: Radii.md,
+      paddingVertical: Spacing.md - 2,
+      alignItems: 'center',
+    },
+    cancelText: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.md,
+      color: theme.colors.textSecondary,
+      fontWeight: FontWeight.semibold,
+    },
+    confirmBtn: {
+      flex: 1,
+      borderRadius: Radii.md,
+      paddingVertical: Spacing.md - 2,
+      alignItems: 'center',
+    },
+    confirmText: {
+      fontFamily: Fonts.display,
+      fontSize: FontSize.md,
+      color: theme.colors.onAccent,
+      fontWeight: FontWeight.extrabold,
+    },
+  });

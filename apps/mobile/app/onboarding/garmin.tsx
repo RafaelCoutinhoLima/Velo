@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Radii, Spacing, Type } from '../../lib/theme';
+import { Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
@@ -25,6 +25,8 @@ export default function GarminScreen() {
   const session = useAuthStore((s) => s.session);
   const setOnboardingComplete = useAuthStore((s) => s.setOnboardingComplete);
   const { post } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
@@ -83,7 +85,7 @@ export default function GarminScreen() {
     return (
       <View style={styles.doneWrap}>
         <View style={styles.doneIcon}>
-          <Ionicons name="checkmark-circle" size={56} color={Colors.primary} />
+          <Ionicons name="checkmark-circle" size={56} color={theme.colors.primary} />
         </View>
         <Text style={styles.doneTitle}>Garmin conectado!</Text>
         <Text style={styles.doneSub}>
@@ -94,7 +96,7 @@ export default function GarminScreen() {
           label="Calibrar minhas zonas"
           onPress={() => router.replace('/onboarding/cooper' as never)}
           style={styles.doneBtn}
-          icon={<Ionicons name="pulse" size={18} color={Colors.onAccent} />}
+          icon={<Ionicons name="pulse" size={18} color={theme.colors.onAccent} />}
           accessibilityLabel="Calibrar zonas com o Teste de Cooper"
         />
         <Button
@@ -123,7 +125,7 @@ export default function GarminScreen() {
         {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
 
         <View style={styles.trustCard}>
-          <Ionicons name="lock-closed" size={20} color={Colors.accent} />
+          <Ionicons name="lock-closed" size={20} color={theme.colors.accent} />
           <View style={{ flex: 1 }}>
             <Text style={styles.trustTitle}>Conexão segura</Text>
             <Text style={styles.trustText}>
@@ -165,7 +167,7 @@ export default function GarminScreen() {
           onPress={connect}
           disabled={!email.trim() || !password}
           style={styles.btn}
-          icon={<Ionicons name="watch-outline" size={18} color={Colors.onAccent} />}
+          icon={<Ionicons name="watch-outline" size={18} color={theme.colors.onAccent} />}
           accessibilityLabel="Conectar Garmin e importar treinos"
         />
 
@@ -182,52 +184,53 @@ export default function GarminScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  hero: { marginBottom: Spacing.lg },
-  title: { ...Type.display, color: Colors.textPrimary },
-  subtitle: { ...Type.body, color: Colors.textMuted, marginTop: Spacing.xs },
-  trustCard: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    backgroundColor: Colors.accentLight,
-    borderRadius: Radii.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.accent,
-  },
-  trustTitle: { ...Type.bodyStrong, color: Colors.textPrimary },
-  trustText: { ...Type.bodySm, fontSize: Type.bodySm.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  btn: { marginTop: Spacing.sm },
-  skipBtn: { alignItems: 'center', marginTop: Spacing.md, padding: Spacing.sm },
-  skipText: { ...Type.bodySm, color: Colors.textMuted },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+    hero: { marginBottom: Spacing.lg },
+    title: { ...theme.type.display, color: theme.colors.textPrimary },
+    subtitle: { ...theme.type.body, color: theme.colors.textMuted, marginTop: Spacing.xs },
+    trustCard: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      backgroundColor: theme.colors.accentLight,
+      borderRadius: Radii.lg,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.colors.accent,
+    },
+    trustTitle: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
+    trustText: { ...theme.type.bodySm, color: theme.colors.textSecondary, marginTop: 2 },
+    btn: { marginTop: Spacing.sm },
+    skipBtn: { alignItems: 'center', marginTop: Spacing.md, padding: Spacing.sm },
+    skipText: { ...theme.type.bodySm, color: theme.colors.textMuted },
 
-  doneWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-    backgroundColor: Colors.bg,
-  },
-  doneIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.primaryMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  doneTitle: { ...Type.headline, color: Colors.textPrimary, textAlign: 'center' },
-  doneSub: {
-    ...Type.body,
-    color: Colors.textMuted,
-    marginTop: Spacing.sm,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
-  doneBtn: { width: '100%' },
-  doneSkip: { width: '100%', marginTop: Spacing.sm },
-});
+    doneWrap: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: Spacing.xl,
+      backgroundColor: theme.colors.bg,
+    },
+    doneIcon: {
+      width: 96,
+      height: 96,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primaryMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.md,
+    },
+    doneTitle: { ...theme.type.headline, color: theme.colors.textPrimary, textAlign: 'center' },
+    doneSub: {
+      ...theme.type.body,
+      color: theme.colors.textMuted,
+      marginTop: Spacing.sm,
+      textAlign: 'center',
+      marginBottom: Spacing.xl,
+    },
+    doneBtn: { width: '100%' },
+    doneSkip: { width: '100%', marginTop: Spacing.sm },
+  });

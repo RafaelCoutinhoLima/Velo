@@ -1,10 +1,11 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import { Fonts, FontSize, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 import { TopBar } from '../../components/TopBar';
@@ -21,15 +22,6 @@ interface Workout {
 }
 
 const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-const TYPE_COLOR: Record<string, string> = {
-  easy: Colors.workoutEasy,
-  interval: Colors.workoutInterval,
-  tempo: Colors.workoutTempo,
-  long: Colors.workoutLong,
-  rest: Colors.workoutRest,
-  cross: Colors.workoutCross,
-};
 
 const TYPE_LABEL: Record<string, string> = {
   easy: 'Rodagem',
@@ -71,111 +63,20 @@ function formatPace(distanceM: number, durationS: number): string | null {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// ── Mini-heatmap de frequência da semana corrente ─────────────────────
-function FrequencyStrip({ workouts }: { workouts: Workout[] }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay()); // domingo
-
-  const workoutDates = new Set(workouts.map((w) => w.date));
-  const labels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-
-  const bars = labels.map((_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const hasWorkout = workoutDates.has(iso);
-    const isFuture = d.getTime() > today.getTime();
-    const isToday = d.getTime() === today.getTime();
-    return { hasWorkout, isFuture, isToday };
-  });
-
-  return (
-    <View style={styles.freqSection}>
-      <View style={styles.freqHeader}>
-        <Text style={styles.freqTitle}>Frequência</Text>
-        <Text style={styles.freqHint}>Esta semana</Text>
-      </View>
-      <View style={styles.freqBars}>
-        {bars.map((b, i) => (
-          <View
-            key={i}
-            style={[
-              styles.freqBar,
-              b.hasWorkout && styles.freqBarActive,
-              b.isToday && !b.hasWorkout && styles.freqBarToday,
-              b.isFuture && styles.freqBarFuture,
-            ]}
-          />
-        ))}
-      </View>
-      <View style={styles.freqLabels}>
-        {labels.map((l, i) => (
-          <Text key={i} style={styles.freqLabel}>{l}</Text>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function WorkoutCard({ workout }: { workout: Workout }) {
-  const type = workout.type ?? 'easy';
-  const tint = TYPE_COLOR[type] ?? Colors.textMuted;
-  const label = TYPE_LABEL[type] ?? type;
-  const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1) : '—';
-  const dur = workout.duration_s > 0 ? formatDuration(workout.duration_s) : '—';
-  const pace = formatPace(workout.distance_m, workout.duration_s);
-
-  return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push(`/workout/${workout.id}`)}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={`Treino de ${formatDateShort(workout.date)}, ${label}`}
-    >
-      <View style={styles.cardTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardDate}>{formatDateShort(workout.date)}</Text>
-          <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>{label}</Text>
-            {workout.rtss != null ? (
-              <Text style={[styles.zoneBadge, { color: tint, borderColor: tint + '44' }]}>
-                {workout.rtss.toFixed(0)} rTSS
-              </Text>
-            ) : null}
-          </View>
-        </View>
-        <View style={[styles.typeIcon, { backgroundColor: tint + '1A' }]}>
-          <Ionicons name={TYPE_ICON[type] ?? 'footsteps-outline'} size={20} color={tint} />
-        </View>
-      </View>
-
-      <View style={styles.cardStats}>
-        <Stat label="Distância" value={distKm} unit="km" />
-        <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
-        <Stat label="Pace" value={pace ?? '—'} unit={pace ? '/km' : ''} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>
-        {value}
-        {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
-      </Text>
-    </View>
-  );
-}
-
 export default function HistoryScreen() {
   const session = useAuthStore((s) => s.session);
   const { get } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const TYPE_COLOR: Record<string, string> = {
+    easy: theme.colors.workoutEasy,
+    interval: theme.colors.workoutInterval,
+    tempo: theme.colors.workoutTempo,
+    long: theme.colors.workoutLong,
+    rest: theme.colors.workoutRest,
+    cross: theme.colors.workoutCross,
+  };
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['workouts', session?.athlete_id],
@@ -184,6 +85,108 @@ export default function HistoryScreen() {
     enabled: !!session?.athlete_id,
     staleTime: 1000 * 60 * 5,
   });
+
+  // ── Mini-heatmap de frequência da semana corrente ─────────────────────
+  function FrequencyStrip({ workouts }: { workouts: Workout[] }) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay()); // domingo
+
+    const workoutDates = new Set(workouts.map((w) => w.date));
+    const labels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+    const bars = labels.map((_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const hasWorkout = workoutDates.has(iso);
+      const isFuture = d.getTime() > today.getTime();
+      const isToday = d.getTime() === today.getTime();
+      return { hasWorkout, isFuture, isToday };
+    });
+
+    return (
+      <View style={styles.freqSection}>
+        <View style={styles.freqHeader}>
+          <Text style={styles.freqTitle}>Frequência</Text>
+          <Text style={styles.freqHint}>Esta semana</Text>
+        </View>
+        <View style={styles.freqBars}>
+          {bars.map((b, i) => (
+            <View
+              key={i}
+              style={[
+                styles.freqBar,
+                b.hasWorkout && styles.freqBarActive,
+                b.isToday && !b.hasWorkout && styles.freqBarToday,
+                b.isFuture && styles.freqBarFuture,
+              ]}
+            />
+          ))}
+        </View>
+        <View style={styles.freqLabels}>
+          {labels.map((l, i) => (
+            <Text key={i} style={styles.freqLabel}>{l}</Text>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+    return (
+      <View style={styles.stat}>
+        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.statValue}>
+          {value}
+          {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
+        </Text>
+      </View>
+    );
+  }
+
+  function WorkoutCard({ workout }: { workout: Workout }) {
+    const type = workout.type ?? 'easy';
+    const tint = TYPE_COLOR[type] ?? theme.colors.textMuted;
+    const label = TYPE_LABEL[type] ?? type;
+    const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1) : '—';
+    const dur = workout.duration_s > 0 ? formatDuration(workout.duration_s) : '—';
+    const pace = formatPace(workout.distance_m, workout.duration_s);
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => router.push(`/workout/${workout.id}`)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={`Treino de ${formatDateShort(workout.date)}, ${label}`}
+      >
+        <View style={styles.cardTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardDate}>{formatDateShort(workout.date)}</Text>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardTitle}>{label}</Text>
+              {workout.rtss != null ? (
+                <Text style={[styles.zoneBadge, { color: tint, borderColor: tint + '44' }]}>
+                  {workout.rtss.toFixed(0)} rTSS
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={[styles.typeIcon, { backgroundColor: tint + '1A' }]}>
+            <Ionicons name={TYPE_ICON[type] ?? 'footsteps-outline'} size={20} color={tint} />
+          </View>
+        </View>
+
+        <View style={styles.cardStats}>
+          <Stat label="Distância" value={distKm} unit="km" />
+          <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
+          <Stat label="Pace" value={pace ?? '—'} unit={pace ? '/km' : ''} />
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   if (!session) return null;
   if (isLoading) {
@@ -208,7 +211,7 @@ export default function HistoryScreen() {
       ) : workouts.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIconCircle}>
-            <Ionicons name="footsteps-outline" size={36} color={Colors.primary} />
+            <Ionicons name="footsteps-outline" size={36} color={theme.colors.primary} />
           </View>
           <Text style={styles.emptyTitle}>Nenhum treino ainda</Text>
           <Text style={styles.emptyText}>
@@ -232,7 +235,7 @@ export default function HistoryScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor={Colors.primary}
+              tintColor={theme.colors.primary}
             />
           }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -243,123 +246,127 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  list: { padding: Spacing.md, paddingBottom: Spacing.xxl },
-  screenTitle: { ...Type.headline, color: Colors.textPrimary, marginBottom: Spacing.md },
-  errorWrap: { padding: Spacing.md },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    list: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+    screenTitle: { ...theme.type.headline, color: theme.colors.textPrimary, marginBottom: Spacing.md },
+    errorWrap: { padding: Spacing.md },
 
-  // Frequency strip
-  freqSection: { marginBottom: Spacing.lg },
-  freqHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
-  },
-  freqTitle: { ...Type.subtitle, fontSize: FontSize.md, color: Colors.textPrimary },
-  freqHint: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.primary,
-  },
-  freqBars: { flexDirection: 'row', gap: 6, height: 40 },
-  freqBar: {
-    flex: 1,
-    borderRadius: Radii.sm,
-    backgroundColor: Colors.surfaceAlt,
-  },
-  freqBarActive: {
-    backgroundColor: Colors.primary,
-    ...({ shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 }),
-  },
-  freqBarToday: { borderWidth: 1.5, borderColor: Colors.accent },
-  freqBarFuture: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-  },
-  freqLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 },
-  freqLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: Fonts.data,
-    fontSize: 10,
-    color: Colors.textMuted,
-  },
+    // Frequency strip
+    freqSection: { marginBottom: Spacing.lg },
+    freqHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.sm,
+    },
+    freqTitle: { ...theme.type.subtitle, fontSize: FontSize.md, color: theme.colors.textPrimary },
+    freqHint: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.primary,
+    },
+    freqBars: { flexDirection: 'row', gap: 6, height: 40 },
+    freqBar: {
+      flex: 1,
+      borderRadius: Radii.sm,
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    freqBarActive: {
+      backgroundColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    freqBarToday: { borderWidth: 1.5, borderColor: theme.colors.accent },
+    freqBarFuture: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderStyle: 'dashed',
+    },
+    freqLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 },
+    freqLabel: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: Fonts.data,
+      fontSize: 10,
+      color: theme.colors.textMuted,
+    },
 
-  listLabel: { ...Type.label, color: Colors.textMuted, marginBottom: Spacing.sm },
+    listLabel: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: Spacing.sm },
 
-  // Workout card
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-  },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  cardDate: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-  },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 3 },
-  cardTitle: { ...Type.title, fontSize: FontSize.xl, color: Colors.textPrimary },
-  zoneBadge: {
-    fontFamily: Fonts.data,
-    fontSize: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radii.full,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  typeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardStats: {
-    flexDirection: 'row',
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  stat: { flex: 1 },
-  statLabel: {
-    fontFamily: Fonts.data,
-    fontSize: 10,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-    marginBottom: 3,
-  },
-  statValue: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.lg,
-    color: Colors.textPrimary,
-  },
-  statUnit: { fontSize: FontSize.xs, color: Colors.textMuted },
-  sep: { height: Spacing.sm },
+    // Workout card
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+    },
+    cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+    cardDate: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+    },
+    cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 3 },
+    cardTitle: { ...theme.type.title, fontSize: FontSize.xl, color: theme.colors.textPrimary },
+    zoneBadge: {
+      fontFamily: Fonts.data,
+      fontSize: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: Radii.full,
+      borderWidth: 1,
+      overflow: 'hidden',
+    },
+    typeIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cardStats: {
+      flexDirection: 'row',
+      marginTop: Spacing.md,
+      paddingTop: Spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    stat: { flex: 1 },
+    statLabel: {
+      fontFamily: Fonts.data,
+      fontSize: 10,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+      marginBottom: 3,
+    },
+    statValue: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.lg,
+      color: theme.colors.textPrimary,
+    },
+    statUnit: { fontSize: FontSize.xs, color: theme.colors.textMuted },
+    sep: { height: Spacing.sm },
 
-  // Empty state
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
-  emptyIconCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.primaryMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.lg,
-  },
-  emptyTitle: { ...Type.headline, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
-  emptyText: { ...Type.body, color: Colors.textMuted, textAlign: 'center' },
-});
+    // Empty state
+    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+    emptyIconCircle: {
+      width: 88,
+      height: 88,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primaryMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.lg,
+    },
+    emptyTitle: { ...theme.type.headline, color: theme.colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
+    emptyText: { ...theme.type.body, color: theme.colors.textMuted, textAlign: 'center' },
+  });

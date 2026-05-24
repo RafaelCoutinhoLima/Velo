@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -16,62 +16,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import {
+  Fonts,
+  FontSize,
+  Radii,
+  Spacing,
+  Tracking,
+  useTheme,
+  type Theme,
+  type ThemeName,
+} from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { ErrorCard } from '../../components/ErrorCard';
 import { TopBar } from '../../components/TopBar';
-
-// ── Linha de configuração genérica (ícone + título + subtítulo + ação) ─
-function SettingRow({
-  icon,
-  iconColor,
-  iconBg,
-  title,
-  subtitle,
-  right,
-  onPress,
-  divider,
-  danger,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor?: string;
-  iconBg?: string;
-  title: string;
-  subtitle?: string;
-  right?: React.ReactNode;
-  onPress?: () => void;
-  divider?: boolean;
-  danger?: boolean;
-}) {
-  const body = (
-    <View style={[styles.row, divider && styles.rowDivider]}>
-      <View style={[styles.rowIcon, { backgroundColor: iconBg ?? Colors.surfaceAlt }]}>
-        <Ionicons name={icon} size={20} color={iconColor ?? (danger ? Colors.danger : Colors.textPrimary)} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.rowTitle, danger && { color: Colors.danger }]}>{title}</Text>
-        {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
-      </View>
-      {right}
-    </View>
-  );
-
-  if (onPress) {
-    return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={title}>
-        {body}
-      </TouchableOpacity>
-    );
-  }
-  return body;
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return <Text style={styles.sectionLabel}>{children}</Text>;
-}
 
 export default function SettingsScreen() {
   const clearSession = useAuthStore((s) => s.clearSession);
@@ -84,6 +44,8 @@ export default function SettingsScreen() {
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
   const qc = useQueryClient();
+  const { theme, themeName, setThemeName, available } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminEmail, setGarminEmail] = useState('');
@@ -96,6 +58,112 @@ export default function SettingsScreen() {
 
   function toggleAdvancedMode(value: boolean) {
     setAdvancedMode(value);
+  }
+
+  // ── Linha de configuração genérica (ícone + título + subtítulo + ação) ─
+  function SettingRow({
+    icon,
+    iconColor,
+    iconBg,
+    title,
+    subtitle,
+    right,
+    onPress,
+    divider,
+    danger,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    iconColor?: string;
+    iconBg?: string;
+    title: string;
+    subtitle?: string;
+    right?: React.ReactNode;
+    onPress?: () => void;
+    divider?: boolean;
+    danger?: boolean;
+  }) {
+    const body = (
+      <View style={[styles.row, divider && styles.rowDivider]}>
+        <View style={[styles.rowIcon, { backgroundColor: iconBg ?? theme.colors.surfaceAlt }]}>
+          <Ionicons
+            name={icon}
+            size={20}
+            color={iconColor ?? (danger ? theme.colors.danger : theme.colors.textPrimary)}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, danger && { color: theme.colors.danger }]}>{title}</Text>
+          {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
+        </View>
+        {right}
+      </View>
+    );
+
+    if (onPress) {
+      return (
+        <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={title}>
+          {body}
+        </TouchableOpacity>
+      );
+    }
+    return body;
+  }
+
+  function SectionLabel({ children }: { children: string }) {
+    return <Text style={styles.sectionLabel}>{children}</Text>;
+  }
+
+  // Segmented control para troca de identidade visual.
+  function ThemeSelector() {
+    return (
+      <View style={styles.themeSelector}>
+        {available.map((opt) => {
+          const isActive = opt.name === themeName;
+          return (
+            <TouchableOpacity
+              key={opt.name}
+              onPress={() => setThemeName(opt.name as ThemeName)}
+              style={[styles.themeOption, isActive && styles.themeOptionActive]}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar tema ${opt.displayName}`}
+              accessibilityState={{ selected: isActive }}
+            >
+              <View style={styles.themeSwatchRow}>
+                <View
+                  style={[
+                    styles.themeSwatch,
+                    {
+                      backgroundColor:
+                        opt.name === 'interstellar' ? '#4777c2' : '#2a5ea7',
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.themeSwatch,
+                    {
+                      backgroundColor:
+                        opt.name === 'interstellar' ? '#fbf9f9' : '#f5f8fd',
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.themeName, isActive && styles.themeNameActive]}>
+                {opt.displayName}
+              </Text>
+              {isActive ? (
+                <View style={styles.themeCheck}>
+                  <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
   }
 
   async function handleGarminConnect() {
@@ -185,7 +253,7 @@ export default function SettingsScreen() {
           <View style={styles.profileGlow} />
           <View style={styles.profileTop}>
             <View style={styles.profileAvatar}>
-              <Ionicons name="person" size={32} color={Colors.textSecondary} />
+              <Ionicons name="person" size={32} color={theme.colors.textSecondary} />
             </View>
             <View>
               <Text style={styles.profileName}>Atleta FitSync</Text>
@@ -199,7 +267,7 @@ export default function SettingsScreen() {
             accessibilityLabel="Editar prova alvo"
           >
             <View style={styles.goalLeft}>
-              <Ionicons name="flag" size={20} color={Colors.primary} />
+              <Ionicons name="flag" size={20} color={theme.colors.primary} />
               <View>
                 <Text style={styles.goalLabel}>Prova Alvo</Text>
                 <Text style={styles.goalValue}>Toque para definir</Text>
@@ -209,21 +277,31 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ── Aparência ── */}
+        <SectionLabel>Aparência</SectionLabel>
+        <View style={styles.groupCard}>
+          <View style={styles.themeCardInner}>
+            <Text style={styles.themeHeader}>Identidade visual</Text>
+            <Text style={styles.themeSub}>Escolha como o FitSync se apresenta.</Text>
+            <ThemeSelector />
+          </View>
+        </View>
+
         {/* ── Preferências ── */}
         <SectionLabel>Preferências</SectionLabel>
         <View style={styles.groupCard}>
           <SettingRow
             icon="sparkles"
-            iconColor={Colors.primary}
+            iconColor={theme.colors.primary}
             title="Modo Avançado"
             subtitle="Métricas técnicas visíveis (ACWR, CTL, TSB)"
             right={
               <Switch
                 value={advancedMode}
                 onValueChange={toggleAdvancedMode}
-                trackColor={{ false: Colors.surfaceAlt, true: Colors.primary }}
-                thumbColor={Colors.bg}
-                ios_backgroundColor={Colors.surfaceAlt}
+                trackColor={{ false: theme.colors.surfaceAlt, true: theme.colors.primary }}
+                thumbColor={theme.colors.surface}
+                ios_backgroundColor={theme.colors.surfaceAlt}
                 accessibilityRole="switch"
                 accessibilityLabel="Modo avançado de métricas"
                 accessibilityState={{ checked: advancedMode }}
@@ -238,8 +316,8 @@ export default function SettingsScreen() {
           {garminConnected ? (
             <SettingRow
               icon="watch"
-              iconColor="#3BA9E0"
-              iconBg="rgba(0,124,195,0.18)"
+              iconColor={theme.colors.accent}
+              iconBg={theme.colors.accentLight}
               title="Conexão Garmin"
               subtitle={lastSync ? `Última sync: ${formatSync(lastSync)}` : undefined}
               right={
@@ -258,7 +336,7 @@ export default function SettingsScreen() {
                     <Ionicons
                       name="sync"
                       size={20}
-                      color={isBusy ? Colors.textMuted : Colors.textSecondary}
+                      color={isBusy ? theme.colors.textMuted : theme.colors.textSecondary}
                     />
                   </TouchableOpacity>
                 </View>
@@ -267,12 +345,12 @@ export default function SettingsScreen() {
           ) : (
             <SettingRow
               icon="watch"
-              iconColor="#3BA9E0"
-              iconBg="rgba(0,124,195,0.18)"
+              iconColor={theme.colors.accent}
+              iconBg={theme.colors.accentLight}
               title="Conectar Garmin"
               subtitle="Importe seu histórico e personalize seu plano"
               onPress={() => { setConnectStep('idle'); setConnectError(null); setShowGarminModal(true); }}
-              right={<Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />}
+              right={<Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />}
             />
           )}
         </View>
@@ -285,12 +363,12 @@ export default function SettingsScreen() {
         <View style={styles.groupCard}>
           <SettingRow
             icon="star"
-            iconColor={Colors.onAccent}
-            iconBg={Colors.primary}
+            iconColor={theme.colors.onAccent}
+            iconBg={theme.colors.primary}
             title="Assinatura"
             subtitle="Gerencie seu plano FitSync AI"
             onPress={() => router.push('/subscription' as never)}
-            right={<Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />}
+            right={<Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />}
             divider
           />
           <SettingRow
@@ -399,140 +477,178 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.bg },
-  container: { flex: 1 },
-  content: { padding: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.sm },
-  title: { ...Type.headline, color: Colors.textPrimary, marginBottom: Spacing.xs },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: theme.colors.bg },
+    container: { flex: 1 },
+    content: { padding: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.sm },
+    title: { ...theme.type.headline, color: theme.colors.textPrimary, marginBottom: Spacing.xs },
 
-  // Profile card
-  profileCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    overflow: 'hidden',
-  },
-  profileGlow: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 120,
-    height: 120,
-    borderRadius: Radii.full,
-    backgroundColor: 'rgba(62,144,255,0.10)',
-  },
-  profileTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  profileAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.surfaceAlt,
-    borderWidth: 2,
-    borderColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileName: { ...Type.title, color: Colors.textPrimary },
-  profileMeta: { ...Type.bodySm, color: Colors.textSecondary, marginTop: 2 },
-  goalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radii.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-  },
-  goalLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  goalLabel: {
-    fontFamily: Fonts.data,
-    fontSize: 10,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: Tracking.wide,
-  },
-  goalValue: { ...Type.bodyStrong, color: Colors.textPrimary, marginTop: 2 },
-  linkText: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: Colors.accent },
+    // Profile card
+    profileCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.lg,
+      gap: Spacing.md,
+      overflow: 'hidden',
+    },
+    profileGlow: {
+      position: 'absolute',
+      top: -40,
+      right: -40,
+      width: 120,
+      height: 120,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primaryMuted,
+    },
+    profileTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+    profileAvatar: {
+      width: 64,
+      height: 64,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth: 2,
+      borderColor: theme.colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    profileName: { ...theme.type.title, color: theme.colors.textPrimary },
+    profileMeta: { ...theme.type.bodySm, color: theme.colors.textSecondary, marginTop: 2 },
+    goalRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+    },
+    goalLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+    goalLabel: {
+      fontFamily: Fonts.data,
+      fontSize: 10,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+    },
+    goalValue: { ...theme.type.bodyStrong, color: theme.colors.textPrimary, marginTop: 2 },
+    linkText: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: theme.colors.accent },
 
-  // Sections
-  sectionLabel: {
-    ...Type.label,
-    color: Colors.textMuted,
-    letterSpacing: Tracking.wider,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-    paddingLeft: Spacing.xs,
-  },
-  groupCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-  },
+    // Sections
+    sectionLabel: {
+      ...theme.type.label,
+      color: theme.colors.textMuted,
+      letterSpacing: Tracking.wider,
+      marginTop: Spacing.md,
+      marginBottom: Spacing.xs,
+      paddingLeft: Spacing.xs,
+    },
+    groupCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      overflow: 'hidden',
+    },
 
-  // Rows
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
-  rowDivider: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: Radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowTitle: { ...Type.bodyStrong, color: Colors.textPrimary },
-  rowSubtitle: { ...Type.bodySm, color: Colors.textSecondary, marginTop: 1 },
+    // Theme selector
+    themeCardInner: { padding: Spacing.md, gap: Spacing.sm },
+    themeHeader: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
+    themeSub: { ...theme.type.bodySm, color: theme.colors.textSecondary },
+    themeSelector: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      marginTop: Spacing.xs,
+    },
+    themeOption: {
+      flex: 1,
+      borderRadius: Radii.md,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surfaceAlt,
+      padding: Spacing.md,
+      gap: Spacing.sm,
+      position: 'relative',
+    },
+    themeOptionActive: {
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primaryMuted,
+    },
+    themeSwatchRow: { flexDirection: 'row', gap: 4 },
+    themeSwatch: {
+      width: 22,
+      height: 22,
+      borderRadius: Radii.sm,
+    },
+    themeName: {
+      ...theme.type.bodySm,
+      fontFamily: Fonts.bodySemiBold,
+      color: theme.colors.textPrimary,
+    },
+    themeNameActive: { color: theme.colors.primary },
+    themeCheck: { position: 'absolute', top: Spacing.xs, right: Spacing.xs },
 
-  // Garmin connection
-  connRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statusDot: { width: 8, height: 8, borderRadius: Radii.full, backgroundColor: Colors.primary },
-  statusText: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.primary,
-  },
-  syncBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  syncNote: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, paddingLeft: Spacing.xs },
+    // Rows
+    row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
+    rowDivider: { borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+    rowIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowTitle: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
+    rowSubtitle: { ...theme.type.bodySm, color: theme.colors.textSecondary, marginTop: 1 },
 
-  footer: {
-    ...Type.bodySm,
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: Spacing.lg,
-  },
+    // Garmin connection
+    connRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    statusChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    statusDot: { width: 8, height: 8, borderRadius: Radii.full, backgroundColor: theme.colors.success },
+    statusText: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.success,
+    },
+    syncBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    syncNote: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, paddingLeft: Spacing.xs },
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' },
-  modalBox: {
-    backgroundColor: Colors.surfaceAlt,
-    borderTopLeftRadius: Radii.xl,
-    borderTopRightRadius: Radii.xl,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xl + Spacing.md,
-    minHeight: 300,
-  },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.borderStrong,
-    marginBottom: Spacing.md,
-  },
-  modalTitle: { ...Type.title, color: Colors.textPrimary, marginBottom: Spacing.xs },
-  modalSub: { ...Type.bodySm, color: Colors.textMuted, marginBottom: Spacing.md },
-  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
-});
+    footer: {
+      ...theme.type.bodySm,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      textAlign: 'center',
+      marginTop: Spacing.lg,
+    },
+
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+    modalBox: {
+      backgroundColor: theme.colors.surface,
+      borderTopLeftRadius: Radii.xl,
+      borderTopRightRadius: Radii.xl,
+      padding: Spacing.lg,
+      paddingBottom: Spacing.xl + Spacing.md,
+      minHeight: 300,
+    },
+    modalHandle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.borderStrong,
+      marginBottom: Spacing.md,
+    },
+    modalTitle: { ...theme.type.title, color: theme.colors.textPrimary, marginBottom: Spacing.xs },
+    modalSub: { ...theme.type.bodySm, color: theme.colors.textMuted, marginBottom: Spacing.md },
+    modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  });

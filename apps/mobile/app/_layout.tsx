@@ -18,15 +18,14 @@ import { queryClient, persister } from '../lib/queryClient';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../lib/store';
 import { registerPushToken } from '../lib/push';
-import { Colors } from '../lib/theme';
+import { ThemeProvider, useTheme } from '../lib/theme';
 
 export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
   const clearSession = useAuthStore((s) => s.clearSession);
 
-  // Fontes do design system "Kinetic Precision". Os nomes das chaves batem
-  // com os valores em Fonts (theme.ts). Se a carga falhar, o RN cai no
-  // sistema — telas seguem funcionando.
+  // Fontes do design system. As chaves batem com Fonts (theme.tokens.ts).
+  // Se a carga falhar, o RN cai no sistema — telas seguem funcionando.
   const [fontsLoaded, fontError] = useFonts({
     'HankenGrotesk-Bold': HankenGrotesk_700Bold,
     'HankenGrotesk-ExtraBold': HankenGrotesk_800ExtraBold,
@@ -67,14 +66,26 @@ export default function RootLayout() {
 
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
-      <StatusBar style="light" backgroundColor={Colors.bg} />
+      <ThemeProvider>
+        <ThemedStack />
+      </ThemeProvider>
+    </PersistQueryClientProvider>
+  );
+}
+
+// Stack envolto pelo Theme — StatusBar e fundo seguem a identidade ativa.
+function ThemedStack() {
+  const { theme } = useTheme();
+  return (
+    <>
+      <StatusBar style={theme.statusBar} backgroundColor={theme.colors.bg} />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: Colors.bg },
+          contentStyle: { backgroundColor: theme.colors.bg },
           animation: 'fade',
         }}
       />
-    </PersistQueryClientProvider>
+    </>
   );
 }

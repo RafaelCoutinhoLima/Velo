@@ -1,14 +1,18 @@
+import { useMemo } from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
-import { Colors, Radii, Shadow, Spacing } from '../lib/theme';
+import { Radii, Spacing, useTheme, type Theme } from '../lib/theme';
 
 interface CardProps extends ViewProps {
   elevated?: boolean;
 }
 
 export function Card({ style, children, elevated = false, ...props }: CardProps) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   return (
     <View
-      style={[styles.card, elevated ? Shadow.elevated : Shadow.card, style]}
+      style={[styles.card, elevated ? theme.shadow.elevated : theme.shadow.card, style]}
       {...props}
     >
       {children}
@@ -16,12 +20,13 @@ export function Card({ style, children, elevated = false, ...props }: CardProps)
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.md,
+      padding: Spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+  });

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import { Fonts, FontSize, FontWeight, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
 import { StepBar } from '../../components/StepBar';
@@ -27,75 +27,6 @@ const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => CURRENT_YEAR
 const ITEM_W = 72;
 const ITEM_GAP = 8;
 
-function SectionCard({ children }: { children: React.ReactNode }) {
-  return <View style={styles.sectionCard}>{children}</View>;
-}
-
-function SectionTitle({ children }: { children: string }) {
-  return <Text style={styles.sectionTitle}>{children}</Text>;
-}
-
-function YearPicker({ value, onChange }: { value: number | null; onChange: (y: number) => void }) {
-  const listRef = useRef<FlatList>(null);
-
-  function handleSelect(year: number, index: number) {
-    onChange(year);
-    setTimeout(() => {
-      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
-    }, 50);
-  }
-
-  return (
-    <View>
-      <View style={styles.pickerDisplay}>
-        <Text style={styles.pickerValue}>{value ?? '—'}</Text>
-        <Text style={styles.pickerUnit}>ano</Text>
-      </View>
-      <FlatList
-        ref={listRef}
-        data={YEARS}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={ITEM_W + ITEM_GAP}
-        decelerationRate="fast"
-        initialScrollIndex={value ? Math.max(0, YEARS.indexOf(value)) : 0}
-        getItemLayout={(_, i) => ({ length: ITEM_W + ITEM_GAP, offset: (ITEM_W + ITEM_GAP) * i, index: i })}
-        keyExtractor={(y) => String(y)}
-        renderItem={({ item: year, index }) => (
-          <TouchableOpacity
-            style={[styles.yearItem, value === year && styles.yearItemActive]}
-            onPress={() => handleSelect(year, index)}
-            accessibilityRole="button"
-            accessibilityLabel={`Ano ${year}`}
-            accessibilityState={{ selected: value === year }}
-          >
-            <Text style={[styles.yearText, value === year && styles.yearTextActive]}>{year}</Text>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={{ paddingHorizontal: Spacing.xs }}
-      />
-    </View>
-  );
-}
-
-function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
-  return (
-    <View style={styles.weightRow}>
-      <TextInput
-        style={styles.weightInput}
-        value={value}
-        onChangeText={onChange}
-        keyboardType="decimal-pad"
-        placeholder="0"
-        placeholderTextColor={Colors.textMuted}
-        maxLength={6}
-        accessibilityLabel="Peso em kg"
-      />
-      <Text style={styles.pickerUnit}>kg</Text>
-    </View>
-  );
-}
-
 const FREQ_LABELS: Record<Frequency, string> = {
   '2x': '2× por semana',
   '3x': '3× por semana',
@@ -103,48 +34,11 @@ const FREQ_LABELS: Record<Frequency, string> = {
   '5x+': '5× ou mais',
 };
 
-function OptionGrid<T extends string>({
-  options,
-  value,
-  onChange,
-  render,
-  labelFor,
-}: {
-  options: T[];
-  value: T | null;
-  onChange: (v: T) => void;
-  render: (opt: T, active: boolean) => React.ReactNode;
-  labelFor: (opt: T) => string;
-}) {
-  return (
-    <View style={styles.optGrid}>
-      {options.map((opt) => {
-        const active = value === opt;
-        return (
-          <TouchableOpacity
-            key={opt}
-            style={[styles.optCard, active && styles.optCardActive]}
-            onPress={() => onChange(opt)}
-            accessibilityRole="radio"
-            accessibilityLabel={labelFor(opt)}
-            accessibilityState={{ selected: active }}
-          >
-            {render(opt, active)}
-            {active ? (
-              <View style={styles.optCheck}>
-                <Ionicons name="checkmark" size={12} color={Colors.onAccent} />
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
 export default function ProfileScreen() {
   const session = useAuthStore((s) => s.session);
   const { post } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [weightKg, setWeightKg] = useState('');
@@ -179,6 +73,114 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function SectionCard({ children }: { children: React.ReactNode }) {
+    return <View style={styles.sectionCard}>{children}</View>;
+  }
+
+  function SectionTitle({ children }: { children: string }) {
+    return <Text style={styles.sectionTitle}>{children}</Text>;
+  }
+
+  function YearPicker({ value, onChange }: { value: number | null; onChange: (y: number) => void }) {
+    const listRef = useRef<FlatList>(null);
+
+    function handleSelect(year: number, index: number) {
+      onChange(year);
+      setTimeout(() => {
+        listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      }, 50);
+    }
+
+    return (
+      <View>
+        <View style={styles.pickerDisplay}>
+          <Text style={styles.pickerValue}>{value ?? '—'}</Text>
+          <Text style={styles.pickerUnit}>ano</Text>
+        </View>
+        <FlatList
+          ref={listRef}
+          data={YEARS}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={ITEM_W + ITEM_GAP}
+          decelerationRate="fast"
+          initialScrollIndex={value ? Math.max(0, YEARS.indexOf(value)) : 0}
+          getItemLayout={(_, i) => ({ length: ITEM_W + ITEM_GAP, offset: (ITEM_W + ITEM_GAP) * i, index: i })}
+          keyExtractor={(y) => String(y)}
+          renderItem={({ item: year, index }) => (
+            <TouchableOpacity
+              style={[styles.yearItem, value === year && styles.yearItemActive]}
+              onPress={() => handleSelect(year, index)}
+              accessibilityRole="button"
+              accessibilityLabel={`Ano ${year}`}
+              accessibilityState={{ selected: value === year }}
+            >
+              <Text style={[styles.yearText, value === year && styles.yearTextActive]}>{year}</Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={{ paddingHorizontal: Spacing.xs }}
+        />
+      </View>
+    );
+  }
+
+  function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
+    return (
+      <View style={styles.weightRow}>
+        <TextInput
+          style={styles.weightInput}
+          value={value}
+          onChangeText={onChange}
+          keyboardType="decimal-pad"
+          placeholder="0"
+          placeholderTextColor={theme.colors.textMuted}
+          maxLength={6}
+          accessibilityLabel="Peso em kg"
+        />
+        <Text style={styles.pickerUnit}>kg</Text>
+      </View>
+    );
+  }
+
+  function OptionGrid<T extends string>({
+    options,
+    value,
+    onChange,
+    render,
+    labelFor,
+  }: {
+    options: T[];
+    value: T | null;
+    onChange: (v: T) => void;
+    render: (opt: T, active: boolean) => React.ReactNode;
+    labelFor: (opt: T) => string;
+  }) {
+    return (
+      <View style={styles.optGrid}>
+        {options.map((opt) => {
+          const active = value === opt;
+          return (
+            <TouchableOpacity
+              key={opt}
+              style={[styles.optCard, active && styles.optCardActive]}
+              onPress={() => onChange(opt)}
+              accessibilityRole="radio"
+              accessibilityLabel={labelFor(opt)}
+              accessibilityState={{ selected: active }}
+            >
+              {render(opt, active)}
+              {active ? (
+                <View style={styles.optCheck}>
+                  <Ionicons name="checkmark" size={12} color={theme.colors.onAccent} />
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
   }
 
   return (
@@ -253,90 +255,91 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  hero: { marginBottom: Spacing.lg },
-  title: { ...Type.display, color: Colors.textPrimary },
-  subtitle: { ...Type.body, color: Colors.textMuted, marginTop: Spacing.xs },
-  btn: { marginTop: Spacing.sm },
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
+    hero: { marginBottom: Spacing.lg },
+    title: { ...theme.type.display, color: theme.colors.textPrimary },
+    subtitle: { ...theme.type.body, color: theme.colors.textMuted, marginTop: Spacing.xs },
+    btn: { marginTop: Spacing.sm },
 
-  sectionCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: { ...Type.label, color: Colors.textMuted, marginBottom: Spacing.md },
+    sectionCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
+    },
+    sectionTitle: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: Spacing.md },
 
-  pickerDisplay: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
-  pickerValue: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: FontSize['4xl'],
-    fontWeight: FontWeight.extrabold,
-    color: Colors.primary,
-  },
-  pickerUnit: { ...Type.body, color: Colors.textMuted },
+    pickerDisplay: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
+    pickerValue: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: FontSize['4xl'],
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.primary,
+    },
+    pickerUnit: { ...theme.type.body, color: theme.colors.textMuted },
 
-  yearItem: {
-    width: ITEM_W,
-    height: 44,
-    borderRadius: Radii.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: ITEM_GAP,
-    backgroundColor: Colors.surfaceAlt,
-  },
-  yearItemActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  yearText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: Colors.textSecondary },
-  yearTextActive: { color: Colors.onAccent },
+    yearItem: {
+      width: ITEM_W,
+      height: 44,
+      borderRadius: Radii.md,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: ITEM_GAP,
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    yearItemActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+    yearText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textSecondary },
+    yearTextActive: { color: theme.colors.onAccent },
 
-  weightRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
-  weightInput: {
-    fontFamily: Fonts.displayBlack,
-    fontSize: FontSize['4xl'],
-    fontWeight: FontWeight.extrabold,
-    color: Colors.primary,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.primary,
-    minWidth: 100,
-    paddingVertical: Spacing.xs,
-    textAlign: 'center',
-  },
+    weightRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
+    weightInput: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: FontSize['4xl'],
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.primary,
+      borderBottomWidth: 2,
+      borderBottomColor: theme.colors.primary,
+      minWidth: 100,
+      paddingVertical: Spacing.xs,
+      textAlign: 'center',
+    },
 
-  optGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  optCard: {
-    flexGrow: 1,
-    flexBasis: '45%',
-    padding: Spacing.md,
-    borderRadius: Radii.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
-  },
-  optCardActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
-  optBig: {
-    fontFamily: Fonts.display,
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
-  },
-  optBigActive: { color: Colors.primary },
-  optSub: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  optSubActive: { color: Colors.primary },
-  optCheck: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+    optGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+    optCard: {
+      flexGrow: 1,
+      flexBasis: '45%',
+      padding: Spacing.md,
+      borderRadius: Radii.md,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    optCardActive: { backgroundColor: theme.colors.primaryMuted, borderColor: theme.colors.primary },
+    optBig: {
+      fontFamily: Fonts.display,
+      fontSize: FontSize.xl,
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.textPrimary,
+    },
+    optBigActive: { color: theme.colors.primary },
+    optSub: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, marginTop: 2 },
+    optSubActive: { color: theme.colors.primary },
+    optCheck: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });

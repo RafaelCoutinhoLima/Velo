@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, Fonts, FontSize, Radii, Spacing, Type } from '../../lib/theme';
+import { Fonts, FontSize, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
@@ -53,6 +53,8 @@ export default function CooperScreen() {
   const session = useAuthStore((s) => s.session);
   const setOnboardingComplete = useAuthStore((s) => s.setOnboardingComplete);
   const { get, post } = useApi();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [restingHr, setRestingHr] = useState('');
   const [restingError, setRestingError] = useState<string | null>(null);
@@ -135,7 +137,7 @@ export default function CooperScreen() {
           accessibilityRole="button"
           accessibilityLabel="Voltar"
         >
-          <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+          <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -165,7 +167,7 @@ export default function CooperScreen() {
           <Ionicons
             name={showGuide ? 'chevron-up' : 'chevron-down'}
             size={16}
-            color={Colors.primary}
+            color={theme.colors.primary}
           />
         </TouchableOpacity>
 
@@ -173,7 +175,7 @@ export default function CooperScreen() {
           <View style={styles.guideBox}>
             {STEPS.map((step) => (
               <View key={step.text} style={styles.step}>
-                <Ionicons name={step.icon} size={18} color={Colors.primary} />
+                <Ionicons name={step.icon} size={18} color={theme.colors.primary} />
                 <Text style={styles.stepText}>{step.text}</Text>
               </View>
             ))}
@@ -207,7 +209,7 @@ export default function CooperScreen() {
 
         {eligible.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="walk-outline" size={36} color={Colors.textMuted} />
+            <Ionicons name="walk-outline" size={36} color={theme.colors.textMuted} />
             <Text style={styles.emptyText}>Nenhuma corrida de ~12 minutos encontrada</Text>
             <Text style={styles.emptyHint}>
               Faça o teste seguindo as instruções acima, sincronize o Garmin e volte aqui — ou
@@ -235,7 +237,7 @@ export default function CooperScreen() {
               </View>
               <View style={styles.cardCtaRow}>
                 <Text style={styles.cardCta}>Usar esta corrida</Text>
-                <Ionicons name="arrow-forward" size={15} color={Colors.primary} />
+                <Ionicons name="arrow-forward" size={15} color={theme.colors.primary} />
               </View>
             </TouchableOpacity>
           ))
@@ -253,80 +255,81 @@ export default function CooperScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xl + Spacing.xs,
-    paddingBottom: Spacing.sm,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radii.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scroll: { flex: 1 },
-  content: { padding: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl },
-  title: { ...Type.display, color: Colors.textPrimary, marginBottom: Spacing.xs },
-  subtitle: { ...Type.bodySm, color: Colors.textSecondary, marginBottom: Spacing.md },
-  guideToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: Radii.md,
-    marginBottom: Spacing.md,
-  },
-  guideToggleText: { fontFamily: Fonts.bodySemiBold, color: Colors.primary, fontSize: FontSize.sm },
-  guideBox: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-    gap: Spacing.sm,
-  },
-  step: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  stepText: { flex: 1, ...Type.bodySm, color: Colors.textSecondary },
-  hint: {
-    ...Type.bodySm,
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    marginTop: -Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  sectionLabel: { ...Type.label, color: Colors.textMuted, marginBottom: Spacing.sm },
-  empty: { paddingVertical: Spacing.xl, alignItems: 'center', gap: Spacing.xs },
-  emptyText: { ...Type.subtitle, fontSize: FontSize.md, color: Colors.textPrimary, textAlign: 'center' },
-  emptyHint: { ...Type.bodySm, color: Colors.textMuted, textAlign: 'center' },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  cardDate: {
-    fontFamily: Fonts.data,
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  cardDuration: { fontFamily: Fonts.data, fontSize: FontSize.xl, color: Colors.textPrimary },
-  cardMetaRow: { flexDirection: 'row', gap: Spacing.md, flexWrap: 'wrap', marginTop: Spacing.xs },
-  cardMeta: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: Colors.textSecondary },
-  cardCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm },
-  cardCta: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: Colors.primary },
-  skipBtn: { marginTop: Spacing.md },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.colors.bg },
+    header: {
+      flexDirection: 'row',
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.xl + Spacing.xs,
+      paddingBottom: Spacing.sm,
+    },
+    backBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: Radii.md,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scroll: { flex: 1 },
+    content: { padding: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl },
+    title: { ...theme.type.display, color: theme.colors.textPrimary, marginBottom: Spacing.xs },
+    subtitle: { ...theme.type.bodySm, color: theme.colors.textSecondary, marginBottom: Spacing.md },
+    guideToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: Spacing.sm + 2,
+      paddingHorizontal: Spacing.md,
+      backgroundColor: theme.colors.primaryMuted,
+      borderRadius: Radii.md,
+      marginBottom: Spacing.md,
+    },
+    guideToggleText: { fontFamily: Fonts.bodySemiBold, color: theme.colors.primary, fontSize: FontSize.sm },
+    guideBox: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      padding: Spacing.md,
+      marginBottom: Spacing.md,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.colors.primary,
+      gap: Spacing.sm,
+    },
+    step: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    stepText: { flex: 1, ...theme.type.bodySm, color: theme.colors.textSecondary },
+    hint: {
+      ...theme.type.bodySm,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      marginTop: -Spacing.xs,
+      marginBottom: Spacing.md,
+    },
+    sectionLabel: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: Spacing.sm },
+    empty: { paddingVertical: Spacing.xl, alignItems: 'center', gap: Spacing.xs },
+    emptyText: { ...theme.type.subtitle, fontSize: FontSize.md, color: theme.colors.textPrimary, textAlign: 'center' },
+    emptyHint: { ...theme.type.bodySm, color: theme.colors.textMuted, textAlign: 'center' },
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      marginBottom: Spacing.sm,
+    },
+    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+    cardDate: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+    },
+    cardDuration: { fontFamily: Fonts.data, fontSize: FontSize.xl, color: theme.colors.textPrimary },
+    cardMetaRow: { flexDirection: 'row', gap: Spacing.md, flexWrap: 'wrap', marginTop: Spacing.xs },
+    cardMeta: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textSecondary },
+    cardCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm },
+    cardCta: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: theme.colors.primary },
+    skipBtn: { marginTop: Spacing.md },
+  });
