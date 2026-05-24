@@ -93,6 +93,10 @@ function makeMockDb(opts: MockDbOpts = {}) {
                         id: ATHLETE_UUID,
                         calibration_mode: calibrationMode,
                         created_at: createdAt,
+                        // FC do atleta — usado pelo TRIMP dos treinos não-corrida
+                        fc_max: 190,
+                        fc_rest: 50,
+                        sex: 'M',
                       },
                       error: null,
                     }
@@ -521,5 +525,67 @@ describe('POST /garmin/sync', () => {
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
     expect(db._calls.workoutsUpdate).toBe(0);
+  });
+
+  it('computa carga de treino NÃO-corrida (bike) via TRIMP e soma nas métricas', async () => {
+    // Bike sem pace útil (sport != run), mas com FC → carga vem do TRIMP.
+    // Antes esse treino seria ignorado; agora entra no ACWR/CTL/ATL.
+    const crossTraining = [
+      {
+        garmin_id: 'bike-1',
+        date: '2026-05-02',
+        sport: 'bike',
+        distance_m: 40000,
+        duration_s: 7200,
+        avg_hr: 140,
+        rtss: null,
+      },
+      {
+        garmin_id: 'swim-1',
+        date: '2026-05-04',
+        sport: 'swim',
+        distance_m: 1500,
+        duration_s: 2400,
+        avg_hr: 130,
+        rtss: null,
+      },
+    ];
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: crossTraining as never });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    // Ambos receberam carga calculada (update) e as métricas foram salvas.
+    expect(db._calls.workoutsUpdate).toBe(2);
+    expect(db._calls.metricsUpsert).toBe(1);
+  });
+
+  it('agrega 2 treinos no mesmo dia numa carga só (sem dupla-contagem de decay)', async () => {
+    // Corrida + bike no MESMO dia → 1 entrada de carga somada pro ATL/CTL.
+    const sameDay = [
+      {
+        garmin_id: 'run-am',
+        date: '2026-05-05',
+        sport: 'run',
+        distance_m: 6000,
+        duration_s: 1800,
+        avg_hr: 150,
+        rtss: null,
+      },
+      {
+        garmin_id: 'bike-pm',
+        date: '2026-05-05',
+        sport: 'bike',
+        distance_m: 30000,
+        duration_s: 5400,
+        avg_hr: 135,
+        rtss: null,
+      },
+    ];
+    const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: sameDay as never });
+    const app = makeApp(db);
+    await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(db._calls.workoutsUpdate).toBe(2); // cada treino tem sua carga gravada
+    expect(db._calls.metricsUpsert).toBe(1); // métricas computadas uma vez
   });
 });

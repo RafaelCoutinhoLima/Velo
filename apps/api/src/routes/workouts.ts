@@ -20,7 +20,7 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
 
       const { data, error } = await supabase
         .from('workouts')
-        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe')
+        .select('id, date, sport, distance_m, duration_s, avg_hr, rtss, rpe')
         .eq('athlete_id', (athlete as { id: string }).id)
         .order('date', { ascending: false })
         .limit(limit);
@@ -41,7 +41,7 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
       const { id } = params;
       const { data, error } = await supabase
         .from('workouts')
-        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
+        .select('id, date, sport, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
         .eq('id', id)
         .single();
 
@@ -56,6 +56,7 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
       const workout = {
         id: data.id,
         date: data.date,
+        sport: data.sport ?? 'run',
         distance_m: data.distance_m,
         duration_s: data.duration_s,
         avg_hr: data.avg_hr,

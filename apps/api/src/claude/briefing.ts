@@ -196,8 +196,12 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
     pace_max_fmt: formatPace(zonaPaces[i].pace_max_s_km),
   }));
 
-  // Resumo últimas 4 semanas
+  // Resumo últimas 4 semanas. `volume_km` conta SÓ corrida (km de natação/bike
+  // não somam com km de corrida); a carga (rtss_total) conta TODOS os esportes,
+  // porque fadiga é sistêmica — o coach precisa enxergar o volume total mesmo
+  // prescrevendo só corrida.
   const workouts = input.recentWorkouts as Array<Record<string, unknown>>;
+  const isRun = (w: Record<string, unknown>) => (w.sport ?? 'run') === 'run';
   const weeklyVolumes: number[] = [0, 0, 0, 0];
   const weeklyRtss: number[] = [0, 0, 0, 0];
   const now = Date.now();
@@ -205,10 +209,32 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
     const age_d = (now - new Date(String(w.date ?? '')).getTime()) / 86400000;
     const weekIdx = Math.floor(age_d / 7);
     if (weekIdx < 4) {
-      weeklyVolumes[weekIdx] += Number(w.distance_m ?? 0) / 1000;
+      if (isRun(w)) weeklyVolumes[weekIdx] += Number(w.distance_m ?? 0) / 1000;
       weeklyRtss[weekIdx] += Number(w.rtss ?? 0);
     }
   }
+
+  // Cross-training (não-corrida) das últimas 4 semanas, por esporte — o LLM usa
+  // isso pra NÃO prescrever volume demais quando o atleta já carrega fadiga de
+  // bike/natação/força.
+  const crossBySport = new Map<string, { sessoes: number; carga: number; minutos: number }>();
+  for (const w of workouts) {
+    if (isRun(w)) continue;
+    const age_d = (now - new Date(String(w.date ?? '')).getTime()) / 86400000;
+    if (age_d >= 28) continue;
+    const sport = String(w.sport ?? 'other');
+    const cur = crossBySport.get(sport) ?? { sessoes: 0, carga: 0, minutos: 0 };
+    cur.sessoes += 1;
+    cur.carga += Number(w.rtss ?? 0);
+    cur.minutos += Math.round(Number(w.duration_s ?? 0) / 60);
+    crossBySport.set(sport, cur);
+  }
+  const crossTrainingRecente = [...crossBySport.entries()].map(([esporte, v]) => ({
+    esporte,
+    sessoes: v.sessoes,
+    carga_total: Math.round(v.carga),
+    minutos_total: v.minutos,
+  }));
   const ultimas4Semanas = weeklyVolumes
     .map((km, i) => ({
       semana: i === 0 ? 'atual' : `ha_${i}_semana${i > 1 ? 's' : ''}`,
@@ -277,6 +303,9 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
     },
     zonas_calibradas: zonasCal,
     ultimas_4_semanas: ultimas4Semanas,
+    // Treinos não-corrida que contribuem pra fadiga total (US do volume real).
+    // Vazio = atleta só corre. Coach deve descontar essa carga ao prescrever.
+    cross_training_recente: crossTrainingRecente,
     carga_atual: {
       atl: Math.round(atl * 10) / 10,
       ctl: Math.round(ctl * 10) / 10,

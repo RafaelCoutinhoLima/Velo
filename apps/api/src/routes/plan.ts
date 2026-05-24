@@ -381,7 +381,7 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
   const [workoutsResult, metricsHistoryResult] = await Promise.all([
     db
       .from('workouts')
-      .select('date, distance_m, duration_s, avg_hr, rtss, rpe')
+      .select('date, sport, distance_m, duration_s, avg_hr, rtss, rpe')
       .eq('athlete_id', internalId)
       .order('date', { ascending: false })
       .limit(30),

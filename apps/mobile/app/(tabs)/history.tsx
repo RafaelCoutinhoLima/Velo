@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { useMemo, useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,51 +10,50 @@ import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 import { TopBar } from '../../components/TopBar';
 
+type Sport = 'run' | 'bike' | 'swim' | 'strength' | 'other';
+
 interface Workout {
   id: string;
   date: string;
+  sport?: Sport;
   distance_m: number;
   duration_s: number;
   avg_hr: number | null;
   rtss: number | null;
   rpe: number | null;
-  type?: string;
 }
 
 const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const PT_MONTHS_FULL = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
-const TYPE_LABEL: Record<string, string> = {
-  easy: 'Rodagem',
-  interval: 'Intervalado',
-  tempo: 'Tempo',
-  long: 'Longo',
-  rest: 'Descanso',
-  cross: 'Cross',
+// Config por esporte — ícone Ionicons + label PT. Cobre os 5 esportes que o
+// sidecar classifica; default 'run' pra registros antigos sem o campo.
+const SPORT_META: Record<Sport, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  run: { label: 'Corrida', icon: 'footsteps-outline' },
+  bike: { label: 'Pedal', icon: 'bicycle-outline' },
+  swim: { label: 'Natação', icon: 'water-outline' },
+  strength: { label: 'Força', icon: 'barbell-outline' },
+  other: { label: 'Atividade', icon: 'fitness-outline' },
 };
 
-const TYPE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
-  easy: 'footsteps-outline',
-  interval: 'timer-outline',
-  tempo: 'speedometer-outline',
-  long: 'footsteps-outline',
-  rest: 'bed-outline',
-  cross: 'bicycle-outline',
-};
+function sportOf(w: Workout): Sport {
+  return w.sport ?? 'run';
+}
 
-// "2026-05-15" → "15 Mai"
 function formatDateShort(iso: string): string {
   const [, m, d] = iso.split('-');
   return `${parseInt(d, 10)} ${PT_MONTHS[parseInt(m, 10) - 1] ?? ''}`;
 }
 
-// segundos → "1h02" ou "45m"
 function formatDuration(totalS: number): string {
   const h = Math.floor(totalS / 3600);
   const m = Math.floor((totalS % 3600) / 60);
   return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}`;
 }
 
-// pace médio em "M:SS" por km
 function formatPace(distanceM: number, durationS: number): string | null {
   if (distanceM <= 0 || durationS <= 0) return null;
   const paceS = Math.round(durationS / (distanceM / 1000));
@@ -63,88 +62,180 @@ function formatPace(distanceM: number, durationS: number): string | null {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function todayIso(): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function HistoryScreen() {
   const session = useAuthStore((s) => s.session);
   const { get } = useApi();
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [view, setView] = useState<'list' | 'calendar'>('list');
 
-  const TYPE_COLOR: Record<string, string> = {
-    easy: theme.colors.workoutEasy,
-    interval: theme.colors.workoutInterval,
-    tempo: theme.colors.workoutTempo,
-    long: theme.colors.workoutLong,
-    rest: theme.colors.workoutRest,
-    cross: theme.colors.workoutCross,
+  const SPORT_COLOR: Record<Sport, string> = {
+    run: theme.colors.workoutEasy,
+    bike: theme.colors.workoutLong,
+    swim: theme.colors.accent,
+    strength: theme.colors.workoutTempo,
+    other: theme.colors.workoutCross,
   };
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['workouts', session?.athlete_id],
     queryFn: () =>
-      get<{ workouts: Workout[] }>(`/workouts?athlete_id=${session?.athlete_id}&limit=50`),
+      get<{ workouts: Workout[] }>(`/workouts?athlete_id=${session?.athlete_id}&limit=90`),
     enabled: !!session?.athlete_id,
     staleTime: 1000 * 60 * 5,
   });
 
-  // ── Heatmap dos últimos 30 dias ──────────────────────────────────────
-  // 5 colunas × 6 linhas (30 cells). Cada cell = 1 dia: número do mês +
-  // ponto colorido se houve treino. Hoje tem borda; futuros são tracejados
-  // (não aparecem nesse range mas mantemos pra robustez).
-  function ThirtyDayGrid({ workouts }: { workouts: Workout[] }) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  // ── Resumo do mês corrente ────────────────────────────────────────────
+  function MonthSummary({ workouts }: { workouts: Workout[] }) {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthWorkouts = workouts.filter((w) => w.date.startsWith(ym));
 
-    const dateToWorkouts = new Map<string, number>();
+    const totalSec = monthWorkouts.reduce((s, w) => s + w.duration_s, 0);
+    const runKm = monthWorkouts
+      .filter((w) => sportOf(w) === 'run')
+      .reduce((s, w) => s + w.distance_m, 0) / 1000;
+    const sessions = monthWorkouts.length;
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+
+    // Volume semanal (horas) das últimas 4 semanas — barras
+    const weekHours = [0, 0, 0, 0];
+    const nowMs = now.getTime();
     for (const w of workouts) {
-      dateToWorkouts.set(w.date, (dateToWorkouts.get(w.date) ?? 0) + 1);
+      const ageD = (nowMs - new Date(`${w.date}T12:00:00`).getTime()) / 86_400_000;
+      const wk = Math.floor(ageD / 7);
+      if (wk >= 0 && wk < 4) weekHours[wk] += w.duration_s / 3600;
     }
-
-    const cells = Array.from({ length: 30 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - (29 - i));
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return {
-        iso,
-        dayOfMonth: d.getDate(),
-        count: dateToWorkouts.get(iso) ?? 0,
-        isToday: d.getTime() === today.getTime(),
-      };
-    });
-
-    const workoutsLast30 = cells.filter((c) => c.count > 0).length;
-    const totalSessions = cells.reduce((s, c) => s + c.count, 0);
+    const maxWeek = Math.max(...weekHours, 0.1);
+    const bars = weekHours.map((h, i) => ({ label: `S${4 - i}`, h, pct: h / maxWeek })).reverse();
 
     return (
-      <View style={styles.freqSection}>
-        <View style={styles.freqHeader}>
-          <Text style={styles.freqTitle}>Últimos 30 dias</Text>
-          <Text style={styles.freqHint}>
-            {workoutsLast30}{' '}
-            {workoutsLast30 === 1 ? 'dia ativo' : 'dias ativos'} · {totalSessions}{' '}
-            {totalSessions === 1 ? 'sessão' : 'sessões'}
+      <View style={styles.summaryWrap}>
+        <View style={styles.summaryChartCard}>
+          <View style={styles.summaryChartHead}>
+            <Text style={styles.summaryChartLabel}>Volume semanal (horas)</Text>
+            <Text style={styles.summaryMonthBadge}>{PT_MONTHS[now.getMonth()]}</Text>
+          </View>
+          <View style={styles.barsRow}>
+            {bars.map((b) => (
+              <View key={b.label} style={styles.barCol}>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, { height: `${Math.max(4, b.pct * 100)}%` }]} />
+                </View>
+                <Text style={styles.barLabel}>{b.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.statRow}>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.primaryMuted }]}>
+            <Ionicons name="time-outline" size={20} color={theme.colors.primary} />
+            <Text style={styles.statValue}>
+              {hours}h{hours > 0 ? String(mins).padStart(2, '0') : `${mins}m`}
+            </Text>
+            <Text style={styles.statLabel}>Tempo ativo</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.accentLight }]}>
+            <Ionicons name="footsteps-outline" size={20} color={theme.colors.accent} />
+            <Text style={styles.statValue}>{runKm.toFixed(1)} km</Text>
+            <Text style={styles.statLabel}>Corrida no mês</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.surfaceAlt }]}>
+            <Ionicons name="flame-outline" size={20} color={theme.colors.workoutTempo} />
+            <Text style={styles.statValue}>{sessions}</Text>
+            <Text style={styles.statLabel}>Sessões</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Calendário mensal (Dom–Sáb alinhado) ──────────────────────────────
+  function MonthCalendar({ workouts }: { workouts: Workout[] }) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const today = todayIso();
+
+    // Mapa data → esportes do dia (pra colorir os pontos)
+    const byDate = new Map<string, Set<Sport>>();
+    for (const w of workouts) {
+      const set = byDate.get(w.date) ?? new Set<Sport>();
+      set.add(sportOf(w));
+      byDate.set(w.date, set);
+    }
+
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Dom
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: ({ day: number; iso: string } | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, iso });
+    }
+
+    const monthWorkouts = workouts.filter((w) => w.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
+    const activeDays = new Set(monthWorkouts.map((w) => w.date)).size;
+
+    return (
+      <View>
+        <View style={styles.calHeaderRow}>
+          <Text style={styles.calMonthTitle}>
+            {PT_MONTHS_FULL[month]} {year}
           </Text>
         </View>
-        <View style={styles.gridWrap}>
-          {cells.map((c) => (
-            <View
-              key={c.iso}
-              style={[
-                styles.gridCell,
-                c.count > 0 && styles.gridCellActive,
-                c.isToday && styles.gridCellToday,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.gridCellDay,
-                  c.count > 0 && styles.gridCellDayActive,
-                ]}
-              >
-                {c.dayOfMonth}
-              </Text>
-              {c.count > 1 ? (
-                <View style={styles.gridCellDoubleDot} />
-              ) : null}
+        <View style={styles.calWeekHeader}>
+          {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => (
+            <Text key={i} style={styles.calWeekDay}>{l}</Text>
+          ))}
+        </View>
+        <View style={styles.calGrid}>
+          {cells.map((c, i) => {
+            if (!c) return <View key={`e${i}`} style={styles.calCell} />;
+            const sports = byDate.get(c.iso);
+            const isToday = c.iso === today;
+            return (
+              <View key={c.iso} style={styles.calCell}>
+                <View style={[styles.calDayCircle, isToday && styles.calDayToday]}>
+                  <Text style={[styles.calDayNum, isToday && styles.calDayNumToday]}>{c.day}</Text>
+                </View>
+                <View style={styles.calDots}>
+                  {sports
+                    ? [...sports].slice(0, 3).map((sp) => (
+                        <View key={sp} style={[styles.calDot, { backgroundColor: SPORT_COLOR[sp] }]} />
+                      ))
+                    : null}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.calSummaryCard}>
+          <View style={styles.calSummaryItem}>
+            <Text style={styles.calSummaryValue}>{activeDays}</Text>
+            <Text style={styles.calSummaryLabel}>dias ativos</Text>
+          </View>
+          <View style={styles.calSummaryDivider} />
+          <View style={styles.calSummaryItem}>
+            <Text style={styles.calSummaryValue}>{monthWorkouts.length}</Text>
+            <Text style={styles.calSummaryLabel}>sessões</Text>
+          </View>
+        </View>
+
+        <View style={styles.legendRow}>
+          {(['run', 'bike', 'swim', 'strength'] as Sport[]).map((sp) => (
+            <View key={sp} style={styles.legendItem}>
+              <View style={[styles.calDot, { backgroundColor: SPORT_COLOR[sp] }]} />
+              <Text style={styles.legendText}>{SPORT_META[sp].label}</Text>
             </View>
           ))}
         </View>
@@ -155,8 +246,8 @@ export default function HistoryScreen() {
   function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
     return (
       <View style={styles.stat}>
-        <Text style={styles.statLabel}>{label}</Text>
-        <Text style={styles.statValue}>
+        <Text style={styles.statLabelSm}>{label}</Text>
+        <Text style={styles.statValueSm}>
           {value}
           {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
         </Text>
@@ -165,12 +256,13 @@ export default function HistoryScreen() {
   }
 
   function WorkoutCard({ workout }: { workout: Workout }) {
-    const type = workout.type ?? 'easy';
-    const tint = TYPE_COLOR[type] ?? theme.colors.textMuted;
-    const label = TYPE_LABEL[type] ?? type;
+    const sport = sportOf(workout);
+    const meta = SPORT_META[sport];
+    const tint = SPORT_COLOR[sport];
     const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1) : '—';
     const dur = workout.duration_s > 0 ? formatDuration(workout.duration_s) : '—';
     const pace = formatPace(workout.distance_m, workout.duration_s);
+    const isTimeOnly = sport === 'strength' || sport === 'other';
 
     return (
       <TouchableOpacity
@@ -178,31 +270,63 @@ export default function HistoryScreen() {
         onPress={() => router.push(`/workout/${workout.id}`)}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={`Treino de ${formatDateShort(workout.date)}, ${label}`}
+        accessibilityLabel={`Treino de ${formatDateShort(workout.date)}, ${meta.label}`}
       >
         <View style={styles.cardTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardDate}>{formatDateShort(workout.date)}</Text>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle}>{label}</Text>
-              {workout.rtss != null ? (
-                <Text style={[styles.zoneBadge, { color: tint, borderColor: tint + '44' }]}>
-                  {workout.rtss.toFixed(0)} rTSS
-                </Text>
-              ) : null}
-            </View>
-          </View>
           <View style={[styles.typeIcon, { backgroundColor: tint + '1A' }]}>
-            <Ionicons name={TYPE_ICON[type] ?? 'footsteps-outline'} size={20} color={tint} />
+            <Ionicons name={meta.icon} size={22} color={tint} />
           </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>{meta.label}</Text>
+            <Text style={styles.cardDate}>{formatDateShort(workout.date)}</Text>
+          </View>
+          {workout.rtss != null ? (
+            <Text style={[styles.loadBadge, { color: tint, borderColor: tint + '44' }]}>
+              Carga {workout.rtss.toFixed(0)}
+            </Text>
+          ) : null}
         </View>
 
         <View style={styles.cardStats}>
-          <Stat label="Distância" value={distKm} unit="km" />
-          <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
-          <Stat label="Pace" value={pace ?? '—'} unit={pace ? '/km' : ''} />
+          {isTimeOnly ? (
+            <>
+              <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
+              <Stat label="FC média" value={workout.avg_hr ? `${workout.avg_hr}` : '—'} unit={workout.avg_hr ? 'bpm' : ''} />
+            </>
+          ) : (
+            <>
+              <Stat label="Distância" value={distKm} unit="km" />
+              <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
+              <Stat label="Pace" value={pace ?? '—'} unit={pace ? '/km' : ''} />
+            </>
+          )}
         </View>
       </TouchableOpacity>
+    );
+  }
+
+  function ViewToggle() {
+    return (
+      <View style={styles.toggle}>
+        {(['list', 'calendar'] as const).map((v) => (
+          <TouchableOpacity
+            key={v}
+            style={[styles.toggleBtn, view === v && styles.toggleBtnActive]}
+            onPress={() => setView(v)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: view === v }}
+          >
+            <Ionicons
+              name={v === 'list' ? 'list-outline' : 'calendar-outline'}
+              size={16}
+              color={view === v ? theme.colors.onAccent : theme.colors.textSecondary}
+            />
+            <Text style={[styles.toggleText, view === v && styles.toggleTextActive]}>
+              {v === 'list' ? 'Lista' : 'Calendário'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     );
   }
 
@@ -218,43 +342,61 @@ export default function HistoryScreen() {
 
   const workouts = data?.workouts ?? [];
 
+  const Header = (
+    <View>
+      <Text style={styles.screenTitle}>Histórico</Text>
+      <ViewToggle />
+      {workouts.length > 0 ? (
+        view === 'calendar' ? (
+          <MonthCalendar workouts={workouts} />
+        ) : (
+          <>
+            <MonthSummary workouts={workouts} />
+            <Text style={styles.listLabel}>Treinos</Text>
+          </>
+        )
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <TopBar />
-
       {isError ? (
         <View style={styles.errorWrap}>
           <ErrorCard message="Não conseguimos carregar seu histórico. Puxe para atualizar." />
         </View>
       ) : workouts.length === 0 ? (
-        <View style={styles.empty}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="footsteps-outline" size={36} color={theme.colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>Nenhum treino ainda</Text>
-          <Text style={styles.emptyText}>
-            Conecte seu Garmin nas configurações para importar seu histórico.
-          </Text>
-        </View>
-      ) : (
         <FlatList
-          data={workouts}
-          keyExtractor={(w) => w.id}
-          renderItem={({ item }) => <WorkoutCard workout={item} />}
-          contentContainerStyle={styles.list}
+          data={[]}
+          renderItem={null}
           ListHeaderComponent={
             <View>
               <Text style={styles.screenTitle}>Histórico</Text>
-              <ThirtyDayGrid workouts={workouts} />
-              <Text style={styles.listLabel}>Treinos</Text>
+              <View style={styles.empty}>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="footsteps-outline" size={36} color={theme.colors.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>Nenhum treino ainda</Text>
+                <Text style={styles.emptyText}>
+                  Conecte seu Garmin nas configurações e sincronize para importar seu histórico.
+                </Text>
+              </View>
             </View>
           }
           refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={theme.colors.primary}
-            />
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.colors.primary} />
+          }
+        />
+      ) : (
+        <FlatList
+          data={view === 'list' ? workouts : []}
+          keyExtractor={(w) => w.id}
+          renderItem={({ item }) => <WorkoutCard workout={item} />}
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={Header}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.colors.primary} />
           }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           showsVerticalScrollIndicator={false}
@@ -271,64 +413,120 @@ const createStyles = (theme: Theme) =>
     screenTitle: { ...theme.type.headline, color: theme.colors.textPrimary, marginBottom: Spacing.md },
     errorWrap: { padding: Spacing.md },
 
-    // Frequency strip
-    freqSection: { marginBottom: Spacing.lg },
-    freqHeader: {
+    // Toggle Lista / Calendário
+    toggle: {
+      flexDirection: 'row',
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: Radii.md,
+      padding: 3,
+      marginBottom: Spacing.md,
+    },
+    toggleBtn: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: Spacing.sm,
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: Spacing.sm,
+      borderRadius: Radii.sm,
     },
-    freqTitle: { ...theme.type.subtitle, fontSize: FontSize.md, color: theme.colors.textPrimary },
-    freqHint: {
+    toggleBtnActive: { backgroundColor: theme.colors.primary },
+    toggleText: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: theme.colors.textSecondary },
+    toggleTextActive: { color: theme.colors.onAccent },
+
+    // Resumo do mês
+    summaryWrap: { gap: Spacing.md, marginBottom: Spacing.lg },
+    summaryChartCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+    },
+    summaryChartHead: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.md,
+    },
+    summaryChartLabel: {
+      fontFamily: Fonts.bodyBold,
+      fontSize: FontSize.xs,
+      color: theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wide,
+    },
+    summaryMonthBadge: {
       fontFamily: Fonts.data,
       fontSize: FontSize.xs,
       color: theme.colors.primary,
-    },
-    // Grid de 30 dias (5 cols × 6 rows)
-    gridWrap: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 5,
-    },
-    gridCell: {
-      width: '18.4%', // ~5 colunas com gap
-      aspectRatio: 1,
-      borderRadius: Radii.sm,
-      backgroundColor: theme.colors.surfaceAlt,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative',
-    },
-    gridCellActive: {
-      backgroundColor: theme.colors.primary,
-      borderColor: theme.colors.primary,
-    },
-    gridCellToday: {
-      borderWidth: 2,
-      borderColor: theme.colors.accent,
-    },
-    gridCellDay: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.xs,
-      color: theme.colors.textMuted,
-    },
-    gridCellDayActive: {
-      color: theme.colors.onAccent,
-      fontFamily: Fonts.bodyBold,
-    },
-    gridCellDoubleDot: {
-      position: 'absolute',
-      bottom: 4,
-      width: 4,
-      height: 4,
+      backgroundColor: theme.colors.primaryMuted,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
       borderRadius: Radii.full,
-      backgroundColor: theme.colors.onAccent,
+      overflow: 'hidden',
     },
+    barsRow: { flexDirection: 'row', height: 90, gap: Spacing.sm, alignItems: 'flex-end' },
+    barCol: { flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' },
+    barTrack: { width: '70%', flex: 1, justifyContent: 'flex-end' },
+    barFill: { width: '100%', backgroundColor: theme.colors.primary, borderRadius: Radii.sm },
+    barLabel: { fontFamily: Fonts.data, fontSize: 10, color: theme.colors.textMuted },
+
+    statRow: { flexDirection: 'row', gap: Spacing.sm },
+    statCard: {
+      flex: 1,
+      borderRadius: Radii.lg,
+      padding: Spacing.md,
+      gap: 4,
+    },
+    statValue: { ...theme.type.title, fontSize: FontSize.xl, color: theme.colors.textPrimary },
+    statLabel: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: theme.colors.textSecondary },
 
     listLabel: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: Spacing.sm },
+
+    // Calendário mensal
+    calHeaderRow: { alignItems: 'center', marginBottom: Spacing.md },
+    calMonthTitle: { ...theme.type.subtitle, color: theme.colors.textPrimary },
+    calWeekHeader: { flexDirection: 'row', marginBottom: Spacing.xs },
+    calWeekDay: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: Fonts.data,
+      fontSize: 11,
+      color: theme.colors.textMuted,
+    },
+    calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+    calCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
+    calDayCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    calDayToday: { backgroundColor: theme.colors.primary },
+    calDayNum: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textSecondary },
+    calDayNumToday: { color: theme.colors.onAccent, fontFamily: Fonts.bodyBold },
+    calDots: { flexDirection: 'row', gap: 2, height: 5 },
+    calDot: { width: 5, height: 5, borderRadius: Radii.full },
+
+    calSummaryCard: {
+      flexDirection: 'row',
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      marginTop: Spacing.lg,
+    },
+    calSummaryItem: { flex: 1, alignItems: 'center', gap: 2 },
+    calSummaryValue: { ...theme.type.title, color: theme.colors.primary },
+    calSummaryLabel: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: theme.colors.textSecondary },
+    calSummaryDivider: { width: 1, backgroundColor: theme.colors.border },
+
+    legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md, marginTop: Spacing.md, justifyContent: 'center' },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    legendText: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: theme.colors.textMuted },
 
     // Workout card
     card: {
@@ -338,28 +536,28 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.colors.border,
       padding: Spacing.md,
     },
-    cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+    cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+    cardTitle: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
     cardDate: {
       fontFamily: Fonts.data,
       fontSize: FontSize.xs,
       color: theme.colors.textMuted,
       textTransform: 'uppercase',
       letterSpacing: Tracking.wide,
+      marginTop: 1,
     },
-    cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 3 },
-    cardTitle: { ...theme.type.title, fontSize: FontSize.xl, color: theme.colors.textPrimary },
-    zoneBadge: {
+    loadBadge: {
       fontFamily: Fonts.data,
-      fontSize: 10,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: Radii.full,
+      fontSize: FontSize.xs,
       borderWidth: 1,
+      borderRadius: Radii.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
       overflow: 'hidden',
     },
     typeIcon: {
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       borderRadius: Radii.full,
       alignItems: 'center',
       justifyContent: 'center',
@@ -372,33 +570,34 @@ const createStyles = (theme: Theme) =>
       borderTopColor: theme.colors.border,
     },
     stat: { flex: 1 },
-    statLabel: {
+    statLabelSm: {
       fontFamily: Fonts.data,
       fontSize: 10,
       color: theme.colors.textMuted,
       textTransform: 'uppercase',
       letterSpacing: Tracking.wide,
-      marginBottom: 3,
+      marginBottom: 2,
     },
-    statValue: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.lg,
-      color: theme.colors.textPrimary,
-    },
-    statUnit: { fontSize: FontSize.xs, color: theme.colors.textMuted },
+    statValueSm: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
+    statUnit: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: theme.colors.textMuted },
     sep: { height: Spacing.sm },
 
-    // Empty state
-    empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+    // Empty
+    empty: { alignItems: 'center', paddingTop: Spacing.xxl, gap: Spacing.sm },
     emptyIconCircle: {
-      width: 88,
-      height: 88,
+      width: 80,
+      height: 80,
       borderRadius: Radii.full,
       backgroundColor: theme.colors.primaryMuted,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: Spacing.lg,
+      marginBottom: Spacing.sm,
     },
-    emptyTitle: { ...theme.type.headline, color: theme.colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
-    emptyText: { ...theme.type.body, color: theme.colors.textMuted, textAlign: 'center' },
+    emptyTitle: { ...theme.type.title, color: theme.colors.textPrimary },
+    emptyText: {
+      ...theme.type.bodySm,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: Spacing.lg,
+    },
   });

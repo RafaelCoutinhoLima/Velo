@@ -3,6 +3,7 @@ import {
   calculateATL,
   calculateCTL,
   calculateRTSS,
+  calculateTrimp,
   calculateTSB,
 } from '@fitsync/metrics';
 import { Elysia, t } from 'elysia';
@@ -118,10 +119,13 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
             athlete_id: internalId,
             garmin_id: act.garmin_id,
             date: act.date,
+            sport: typeof act.sport === 'string' ? act.sport : 'run',
             distance_m: act.distance_m,
             duration_s: act.duration_s,
             avg_hr: act.avg_hr ?? null,
             raw_payload: act.raw,
+            // rtss zerado força recálculo (sport pode ter mudado a fórmula)
+            rtss: null,
           };
           if (importedRpe !== null) row.rpe = importedRpe;
 
@@ -156,47 +160,84 @@ export const garminRoutes = createGarminPlugin();
 type WorkoutRow = {
   garmin_id: string;
   date: string;
+  sport: string | null;
   distance_m: number;
   duration_s: number;
   avg_hr: number | null;
   rtss: number | null;
 };
 
+type AthleteHr = { fc_max: number | null; fc_rest: number | null; sex: string | null };
+
+// Carga de UM treino, escolhendo a fórmula pelo esporte/dados disponíveis:
+//  - corrida com pace válido → rTSS (pace-based, mais preciso pra corrida)
+//  - qualquer esporte com FC + zonas do atleta → TRIMP de Banister
+//  - sem nada disso → estimativa por duração (1 carga/min, piso de segurança)
+// Mantém a carga comparável entre esportes pra somar no ACWR/CTL/ATL.
+function workoutLoad(w: WorkoutRow, ftpPace: number, hr: AthleteHr): number {
+  const sport = w.sport ?? 'run';
+  if (sport === 'run' && w.distance_m > 0 && w.duration_s > 0) {
+    return calculateRTSS(
+      {
+        date: w.date,
+        distance_m: w.distance_m,
+        duration_s: w.duration_s,
+        avg_hr: w.avg_hr ?? 0,
+        max_hr: 0,
+      },
+      ftpPace,
+    );
+  }
+  if (w.avg_hr && hr.fc_max && hr.fc_rest) {
+    const sex = hr.sex === 'M' || hr.sex === 'F' ? hr.sex : 'other';
+    return calculateTrimp(w.duration_s, w.avg_hr, hr.fc_rest, hr.fc_max, sex);
+  }
+  // Fallback grosseiro: 1 ponto de carga por minuto (melhor que ignorar).
+  return Math.round((w.duration_s / 60) * 10) / 10;
+}
+
 async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
   const { data: workouts } = (await db
     .from('workouts')
-    .select('garmin_id, date, distance_m, duration_s, avg_hr, rtss')
+    .select('garmin_id, date, sport, distance_m, duration_s, avg_hr, rtss')
     .eq('athlete_id', athleteId)
     .order('date', { ascending: true })
     .limit(90)) as { data: WorkoutRow[] | null };
 
   if (!workouts || workouts.length === 0) return;
 
-  const ftpPace = estimateFtpPace(workouts);
+  // Parâmetros de FC do atleta — necessários pro TRIMP dos não-corrida.
+  const { data: athleteHr } = (await db
+    .from('athletes')
+    .select('fc_max, fc_rest, sex')
+    .eq('id', athleteId)
+    .single()) as { data: AthleteHr | null };
+  const hr: AthleteHr = athleteHr ?? { fc_max: null, fc_rest: null, sex: null };
 
-  const dailyLoads: { date: string; rtss: number }[] = [];
+  // FTP pace estimado SÓ das corridas (pace de bike/natação não faz sentido).
+  const runs = workouts.filter((w) => (w.sport ?? 'run') === 'run');
+  const ftpPace = estimateFtpPace(runs);
 
+  // Agrega carga por DIA (soma todos os esportes do mesmo dia). Crucial: as
+  // funções de ATL/CTL aplicam decaimento por ENTRADA tratando 1 entrada = 1
+  // dia, então 2 treinos no mesmo dia precisam virar 1 entrada somada.
+  const loadByDate = new Map<string, number>();
   for (const w of workouts) {
-    let rtss = w.rtss;
-    if (rtss === null) {
-      rtss = calculateRTSS(
-        {
-          date: w.date,
-          distance_m: w.distance_m,
-          duration_s: w.duration_s,
-          avg_hr: w.avg_hr ?? 0,
-          max_hr: 0,
-        },
-        ftpPace,
-      );
+    let load = w.rtss;
+    if (load === null) {
+      load = workoutLoad(w, ftpPace, hr);
       await db
         .from('workouts')
-        .update({ rtss })
+        .update({ rtss: load })
         .eq('athlete_id', athleteId)
         .eq('garmin_id', w.garmin_id);
     }
-    dailyLoads.push({ date: w.date, rtss });
+    loadByDate.set(w.date, (loadByDate.get(w.date) ?? 0) + load);
   }
+
+  const dailyLoads = [...loadByDate.entries()]
+    .map(([date, rtss]) => ({ date, rtss }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   const atl = calculateATL(dailyLoads);
   const ctl = calculateCTL(dailyLoads);

@@ -108,6 +108,85 @@ def test_get_activities_uses_no_limit_param():
         mock_api.get_activities_by_date.assert_called_once_with("2026-01-01")
 
 
+def test_get_activities_returns_all_sports_not_just_running():
+    # ANTES filtrava não-corrida. AGORA importa TODAS (coach precisa da carga
+    # total). Cada uma vem com o campo `sport`.
+    raw_activities = [
+        {
+            "activityId": 1,
+            "startTimeLocal": "2026-05-23 07:00:00",
+            "distance": 2040,
+            "duration": 904,
+            "averageSpeed": 2.26,
+            "activityType": {"typeKey": "treadmill_running"},
+        },
+        {
+            "activityId": 2,
+            "startTimeLocal": "2026-05-23 18:00:00",
+            "distance": 40510,
+            "duration": 7209,
+            "averageSpeed": 5.62,
+            "activityType": {"typeKey": "virtual_ride"},
+        },
+        {
+            "activityId": 3,
+            "startTimeLocal": "2026-05-20 12:00:00",
+            "distance": 1200,
+            "duration": 2570,
+            "averageSpeed": 0.47,
+            "activityType": {"typeKey": "lap_swimming"},
+        },
+    ]
+    with patch("app.garmin.client.Garmin") as MockGarmin:
+        mock_api = MagicMock()
+        mock_api.get_activities_by_date.return_value = raw_activities
+        MockGarmin.return_value = mock_api
+
+        client = GarminClient()
+        client._api = mock_api
+        result = client.get_activities("2026-05-01", days=30)
+
+        # Todas as 3 importadas (antes só a corrida entraria)
+        assert len(result) == 3
+        sports = {r["garmin_id"]: r["sport"] for r in result}
+        assert sports["1"] == "run"
+        assert sports["2"] == "bike"
+        assert sports["3"] == "swim"
+
+
+def test_classify_sport_maps_garmin_type_keys():
+    cases = {
+        # corrida (todas as variações)
+        "running": "run",
+        "trail_running": "run",
+        "treadmill_running": "run",
+        "track_running": "run",
+        "virtual_run": "run",
+        "indoor_running": "run",
+        # bike
+        "cycling": "bike",
+        "road_biking": "bike",
+        "mountain_biking": "bike",
+        "indoor_cycling": "bike",
+        "virtual_ride": "bike",
+        # natação
+        "lap_swimming": "swim",
+        "open_water_swimming": "swim",
+        # força / outros estruturados
+        "strength_training": "strength",
+        # desconhecido
+        "walking": "other",
+        "hiking": "other",
+    }
+    for type_key, expected in cases.items():
+        assert GarminClient._classify_sport(type_key) == expected, (
+            f"{type_key} deveria virar {expected}"
+        )
+    # edge: type_key vazio/None
+    assert GarminClient._classify_sport(None) == "other"
+    assert GarminClient._classify_sport("") == "other"
+
+
 def test_normalize_running_activity():
     raw = {
         "activityId": 12345,
@@ -126,29 +205,21 @@ def test_normalize_running_activity():
     assert normalized["avg_hr"] == 148
 
 
-def test_filter_non_running():
-    client = GarminClient()
-    # Aceita
-    for run_type in (
-        "running",
-        "trail_running",
-        "treadmill_running",
-        "track_running",
-        "street_running",
-        "virtual_run",
-        "indoor_running",
-    ):
-        assert client._is_running({"activityType": {"typeKey": run_type}}), (
-            f"esperado aceitar {run_type}"
-        )
-    # Rejeita
-    for non_run in ("cycling", "swimming", "walking", "hiking", "fitness_equipment"):
-        assert not client._is_running({"activityType": {"typeKey": non_run}}), (
-            f"esperado rejeitar {non_run}"
-        )
-    # Edge: activityType ausente ou null
-    assert not client._is_running({})
-    assert not client._is_running({"activityType": None})
+def test_normalize_tags_sport_from_activity_type():
+    base = {
+        "activityId": 9,
+        "startTimeLocal": "2026-05-23 18:00:00",
+        "distance": 40000,
+        "duration": 7200,
+        "averageSpeed": 5.5,
+        "activityType": {"typeKey": "virtual_ride"},
+    }
+    assert GarminClient._normalize(base)["sport"] == "bike"
+    # corrida na esteira (o bug original) vira 'run'
+    base["activityType"] = {"typeKey": "treadmill_running"}
+    assert GarminClient._normalize(base)["sport"] == "run"
+    # activityType ausente → 'other' (não quebra)
+    assert GarminClient._normalize({**base, "activityType": None})["sport"] == "other"
 
 
 def test_normalize_extracts_perceived_effort_from_alternative_fields():

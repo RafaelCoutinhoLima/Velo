@@ -63,22 +63,19 @@ class GarminClient:
         except Exception as exc:
             raise GarminSyncError(f"Falha ao buscar atividades: {type(exc).__name__}") from exc
 
-        # Loga tipos vistos vs aceitos pra detectar filtros perdendo treinos
-        # (ex: usuário corre na esteira = treadmill_running, antes era filtrado).
-        seen_types: dict[str, int] = {}
-        kept: list[dict[str, Any]] = []
-        for a in raw:
-            type_key = (a.get("activityType") or {}).get("typeKey", "unknown")
-            seen_types[type_key] = seen_types.get(type_key, 0) + 1
-            if self._is_running(a):
-                kept.append(self._normalize(a))
+        # Importa TODAS as atividades (não só corrida): o coach prescreve corrida
+        # mas precisa enxergar a carga total (bike/natação/força) pra estimar
+        # fadiga/ACWR. Cada uma vem normalizada com o campo `sport`.
+        normalized = [self._normalize(a) for a in raw]
+        by_sport: dict[str, int] = {}
+        for n in normalized:
+            by_sport[n["sport"]] = by_sport.get(n["sport"], 0) + 1
         logger.info(
-            "Garmin sync: %d atividades totais, %d running aceitas. Tipos vistos: %s",
-            len(raw),
-            len(kept),
-            seen_types,
+            "Garmin sync: %d atividades importadas. Por esporte: %s",
+            len(normalized),
+            by_sport,
         )
-        return kept
+        return normalized
 
     def upload_workout(self, workout_data: dict[str, Any]) -> str:
         if not self._api:
@@ -97,29 +94,56 @@ class GarminClient:
         except Exception as exc:
             raise GarminSyncError(f"Falha ao agendar workout: {type(exc).__name__}") from exc
 
-    # Garmin tem múltiplos sub-tipos de "running" — todos contam:
-    #   running          → outdoor street run padrão
-    #   trail_running    → trilha
-    #   treadmill_running → esteira
-    #   track_running    → pista (atletismo)
-    #   street_running   → variação que aparece em alguns dispositivos
-    #   virtual_run      → corrida virtual (apps tipo Zwift)
-    #   indoor_running   → alguns Forerunner usam isso pra esteira
-    # NÃO conta: walking, hiking, cycling, swimming, etc.
-    _RUN_TYPES = frozenset({
-        "running",
-        "trail_running",
-        "treadmill_running",
-        "track_running",
-        "street_running",
-        "virtual_run",
-        "indoor_running",
-    })
+    # Mapa typeKey do Garmin → nosso esporte normalizado.
+    # Cobre as variações conhecidas; o que não casar cai na heurística por
+    # substring em _classify_sport e, por fim, em "other".
+    _SPORT_MAP = {
+        # corrida (todas as superfícies/modos contam como 'run')
+        "running": "run",
+        "trail_running": "run",
+        "treadmill_running": "run",
+        "track_running": "run",
+        "street_running": "run",
+        "virtual_run": "run",
+        "indoor_running": "run",
+        "obstacle_run": "run",
+        # bike
+        "cycling": "bike",
+        "road_biking": "bike",
+        "mountain_biking": "bike",
+        "gravel_cycling": "bike",
+        "cyclocross": "bike",
+        "track_cycling": "bike",
+        "indoor_cycling": "bike",
+        "virtual_ride": "bike",
+        "recumbent_cycling": "bike",
+        "e_bike_fitness": "bike",
+        "bmx": "bike",
+        # natação
+        "lap_swimming": "swim",
+        "open_water_swimming": "swim",
+        "swimming": "swim",
+        # força / cardio estruturado de academia
+        "strength_training": "strength",
+        "indoor_cardio": "strength",
+        "pilates": "strength",
+        "yoga": "strength",
+    }
 
     @classmethod
-    def _is_running(cls, item: dict[str, Any]) -> bool:
-        type_key = (item.get("activityType") or {}).get("typeKey")
-        return type_key in cls._RUN_TYPES
+    def _classify_sport(cls, type_key: Optional[str]) -> str:
+        if not type_key:
+            return "other"
+        if type_key in cls._SPORT_MAP:
+            return cls._SPORT_MAP[type_key]
+        # Heurística por substring pra pegar variações de firmware não mapeadas.
+        if "running" in type_key or type_key == "run":
+            return "run"
+        if "cycling" in type_key or "biking" in type_key or "bike" in type_key:
+            return "bike"
+        if "swimming" in type_key:
+            return "swim"
+        return "other"
 
     @staticmethod
     def _normalize(item: dict[str, Any]) -> dict[str, Any]:
@@ -136,9 +160,11 @@ class GarminClient:
             or item.get("directSubjectiveFeel")
             or item.get("subjectiveFeel")
         )
+        type_key = (item.get("activityType") or {}).get("typeKey")
         return {
             "garmin_id": str(item["activityId"]),
             "date": item["startTimeLocal"][:10],
+            "sport": GarminClient._classify_sport(type_key),
             "distance_m": int(item.get("distance", 0)),
             "duration_s": int(item.get("duration", 0)),
             "avg_hr": item.get("averageHR"),
