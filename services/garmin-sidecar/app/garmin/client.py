@@ -63,7 +63,22 @@ class GarminClient:
         except Exception as exc:
             raise GarminSyncError(f"Falha ao buscar atividades: {type(exc).__name__}") from exc
 
-        return [self._normalize(a) for a in raw if self._is_running(a)]
+        # Loga tipos vistos vs aceitos pra detectar filtros perdendo treinos
+        # (ex: usuário corre na esteira = treadmill_running, antes era filtrado).
+        seen_types: dict[str, int] = {}
+        kept: list[dict[str, Any]] = []
+        for a in raw:
+            type_key = (a.get("activityType") or {}).get("typeKey", "unknown")
+            seen_types[type_key] = seen_types.get(type_key, 0) + 1
+            if self._is_running(a):
+                kept.append(self._normalize(a))
+        logger.info(
+            "Garmin sync: %d atividades totais, %d running aceitas. Tipos vistos: %s",
+            len(raw),
+            len(kept),
+            seen_types,
+        )
+        return kept
 
     def upload_workout(self, workout_data: dict[str, Any]) -> str:
         if not self._api:
@@ -82,14 +97,45 @@ class GarminClient:
         except Exception as exc:
             raise GarminSyncError(f"Falha ao agendar workout: {type(exc).__name__}") from exc
 
-    @staticmethod
-    def _is_running(item: dict[str, Any]) -> bool:
-        return item.get("activityType", {}).get("typeKey") in ("running", "trail_running")
+    # Garmin tem múltiplos sub-tipos de "running" — todos contam:
+    #   running          → outdoor street run padrão
+    #   trail_running    → trilha
+    #   treadmill_running → esteira
+    #   track_running    → pista (atletismo)
+    #   street_running   → variação que aparece em alguns dispositivos
+    #   virtual_run      → corrida virtual (apps tipo Zwift)
+    #   indoor_running   → alguns Forerunner usam isso pra esteira
+    # NÃO conta: walking, hiking, cycling, swimming, etc.
+    _RUN_TYPES = frozenset({
+        "running",
+        "trail_running",
+        "treadmill_running",
+        "track_running",
+        "street_running",
+        "virtual_run",
+        "indoor_running",
+    })
+
+    @classmethod
+    def _is_running(cls, item: dict[str, Any]) -> bool:
+        type_key = (item.get("activityType") or {}).get("typeKey")
+        return type_key in cls._RUN_TYPES
 
     @staticmethod
     def _normalize(item: dict[str, Any]) -> dict[str, Any]:
         speed = item.get("averageSpeed", 0)
         avg_pace_s = int(1000 / speed) if speed > 0 else 0
+        # Garmin grava RPE/sensação subjetiva em campos diferentes dependendo
+        # do dispositivo e firmware. Tentamos os mais comuns:
+        #   perceivedEffort      → escala 1-10 explícita do app/connect
+        #   directSubjectiveFeel → feedback "como me senti" do relógio
+        #   subjectiveFeel       → variação antiga
+        # Pegamos o primeiro não-null, deixa a API normalizar pra 1-10.
+        perceived = (
+            item.get("perceivedEffort")
+            or item.get("directSubjectiveFeel")
+            or item.get("subjectiveFeel")
+        )
         return {
             "garmin_id": str(item["activityId"]),
             "date": item["startTimeLocal"][:10],
@@ -97,6 +143,6 @@ class GarminClient:
             "duration_s": int(item.get("duration", 0)),
             "avg_hr": item.get("averageHR"),
             "avg_pace_s": avg_pace_s,
-            "perceived_effort": item.get("perceivedEffort"),
+            "perceived_effort": perceived,
             "raw": item,
         }

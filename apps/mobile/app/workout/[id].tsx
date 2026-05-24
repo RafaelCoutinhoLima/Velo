@@ -94,6 +94,10 @@ export default function WorkoutDetailScreen() {
   }
 
   const [rpe, setRpe] = useState<number | null>(null);
+  // `rpeFromGarmin`: o valor inicial veio do sync (perceivedEffort/feel) — UI
+  // colapsa pra um chip de confirmação no lugar dos 10 botões.
+  const [rpeFromGarmin, setRpeFromGarmin] = useState(false);
+  const [rpeEditOpen, setRpeEditOpen] = useState(false);
   const [savingRpe, setSavingRpe] = useState(false);
   const [rpeError, setRpeError] = useState<string | null>(null);
 
@@ -104,11 +108,17 @@ export default function WorkoutDetailScreen() {
   });
 
   useEffect(() => {
-    if (data?.workout.rpe != null) setRpe(data.workout.rpe);
+    if (data?.workout.rpe != null) {
+      setRpe(data.workout.rpe);
+      setRpeFromGarmin(true);
+    }
   }, [data?.workout.rpe]);
 
   async function saveRpe(value: number) {
     setRpe(value);
+    // Após edição manual, o valor não é mais "do Garmin" — ajuste do atleta vence.
+    setRpeFromGarmin(false);
+    setRpeEditOpen(false);
     setSavingRpe(true);
     setRpeError(null);
     try {
@@ -201,12 +211,9 @@ export default function WorkoutDetailScreen() {
 
   return (
     <View style={styles.container}>
-      {/* ── Header ── */}
+      {/* ── Header ── só botão de voltar. Tipo do treino vai pro hero como dot. */}
       <View style={styles.header}>
         <BackButton />
-        <View style={[styles.typePill, { backgroundColor: typeConfig.color }]}>
-          <Text style={styles.typePillText}>{typeConfig.label}</Text>
-        </View>
       </View>
 
       <ScrollView
@@ -214,11 +221,17 @@ export default function WorkoutDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero ── */}
+        {/* ── Hero ── tipo do treino vira ponto colorido + label sutil acima do título */}
         <View style={styles.hero}>
           <View style={styles.heroPills}>
             <Text style={styles.datePill}>{weekday(w.date)}</Text>
             <Text style={styles.datePillMuted}>{formatDate(w.date)}</Text>
+          </View>
+          <View style={styles.heroTypeRow}>
+            <View style={[styles.heroTypeDot, { backgroundColor: typeConfig.color }]} />
+            <Text style={[styles.heroTypeLabel, { color: typeConfig.color }]}>
+              {typeConfig.label}
+            </Text>
           </View>
           <Text style={styles.heroTitle}>{heroTitle}</Text>
           {w.location ? (
@@ -301,38 +314,76 @@ export default function WorkoutDetailScreen() {
           ) : null}
         </View>
 
-        {/* ── RPE ── */}
+        {/* ── RPE / Esforço ── 3 estados:
+            1) Veio do Garmin (rpeFromGarmin): chip verde compacto + link "Ajustar"
+            2) Editado pelo atleta (rpe!=null, !fromGarmin, !editOpen): chip simples
+            3) Vazio OU clicou em ajustar: widget completo com 10 botões
+         */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Esforço percebido</Text>
-          <Text style={styles.cardSub}>
-            Como você sentiu esse treino? Ajuda a calibrar seu plano.
-          </Text>
-          {rpe != null ? (
-            <Text style={[styles.rpeSelected, { color: rpeColor(rpe) }]}>
-              {rpe} — {RPE_LABELS[rpe]}
-            </Text>
-          ) : null}
-          <View style={styles.rpeRow}>
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+          <Text style={styles.cardLabel}>Esforço</Text>
+
+          {rpe != null && rpeFromGarmin && !rpeEditOpen ? (
+            <View style={styles.rpeChipRow}>
+              <View style={[styles.rpeChipGarmin, { borderColor: rpeColor(rpe) }]}>
+                <Ionicons name="watch" size={16} color={rpeColor(rpe)} />
+                <Text style={[styles.rpeChipValue, { color: rpeColor(rpe) }]}>
+                  {rpe}
+                </Text>
+                <Text style={styles.rpeChipLabel}>{RPE_LABELS[rpe]}</Text>
+                <Text style={styles.rpeChipSource}>do seu relógio</Text>
+              </View>
               <TouchableOpacity
-                key={n}
-                style={[
-                  styles.rpeBtn,
-                  rpe === n && { backgroundColor: rpeColor(n), borderColor: rpeColor(n) },
-                ]}
-                onPress={() => saveRpe(n)}
+                onPress={() => setRpeEditOpen(true)}
                 accessibilityRole="button"
-                accessibilityLabel={`RPE ${n}: ${RPE_LABELS[n]}`}
-                accessibilityState={{ selected: rpe === n }}
+                accessibilityLabel="Ajustar esforço percebido"
               >
-                <Text style={[styles.rpeBtnText, rpe === n && styles.rpeBtnTextActive]}>{n}</Text>
+                <Text style={styles.rpeAdjustLink}>Ajustar</Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            </View>
+          ) : rpe != null && !rpeEditOpen ? (
+            <View style={styles.rpeChipRow}>
+              <View style={[styles.rpeChipGarmin, { borderColor: rpeColor(rpe) }]}>
+                <Ionicons name="checkmark-circle" size={16} color={rpeColor(rpe)} />
+                <Text style={[styles.rpeChipValue, { color: rpeColor(rpe) }]}>
+                  {rpe}
+                </Text>
+                <Text style={styles.rpeChipLabel}>{RPE_LABELS[rpe]}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setRpeEditOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Alterar esforço percebido"
+              >
+                <Text style={styles.rpeAdjustLink}>Alterar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.cardSub}>Como você sentiu? Ajuda a calibrar seu plano.</Text>
+              <View style={styles.rpeRow}>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[
+                      styles.rpeBtn,
+                      rpe === n && { backgroundColor: rpeColor(n), borderColor: rpeColor(n) },
+                    ]}
+                    onPress={() => saveRpe(n)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`RPE ${n}: ${RPE_LABELS[n]}`}
+                    accessibilityState={{ selected: rpe === n }}
+                  >
+                    <Text style={[styles.rpeBtnText, rpe === n && styles.rpeBtnTextActive]}>
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+
           {savingRpe ? (
             <Text style={styles.rpeStatus}>Salvando…</Text>
-          ) : rpe && !rpeError ? (
-            <Text style={[styles.rpeStatus, { color: theme.colors.success }]}>Salvo ✓</Text>
           ) : null}
           {rpeError ? (
             <View style={{ marginTop: Spacing.sm }}>
@@ -432,6 +483,23 @@ const createStyles = (theme: Theme) =>
       borderRadius: Radii.sm,
       overflow: 'hidden',
     },
+    heroTypeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 2,
+    },
+    heroTypeDot: {
+      width: 8,
+      height: 8,
+      borderRadius: Radii.full,
+    },
+    heroTypeLabel: {
+      fontFamily: Fonts.bodyBold,
+      fontSize: FontSize.xs,
+      textTransform: 'uppercase',
+      letterSpacing: Tracking.wider,
+    },
     heroTitle: {
       fontFamily: Fonts.displayBlack,
       fontSize: 42,
@@ -519,6 +587,46 @@ const createStyles = (theme: Theme) =>
 
     // RPE
     rpeSelected: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, marginBottom: Spacing.sm },
+    rpeChipRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginTop: Spacing.xs,
+    },
+    rpeChipGarmin: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderWidth: 1.5,
+      borderRadius: Radii.md,
+      backgroundColor: theme.colors.surface,
+      flex: 1,
+    },
+    rpeChipValue: {
+      fontFamily: Fonts.displayBlack,
+      fontSize: FontSize.xl,
+      fontWeight: FontWeight.extrabold,
+      marginLeft: 2,
+    },
+    rpeChipLabel: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.sm,
+      color: theme.colors.textPrimary,
+      marginLeft: 4,
+    },
+    rpeChipSource: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      marginLeft: 'auto',
+    },
+    rpeAdjustLink: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.sm,
+      color: theme.colors.accent,
+    },
     rpeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
     rpeBtn: {
       width: 40,

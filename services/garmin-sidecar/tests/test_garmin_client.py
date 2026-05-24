@@ -128,6 +128,52 @@ def test_normalize_running_activity():
 
 def test_filter_non_running():
     client = GarminClient()
-    assert not client._is_running({"activityType": {"typeKey": "cycling"}})
-    assert client._is_running({"activityType": {"typeKey": "running"}})
-    assert client._is_running({"activityType": {"typeKey": "trail_running"}})
+    # Aceita
+    for run_type in (
+        "running",
+        "trail_running",
+        "treadmill_running",
+        "track_running",
+        "street_running",
+        "virtual_run",
+        "indoor_running",
+    ):
+        assert client._is_running({"activityType": {"typeKey": run_type}}), (
+            f"esperado aceitar {run_type}"
+        )
+    # Rejeita
+    for non_run in ("cycling", "swimming", "walking", "hiking", "fitness_equipment"):
+        assert not client._is_running({"activityType": {"typeKey": non_run}}), (
+            f"esperado rejeitar {non_run}"
+        )
+    # Edge: activityType ausente ou null
+    assert not client._is_running({})
+    assert not client._is_running({"activityType": None})
+
+
+def test_normalize_extracts_perceived_effort_from_alternative_fields():
+    # Garmin grava RPE/feel em campos diferentes dependendo do dispositivo.
+    # _normalize tem fallback de perceivedEffort → directSubjectiveFeel → subjectiveFeel.
+    base = {
+        "activityId": 1,
+        "startTimeLocal": "2026-01-15 07:30:00",
+        "distance": 5000,
+        "duration": 1800,
+        "averageSpeed": 2.78,
+        "activityType": {"typeKey": "running"},
+    }
+    # Campo padrão
+    assert GarminClient._normalize({**base, "perceivedEffort": 6})["perceived_effort"] == 6
+    # Fallback 1: dispositivo grava em directSubjectiveFeel
+    assert GarminClient._normalize({**base, "directSubjectiveFeel": 4})["perceived_effort"] == 4
+    # Fallback 2: firmware antigo
+    assert GarminClient._normalize({**base, "subjectiveFeel": 5})["perceived_effort"] == 5
+    # Preferência: perceivedEffort vence sobre os outros
+    assert (
+        GarminClient._normalize(
+            {**base, "perceivedEffort": 6, "directSubjectiveFeel": 4}
+        )["perceived_effort"]
+        == 6
+    )
+    # Nenhum dos três → None (não bloqueia, deixa UI pedir manual)
+    assert GarminClient._normalize(base)["perceived_effort"] is None

@@ -86,48 +86,66 @@ export default function HistoryScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // ── Mini-heatmap de frequência da semana corrente ─────────────────────
-  function FrequencyStrip({ workouts }: { workouts: Workout[] }) {
+  // ── Heatmap dos últimos 30 dias ──────────────────────────────────────
+  // 5 colunas × 6 linhas (30 cells). Cada cell = 1 dia: número do mês +
+  // ponto colorido se houve treino. Hoje tem borda; futuros são tracejados
+  // (não aparecem nesse range mas mantemos pra robustez).
+  function ThirtyDayGrid({ workouts }: { workouts: Workout[] }) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay()); // domingo
 
-    const workoutDates = new Set(workouts.map((w) => w.date));
-    const labels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+    const dateToWorkouts = new Map<string, number>();
+    for (const w of workouts) {
+      dateToWorkouts.set(w.date, (dateToWorkouts.get(w.date) ?? 0) + 1);
+    }
 
-    const bars = labels.map((_, i) => {
-      const d = new Date(weekStart);
-      d.setDate(weekStart.getDate() + i);
+    const cells = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (29 - i));
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const hasWorkout = workoutDates.has(iso);
-      const isFuture = d.getTime() > today.getTime();
-      const isToday = d.getTime() === today.getTime();
-      return { hasWorkout, isFuture, isToday };
+      return {
+        iso,
+        dayOfMonth: d.getDate(),
+        count: dateToWorkouts.get(iso) ?? 0,
+        isToday: d.getTime() === today.getTime(),
+      };
     });
+
+    const workoutsLast30 = cells.filter((c) => c.count > 0).length;
+    const totalSessions = cells.reduce((s, c) => s + c.count, 0);
 
     return (
       <View style={styles.freqSection}>
         <View style={styles.freqHeader}>
-          <Text style={styles.freqTitle}>Frequência</Text>
-          <Text style={styles.freqHint}>Esta semana</Text>
+          <Text style={styles.freqTitle}>Últimos 30 dias</Text>
+          <Text style={styles.freqHint}>
+            {workoutsLast30}{' '}
+            {workoutsLast30 === 1 ? 'dia ativo' : 'dias ativos'} · {totalSessions}{' '}
+            {totalSessions === 1 ? 'sessão' : 'sessões'}
+          </Text>
         </View>
-        <View style={styles.freqBars}>
-          {bars.map((b, i) => (
+        <View style={styles.gridWrap}>
+          {cells.map((c) => (
             <View
-              key={i}
+              key={c.iso}
               style={[
-                styles.freqBar,
-                b.hasWorkout && styles.freqBarActive,
-                b.isToday && !b.hasWorkout && styles.freqBarToday,
-                b.isFuture && styles.freqBarFuture,
+                styles.gridCell,
+                c.count > 0 && styles.gridCellActive,
+                c.isToday && styles.gridCellToday,
               ]}
-            />
-          ))}
-        </View>
-        <View style={styles.freqLabels}>
-          {labels.map((l, i) => (
-            <Text key={i} style={styles.freqLabel}>{l}</Text>
+            >
+              <Text
+                style={[
+                  styles.gridCellDay,
+                  c.count > 0 && styles.gridCellDayActive,
+                ]}
+              >
+                {c.dayOfMonth}
+              </Text>
+              {c.count > 1 ? (
+                <View style={styles.gridCellDoubleDot} />
+              ) : null}
+            </View>
           ))}
         </View>
       </View>
@@ -227,7 +245,7 @@ export default function HistoryScreen() {
           ListHeaderComponent={
             <View>
               <Text style={styles.screenTitle}>Histórico</Text>
-              <FrequencyStrip workouts={workouts} />
+              <ThirtyDayGrid workouts={workouts} />
               <Text style={styles.listLabel}>Treinos</Text>
             </View>
           }
@@ -267,33 +285,47 @@ const createStyles = (theme: Theme) =>
       fontSize: FontSize.xs,
       color: theme.colors.primary,
     },
-    freqBars: { flexDirection: 'row', gap: 6, height: 40 },
-    freqBar: {
-      flex: 1,
+    // Grid de 30 dias (5 cols × 6 rows)
+    gridWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 5,
+    },
+    gridCell: {
+      width: '18.4%', // ~5 colunas com gap
+      aspectRatio: 1,
       borderRadius: Radii.sm,
       backgroundColor: theme.colors.surfaceAlt,
-    },
-    freqBarActive: {
-      backgroundColor: theme.colors.primary,
-      shadowColor: theme.colors.primary,
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    freqBarToday: { borderWidth: 1.5, borderColor: theme.colors.accent },
-    freqBarFuture: {
-      backgroundColor: 'transparent',
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderStyle: 'dashed',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
     },
-    freqLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 },
-    freqLabel: {
-      flex: 1,
-      textAlign: 'center',
+    gridCellActive: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+    },
+    gridCellToday: {
+      borderWidth: 2,
+      borderColor: theme.colors.accent,
+    },
+    gridCellDay: {
       fontFamily: Fonts.data,
-      fontSize: 10,
+      fontSize: FontSize.xs,
       color: theme.colors.textMuted,
+    },
+    gridCellDayActive: {
+      color: theme.colors.onAccent,
+      fontFamily: Fonts.bodyBold,
+    },
+    gridCellDoubleDot: {
+      position: 'absolute',
+      bottom: 4,
+      width: 4,
+      height: 4,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.onAccent,
     },
 
     listLabel: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: Spacing.sm },
