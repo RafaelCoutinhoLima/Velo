@@ -57,13 +57,16 @@ function makeMockDb(opts: MockOpts = {}) {
   return db;
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: mock type for Elysia generics
+type AnyElysia = Elysia<any, any, any, any, any, any, any>;
+
 function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
-    .use(createPushPlugin(db as Parameters<typeof createPushPlugin>[0]));
+    .use(createPushPlugin(db as unknown as Parameters<typeof createPushPlugin>[0])) as AnyElysia;
 }
 
-function post(app: Elysia, path: string, body: object) {
+function post(app: AnyElysia, path: string, body: object) {
   return app.handle(
     new Request(`http://localhost${path}`, {
       method: 'POST',
@@ -75,7 +78,7 @@ function post(app: Elysia, path: string, body: object) {
 
 describe('POST /push/register', () => {
   beforeEach(() => {
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(
+    (globalThis as unknown as { fetch: unknown }).fetch = mock(
       async () => new Response('{}', { status: 200 }),
     );
   });
@@ -102,7 +105,7 @@ describe('POST /push/register', () => {
 
 describe('POST /push/rpe-reminders', () => {
   beforeEach(() => {
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(
+    (globalThis as unknown as { fetch: unknown }).fetch = mock(
       async () => new Response('{}', { status: 200 }),
     );
   });

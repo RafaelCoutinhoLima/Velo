@@ -17,8 +17,17 @@ dev = [
     "pytest>=9.0.0",
     "pytest-asyncio>=1.0.0",
     "pytest-mock>=3.15.0",
+    "mypy>=1.18.0",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+files = ["app"]
+
+[[tool.mypy.overrides]]
+module = ["garminconnect", "garminconnect.*"]
+ignore_missing_imports = true

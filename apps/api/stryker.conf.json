@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing dos módulos de regra de negócio. Defer aos arquivos críticos — mutação no projeto inteiro custa horas e não agrega valor em código de cola.",
+  "packageManager": "npm",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "bun test --silent"
+  },
+  "coverageAnalysis": "off",
+  "reporters": ["clear-text", "progress", "html"],
+  "mutate": ["src/lib/calibration.ts", "src/claude/guardrails.ts", "src/garmin/workoutBuilder.ts"],
+  "timeoutMS": 30000,
+  "concurrency": 2,
+  "thresholds": { "high": 80, "low": 60, "break": null }
+}

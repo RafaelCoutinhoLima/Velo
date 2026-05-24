@@ -34,7 +34,10 @@ web-build/
 # Build artifacts
 build/
 coverage/
+.coverage
 *.tsbuildinfo
+.stryker-tmp/
+reports/mutation/
 
 # OS
 .DS_Store

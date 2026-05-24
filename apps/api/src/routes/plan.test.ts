@@ -212,6 +212,9 @@ function makeMockDb(
   };
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: mock type for Elysia generics
+type AnyElysia = Elysia<any, any, any, any, any, any, any>;
+
 function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error, code }) => {
@@ -219,14 +222,14 @@ function makeApp(db: ReturnType<typeof makeMockDb>) {
         return new Response(JSON.stringify({ validation: true }), { status: 422 });
       return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500 });
     })
-    .use(createPlanPlugin(db as Parameters<typeof createPlanPlugin>[0]));
+    .use(createPlanPlugin(db as unknown as Parameters<typeof createPlanPlugin>[0])) as AnyElysia;
 }
 
-function get(app: Elysia, path: string) {
+function get(app: AnyElysia, path: string) {
   return app.handle(new Request(`http://localhost${path}`));
 }
 
-function patch(app: Elysia, path: string, body: object) {
+function patch(app: AnyElysia, path: string, body: object) {
   return app.handle(
     new Request(`http://localhost${path}`, {
       method: 'PATCH',
@@ -326,7 +329,7 @@ describe('PATCH /plan/move', () => {
   });
 });
 
-function post(app: Elysia, path: string, body: object) {
+function post(app: AnyElysia, path: string, body: object) {
   return app.handle(
     new Request(`http://localhost${path}`, {
       method: 'POST',

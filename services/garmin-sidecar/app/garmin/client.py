@@ -4,10 +4,13 @@ Nunca loga credenciais ou tokens — filtros no logger do main.py cobrem.
 """
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from garminconnect import Garmin
-from garminconnect.client import GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
+from garminconnect.client import (
+    GarminConnectAuthenticationError,
+    GarminConnectTooManyRequestsError,
+)
 
 logger = logging.getLogger("sidecar.garmin")
 
@@ -24,7 +27,7 @@ class GarminClient:
     def __init__(self) -> None:
         self._api: Optional[Garmin] = None
 
-    def login(self, email: str, password: str, mfa_code: Optional[str] = None) -> dict:
+    def login(self, email: str, password: str, mfa_code: Optional[str] = None) -> dict[str, Any]:
         try:
             prompt = (lambda: mfa_code) if mfa_code else None
             self._api = Garmin(email, password, prompt_mfa=prompt)
@@ -34,7 +37,7 @@ class GarminClient:
                     "Login falhou — verifique suas credenciais ou aguarde alguns minutos (limite de tentativas Garmin)"
                 )
             tokens_str = self._api.client.dumps()
-            tokens = json.loads(tokens_str)
+            tokens: dict[str, Any] = json.loads(tokens_str)
             logger.info("Login Garmin bem-sucedido para athlete (email=[REDACTED])")
             return tokens
         except GarminAuthError:
@@ -48,11 +51,11 @@ class GarminClient:
         except Exception as exc:
             raise GarminAuthError(f"Falha no login Garmin: {type(exc).__name__}: {exc}") from exc
 
-    def restore_session(self, tokens: dict) -> None:
+    def restore_session(self, tokens: dict[str, Any]) -> None:
         self._api = Garmin("", "")
         self._api.client.loads(json.dumps(tokens))
 
-    def get_activities(self, start_date: str, days: int = 90) -> list[dict]:
+    def get_activities(self, start_date: str, days: int = 90) -> list[dict[str, Any]]:
         if not self._api:
             raise GarminSyncError("Sessão Garmin não inicializada")
         try:
@@ -62,7 +65,7 @@ class GarminClient:
 
         return [self._normalize(a) for a in raw if self._is_running(a)]
 
-    def upload_workout(self, workout_data: dict) -> str:
+    def upload_workout(self, workout_data: dict[str, Any]) -> str:
         if not self._api:
             raise GarminSyncError("Sessão Garmin não inicializada")
         try:
@@ -80,11 +83,11 @@ class GarminClient:
             raise GarminSyncError(f"Falha ao agendar workout: {type(exc).__name__}") from exc
 
     @staticmethod
-    def _is_running(item: dict) -> bool:
+    def _is_running(item: dict[str, Any]) -> bool:
         return item.get("activityType", {}).get("typeKey") in ("running", "trail_running")
 
     @staticmethod
-    def _normalize(item: dict) -> dict:
+    def _normalize(item: dict[str, Any]) -> dict[str, Any]:
         speed = item.get("averageSpeed", 0)
         avg_pace_s = int(1000 / speed) if speed > 0 else 0
         return {

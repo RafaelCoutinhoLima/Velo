@@ -289,7 +289,7 @@ describe('POST /garmin/connect', () => {
   });
 
   it('usa mensagem fallback quando body de erro do sidecar não é JSON válido', async () => {
-    (globalThis as unknown as { fetch: typeof fetch }).fetch = mock(
+    (globalThis as unknown as { fetch: unknown }).fetch = mock(
       async () => new Response('Internal Server Error', { status: 500 }),
     );
     const app = makeApp(makeMockDb());

@@ -50,17 +50,20 @@ function makeMockDb(
   };
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: mock type for Elysia generics
+type AnyElysia = Elysia<any, any, any, any, any, any, any>;
+
 function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
-    .use(createJobsPlugin(db as Parameters<typeof createJobsPlugin>[0]));
+    .use(createJobsPlugin(db as unknown as Parameters<typeof createJobsPlugin>[0])) as AnyElysia;
 }
 
-function get(app: Elysia, path: string) {
+function get(app: AnyElysia, path: string) {
   return app.handle(new Request(`http://localhost${path}`));
 }
 
-function post(app: Elysia, path: string, body: object) {
+function post(app: AnyElysia, path: string, body: object) {
   return app.handle(
     new Request(`http://localhost${path}`, {
       method: 'POST',

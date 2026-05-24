@@ -1,7 +1,10 @@
-from fastapi import APIRouter, HTTPException, Header
-from app.models import WorkoutRequest
-from app.garmin.client import GarminClient, GarminSyncError
 import json
+from typing import Any
+
+from fastapi import APIRouter, Header, HTTPException
+
+from app.garmin.client import GarminClient, GarminSyncError
+from app.models import WorkoutRequest
 
 router = APIRouter(prefix="/workout", tags=["workout"])
 
@@ -10,7 +13,7 @@ router = APIRouter(prefix="/workout", tags=["workout"])
 async def send_workout(
     body: WorkoutRequest,
     x_garmin_token: str = Header(...),
-) -> dict:
+) -> dict[str, Any]:
     # Fonte única do conversor FitSync→Garmin: o DTO é montado na API
     # (apps/api/src/garmin/workoutBuilder.ts — o "adaptador Garmin"). O
     # sidecar só faz upload. Outros relógios (Apple/Coros) são Fase 2:

@@ -1,5 +1,7 @@
 import logging
 import re
+from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -31,7 +33,7 @@ app.include_router(workout.router)
 
 
 @app.get("/health")
-def health() -> dict:
+def health() -> dict[str, Any]:
     return {"status": "ok"}
 
 

@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException, Header, Query
-from app.garmin.client import GarminClient, GarminSyncError
 import json
+from typing import Any
+
+from fastapi import APIRouter, Header, HTTPException, Query
+
+from app.garmin.client import GarminClient, GarminSyncError
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -10,7 +13,7 @@ async def get_metrics(
     date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
     days: int = Query(default=90, ge=1, le=365),
     x_garmin_token: str = Header(...),
-) -> dict:
+) -> dict[str, Any]:
     client = GarminClient()
     try:
         tokens = json.loads(x_garmin_token)

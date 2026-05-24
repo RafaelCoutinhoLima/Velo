@@ -1,5 +1,6 @@
+from typing import Any, Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class AuthRequest(BaseModel):
@@ -9,15 +10,15 @@ class AuthRequest(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    session: dict  # client.dumps() serializado — necessário para restore_session
+    session: dict[str, Any]  # client.dumps() serializado — necessário para restore_session
 
 
 class MetricsResponse(BaseModel):
-    activities: list[dict]
+    activities: list[dict[str, Any]]
 
 
 class WorkoutRequest(BaseModel):
     athlete_id: str
     # DTO Garmin montado pela API (workoutBuilder.ts) — fonte única.
-    workout: dict
+    workout: dict[str, Any]
     schedule_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
