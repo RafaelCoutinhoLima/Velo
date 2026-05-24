@@ -12,7 +12,15 @@ type MockOpts = {
 
 function makeDb(opts: MockOpts = {}) {
   const { athleteRow = null, workouts = [], pushToken = null } = opts;
-  const calls = { update: 0 };
+  // Capturamos o que foi escrito pra que os testes possam assertar payload e
+  // coluna do where — sem isso, mutantes que trocam o valor de update ou o
+  // nome da coluna sobrevivem (mutation testing real revelou esse buraco).
+  const calls = {
+    update: 0,
+    lastUpdatePayload: undefined as Record<string, unknown> | undefined,
+    lastUpdateEqCol: undefined as string | undefined,
+    lastUpdateEqVal: undefined as unknown,
+  };
   const db = {
     _calls: calls,
     from(table: string) {
@@ -26,9 +34,12 @@ function makeDb(opts: MockOpts = {}) {
                   : { data: athleteRow, error: athleteRow ? null : { message: 'not found' } },
             }),
           }),
-          update: () => ({
-            eq: async () => {
+          update: (payload: Record<string, unknown>) => ({
+            eq: async (col: string, val: unknown) => {
               calls.update++;
+              calls.lastUpdatePayload = payload;
+              calls.lastUpdateEqCol = col;
+              calls.lastUpdateEqVal = val;
               return { error: null };
             },
           }),
@@ -90,6 +101,10 @@ describe('evaluateCalibration', () => {
     const r = await evaluateCalibration(db as unknown as Db, 'a1');
     expect(r).toEqual({ calibrationMode: false, justExited: true });
     expect(db._calls.update).toBe(1);
+    // Mata mutantes: payload tem que ser exatamente calibration_mode=false na coluna id
+    expect(db._calls.lastUpdatePayload).toEqual({ calibration_mode: false });
+    expect(db._calls.lastUpdateEqCol).toBe('id');
+    expect(db._calls.lastUpdateEqVal).toBe('a1');
     expect(globalThis.fetch).toHaveBeenCalled();
   });
 

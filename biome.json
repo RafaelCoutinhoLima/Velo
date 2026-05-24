@@ -33,7 +33,9 @@
       "!**/backend",
       "!playwright-report",
       "!test-results",
-      "!**/.venv"
+      "!**/.venv",
+      "!**/.stryker-tmp",
+      "!**/reports/mutation"
     ]
   }
 }
