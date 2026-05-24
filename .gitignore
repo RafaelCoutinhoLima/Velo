@@ -1,5 +1,4 @@
 # Docs internos — não expor no GitHub (CLAUDE.md, stack, user stories, backlog)
-docs/
 
 # Env — nunca commitar chaves
 .env
@@ -29,6 +28,7 @@ web-build/
 *.p8
 *.p12
 *.key
+*.pem
 *.mobileprovision
 
 # Build artifacts
