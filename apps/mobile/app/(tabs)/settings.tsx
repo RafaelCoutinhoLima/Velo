@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -42,7 +43,7 @@ export default function SettingsScreen() {
   const setGarminConnected = useAuthStore((s) => s.setGarminConnected);
   const setLastGarminSync = useAuthStore((s) => s.setLastGarminSync);
   const session = useAuthStore((s) => s.session);
-  const { post } = useApi();
+  const { post, postLong } = useApi();
   const qc = useQueryClient();
   const { theme, themeName, setThemeName, available } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -55,6 +56,9 @@ export default function SettingsScreen() {
   const [syncCount, setSyncCount] = useState<number | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  // Mensagem de status do botão de re-sync (sucesso ou erro) — sem isso o
+  // botão parecia "morto" quando o sync falhava (erro era engolido).
+  const [syncStatus, setSyncStatus] = useState<{ kind: 'ok' | 'error'; msg: string } | null>(null);
 
   function toggleAdvancedMode(value: boolean) {
     setAdvancedMode(value);
@@ -176,7 +180,7 @@ export default function SettingsScreen() {
     setConnectStep('connecting');
 
     try {
-      await post('/garmin/connect', {
+      await postLong('/garmin/connect', {
         athlete_id: session.athlete_id,
         email: garminEmail.trim(),
         password: garminPassword,
@@ -189,7 +193,7 @@ export default function SettingsScreen() {
 
       setConnectStep('syncing');
 
-      const syncBody = await post<{ synced: number }>('/garmin/sync', {
+      const syncBody = await postLong<{ synced: number }>('/garmin/sync', {
         athlete_id: session.athlete_id,
         days: 90,
       });
@@ -210,16 +214,29 @@ export default function SettingsScreen() {
   async function handleGarminSync() {
     if (!session) return;
     setConnectStep('syncing');
+    setSyncStatus(null);
     try {
-      const body = await post<{ synced: number }>('/garmin/sync', {
+      // postLong: Garmin Connect é lento (15s do timeout normal estourava).
+      // days=90 pra trazer o histórico completo, não só o último mês.
+      const body = await postLong<{ synced: number }>('/garmin/sync', {
         athlete_id: session.athlete_id,
-        days: 30,
+        days: 90,
       });
       setSyncCount(body.synced);
       setLastGarminSync(new Date().toISOString());
+      setSyncStatus({
+        kind: 'ok',
+        msg: body.synced > 0 ? `${body.synced} treinos sincronizados.` : 'Tudo já estava em dia.',
+      });
       qc.invalidateQueries({ queryKey: ['plan'] });
       qc.invalidateQueries({ queryKey: ['workouts'] });
-    } catch { /* erro silencioso — usuário vê count não atualizado */ } finally {
+    } catch (err: unknown) {
+      // Surface o erro — antes era engolido e o botão parecia não funcionar.
+      setSyncStatus({
+        kind: 'error',
+        msg: err instanceof Error ? err.message : 'Não conseguimos sincronizar. Tente de novo.',
+      });
+    } finally {
       setConnectStep('idle');
     }
   }
@@ -332,12 +349,13 @@ export default function SettingsScreen() {
                     style={styles.syncBtn}
                     accessibilityRole="button"
                     accessibilityLabel="Sincronizar treinos do Garmin"
+                    accessibilityState={{ disabled: isBusy }}
                   >
-                    <Ionicons
-                      name="sync"
-                      size={20}
-                      color={isBusy ? theme.colors.textMuted : theme.colors.textSecondary}
-                    />
+                    {connectStep === 'syncing' ? (
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                    ) : (
+                      <Ionicons name="sync" size={20} color={theme.colors.textSecondary} />
+                    )}
                   </TouchableOpacity>
                 </View>
               }
@@ -354,7 +372,18 @@ export default function SettingsScreen() {
             />
           )}
         </View>
-        {garminConnected && syncCount !== null ? (
+        {connectStep === 'syncing' ? (
+          <Text style={styles.syncNote}>Sincronizando com o Garmin… pode levar até 1 min.</Text>
+        ) : syncStatus ? (
+          <Text
+            style={[
+              styles.syncNote,
+              { color: syncStatus.kind === 'ok' ? theme.colors.success : theme.colors.danger },
+            ]}
+          >
+            {syncStatus.msg}
+          </Text>
+        ) : garminConnected && syncCount !== null ? (
           <Text style={styles.syncNote}>{syncCount} treinos sincronizados.</Text>
         ) : null}
 

@@ -2,15 +2,19 @@ import { useAuthStore } from './store';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const TIMEOUT_MS = 15_000;
+// Operações que falam com o Garmin Connect (via sidecar) são lentas — buscar
+// 90 dias de atividades passa fácil dos 15s. Timeout generoso pra elas.
+const LONG_TIMEOUT_MS = 90_000;
 
 async function request<T>(
   method: string,
   path: string,
   accessToken: string | undefined,
   body?: unknown,
+  timeoutMs: number = TIMEOUT_MS,
 ): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -56,5 +60,8 @@ export function useApi() {
     get: <T>(path: string) => request<T>('GET', path, token),
     post: <T>(path: string, body: unknown) => request<T>('POST', path, token, body),
     patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, token, body),
+    // Para sync/connect do Garmin — timeout longo (sidecar + Garmin são lentos).
+    postLong: <T>(path: string, body: unknown) =>
+      request<T>('POST', path, token, body, LONG_TIMEOUT_MS),
   };
 }

@@ -74,6 +74,9 @@ export default function HistoryScreen() {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [view, setView] = useState<'list' | 'calendar'>('list');
+  // Offset de mês pro calendário (0 = mês atual, -1 = anterior). Vive no pai
+  // porque os componentes internos remontam a cada render.
+  const [monthOffset, setMonthOffset] = useState(0);
 
   const SPORT_COLOR: Record<Sport, string> = {
     run: theme.colors.workoutEasy,
@@ -158,12 +161,15 @@ export default function HistoryScreen() {
     );
   }
 
-  // ── Calendário mensal (Dom–Sáb alinhado) ──────────────────────────────
+  // ── Calendário mensal (Dom–Sáb alinhado, navegável) ───────────────────
   function MonthCalendar({ workouts }: { workouts: Workout[] }) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const base = new Date();
+    // Aplica o offset de mês (clamp da navegação) sobre o mês corrente.
+    const viewDate = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1);
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
     const today = todayIso();
+    const isCurrentMonth = monthOffset === 0;
 
     // Mapa data → esportes do dia (pra colorir os pontos)
     const byDate = new Map<string, Set<Sport>>();
@@ -188,9 +194,31 @@ export default function HistoryScreen() {
     return (
       <View>
         <View style={styles.calHeaderRow}>
+          <TouchableOpacity
+            onPress={() => setMonthOffset((o) => o - 1)}
+            style={styles.calNavBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Mês anterior"
+          >
+            <Ionicons name="chevron-back" size={22} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
           <Text style={styles.calMonthTitle}>
             {PT_MONTHS_FULL[month]} {year}
           </Text>
+          <TouchableOpacity
+            onPress={() => setMonthOffset((o) => Math.min(0, o + 1))}
+            disabled={isCurrentMonth}
+            style={styles.calNavBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Próximo mês"
+            accessibilityState={{ disabled: isCurrentMonth }}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color={isCurrentMonth ? theme.colors.borderStrong : theme.colors.textSecondary}
+            />
+          </TouchableOpacity>
         </View>
         <View style={styles.calWeekHeader}>
           {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((l, i) => (
@@ -485,7 +513,20 @@ const createStyles = (theme: Theme) =>
     listLabel: { ...theme.type.label, color: theme.colors.textMuted, marginBottom: Spacing.sm },
 
     // Calendário mensal
-    calHeaderRow: { alignItems: 'center', marginBottom: Spacing.md },
+    calHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.md,
+    },
+    calNavBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surfaceAlt,
+    },
     calMonthTitle: { ...theme.type.subtitle, color: theme.colors.textPrimary },
     calWeekHeader: { flexDirection: 'row', marginBottom: Spacing.xs },
     calWeekDay: {
