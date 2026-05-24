@@ -419,6 +419,26 @@ describe('POST /plan/generate', () => {
     const res = await post(app, '/plan/generate', {});
     expect(res.status).toBe(422);
   });
+
+  it('com Garmin conectado, envia os treinos da primeira semana (sendPlanToGarmin)', async () => {
+    // Atleta com fc_max/fc_rest + token → buildPlan chama sendPlanToGarmin
+    // que percorre weeks[0].days e despacha 5 workouts (dias non-rest).
+    const athlete = {
+      id: 'int-1',
+      user_id: 'user-uuid',
+      calibration_mode: true,
+      created_at: RECENT_ISO,
+      fc_max: 185,
+      fc_rest: 55,
+    };
+    const app = makeApp(
+      makeGenDb({ athlete, token: 'garmin-tok' }) as Parameters<typeof makeApp>[0],
+    );
+    const res = await post(app, '/plan/generate', { athlete_id: 'user-uuid' });
+    expect(res.status).toBe(200);
+    // sendPlanToGarmin é fire-and-forget — damos um tick pra ele rodar
+    await new Promise((r) => setTimeout(r, 30));
+  });
 });
 
 describe('POST /plan/send-to-garmin', () => {

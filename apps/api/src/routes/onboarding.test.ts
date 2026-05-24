@@ -78,6 +78,20 @@ function post(app: AnyElysia, path: string, body: object) {
   );
 }
 
+function get(app: AnyElysia, path: string) {
+  return app.handle(new Request(`http://localhost${path}`));
+}
+
+function patch(app: AnyElysia, path: string, body: object) {
+  return app.handle(
+    new Request(`http://localhost${path}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
 const VALID_PROFILE = {
   athlete_id: 'user-uuid',
   birth_year: 1990,
@@ -86,6 +100,30 @@ const VALID_PROFILE = {
   weekly_frequency: '3x',
   timezone: 'America/Recife',
 } as const;
+
+// ── GET /onboarding/profile-status ────────────────────────────────────────────
+
+describe('GET /onboarding/profile-status', () => {
+  it('retorna profile_complete=true quando atleta existe no banco', async () => {
+    const app = makeApp(makeMockDb({ athleteSelectData: { id: 'athlete-id' } }));
+    const res = await get(app, '/onboarding/profile-status?athlete_id=user-uuid');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ profile_complete: true });
+  });
+
+  it('retorna profile_complete=false quando atleta não existe', async () => {
+    const app = makeApp(makeMockDb({ athleteSelectData: null }));
+    const res = await get(app, '/onboarding/profile-status?athlete_id=user-uuid');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ profile_complete: false });
+  });
+
+  it('retorna 422 quando athlete_id ausente', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await get(app, '/onboarding/profile-status');
+    expect(res.status).toBe(422);
+  });
+});
 
 // ── POST /onboarding/profile ──────────────────────────────────────────────────
 
@@ -187,6 +225,80 @@ describe('POST /onboarding/goal', () => {
       athlete_id: 'user-uuid',
       goal_mode: 'invalid',
     });
+    expect(res.status).toBe(422);
+  });
+});
+
+// ── PATCH /onboarding/profile ─────────────────────────────────────────────────
+
+describe('PATCH /onboarding/profile', () => {
+  it('retorna { ok: true } quando atualiza weekly_frequency', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await patch(app, '/onboarding/profile', {
+      athlete_id: 'user-uuid',
+      weekly_frequency: '4x',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('retorna { ok: true } quando atualiza só timezone', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await patch(app, '/onboarding/profile', {
+      athlete_id: 'user-uuid',
+      timezone: 'America/Sao_Paulo',
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('retorna { ok: true } sem fazer update quando nada é informado (no-op)', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await patch(app, '/onboarding/profile', { athlete_id: 'user-uuid' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('retorna 500 quando update falha', async () => {
+    const app = makeApp(
+      makeMockDb({ athleteUpdateError: { message: 'connection error', code: '08000' } }),
+    );
+    const res = await patch(app, '/onboarding/profile', {
+      athlete_id: 'user-uuid',
+      weekly_frequency: '5x',
+    });
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── POST /onboarding/zones ────────────────────────────────────────────────────
+
+describe('POST /onboarding/zones', () => {
+  it('retorna { ok: true } quando atualiza fc_max e fc_rest', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await post(app, '/onboarding/zones', {
+      athlete_id: 'user-uuid',
+      fc_max: 185,
+      fc_rest: 55,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it('retorna 500 quando update de zonas falha', async () => {
+    const app = makeApp(
+      makeMockDb({ athleteUpdateError: { message: 'connection error', code: '08000' } }),
+    );
+    const res = await post(app, '/onboarding/zones', {
+      athlete_id: 'user-uuid',
+      fc_max: 185,
+      fc_rest: 55,
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it('retorna 422 para body inválido (fc_max ausente)', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await post(app, '/onboarding/zones', { athlete_id: 'user-uuid', fc_rest: 55 });
     expect(res.status).toBe(422);
   });
 });

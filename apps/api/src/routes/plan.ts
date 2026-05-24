@@ -8,9 +8,12 @@ import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
-const SYNC_TIMEOUT_MS = 30_000;
+const DEFAULT_SYNC_TIMEOUT_MS = 30_000;
 
-export function createPlanPlugin(db: Db = defaultSupabase) {
+export function createPlanPlugin(
+  db: Db = defaultSupabase,
+  syncTimeoutMs = DEFAULT_SYNC_TIMEOUT_MS,
+) {
   return new Elysia({ prefix: '/plan' })
     .get(
       '/current',
@@ -64,7 +67,7 @@ export function createPlanPlugin(db: Db = defaultSupabase) {
         const internalId = (athlete as { id: string }).id;
 
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT')), SYNC_TIMEOUT_MS),
+          setTimeout(() => reject(new Error('TIMEOUT')), syncTimeoutMs),
         );
 
         const planPromise = buildPlan(internalId, athlete as Record<string, unknown>, db);
