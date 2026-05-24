@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { generatePlan } from '../claude/client';
 import { supabase as defaultSupabase } from '../db/client';
 import { garminClient } from '../garmin/client';
+import { classifySport } from '../garmin/sport';
 import { buildGarminWorkout, planDayDate } from '../garmin/workoutBuilder';
 import { evaluateCalibration } from '../lib/calibration';
 import { logger } from '../lib/logger';
@@ -381,7 +382,9 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
   const [workoutsResult, metricsHistoryResult] = await Promise.all([
     db
       .from('workouts')
-      .select('date, sport, distance_m, duration_s, avg_hr, rtss, rpe')
+      .select(
+        'date, distance_m, duration_s, avg_hr, rtss, rpe, type_key:raw_payload->activityType->>typeKey',
+      )
       .eq('athlete_id', internalId)
       .order('date', { ascending: false })
       .limit(30),
@@ -396,6 +399,13 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
   const metricsHistory = ((metricsHistoryResult.data ?? []) as Record<string, unknown>[]).reverse();
   const latestMetrics = metricsHistory.at(-1) ?? null;
 
+  // Deriva o esporte do typeKey (sem coluna) pro briefing distinguir corrida
+  // de cross-training no cálculo de volume.
+  const recentWorkouts = ((workoutsResult.data ?? []) as Record<string, unknown>[]).map((w) => ({
+    ...w,
+    sport: classifySport(w.type_key as string | null),
+  }));
+
   // US-017: reavalia (e persiste) calibração antes de gerar — garante que o
   // prompt receba o estado correto mesmo sem um sync Garmin recente.
   const { calibrationMode } = await evaluateCalibration(db, internalId, {
@@ -405,7 +415,7 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
   const result = await generatePlan({
     athleteId: internalId,
     profile: athlete,
-    recentWorkouts: (workoutsResult.data ?? []) as Record<string, unknown>[],
+    recentWorkouts,
     metrics: latestMetrics,
     metricsHistory,
     calibrationMode,

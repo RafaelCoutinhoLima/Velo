@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { supabase } from '../db/client';
 import { garminClient } from '../garmin/client';
+import { classifySport } from '../garmin/sport';
 import { logger } from '../lib/logger';
 
 export const workoutRoutes = new Elysia({ prefix: '/workouts' })
@@ -20,13 +21,21 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
 
       const { data, error } = await supabase
         .from('workouts')
-        .select('id, date, sport, distance_m, duration_s, avg_hr, rtss, rpe')
+        .select(
+          'id, date, distance_m, duration_s, avg_hr, rtss, rpe, type_key:raw_payload->activityType->>typeKey',
+        )
         .eq('athlete_id', (athlete as { id: string }).id)
         .order('date', { ascending: false })
         .limit(limit);
 
       if (error) throw new Error('Falha ao buscar treinos');
-      return { workouts: data ?? [] };
+
+      // Deriva o esporte do typeKey (sem coluna dedicada) e remove o campo cru.
+      const workouts = ((data ?? []) as Array<Record<string, unknown>>).map((w) => {
+        const { type_key, ...rest } = w;
+        return { ...rest, sport: classifySport(type_key as string | null) };
+      });
+      return { workouts };
     },
     {
       query: t.Object({
@@ -41,7 +50,7 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
       const { id } = params;
       const { data, error } = await supabase
         .from('workouts')
-        .select('id, date, sport, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
+        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
         .eq('id', id)
         .single();
 
@@ -56,7 +65,9 @@ export const workoutRoutes = new Elysia({ prefix: '/workouts' })
       const workout = {
         id: data.id,
         date: data.date,
-        sport: data.sport ?? 'run',
+        sport: classifySport(
+          (raw.activityType as { typeKey?: string } | undefined)?.typeKey ?? null,
+        ),
         distance_m: data.distance_m,
         duration_s: data.duration_s,
         avg_hr: data.avg_hr,

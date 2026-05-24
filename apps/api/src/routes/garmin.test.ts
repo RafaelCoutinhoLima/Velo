@@ -534,7 +534,7 @@ describe('POST /garmin/sync', () => {
       {
         garmin_id: 'bike-1',
         date: '2026-05-02',
-        sport: 'bike',
+        type_key: 'virtual_ride',
         distance_m: 40000,
         duration_s: 7200,
         avg_hr: 140,
@@ -543,7 +543,7 @@ describe('POST /garmin/sync', () => {
       {
         garmin_id: 'swim-1',
         date: '2026-05-04',
-        sport: 'swim',
+        type_key: 'lap_swimming',
         distance_m: 1500,
         duration_s: 2400,
         avg_hr: 130,
@@ -565,7 +565,7 @@ describe('POST /garmin/sync', () => {
       {
         garmin_id: 'run-am',
         date: '2026-05-05',
-        sport: 'run',
+        type_key: 'treadmill_running',
         distance_m: 6000,
         duration_s: 1800,
         avg_hr: 150,
@@ -574,7 +574,7 @@ describe('POST /garmin/sync', () => {
       {
         garmin_id: 'bike-pm',
         date: '2026-05-05',
-        sport: 'bike',
+        type_key: 'cycling',
         distance_m: 30000,
         duration_s: 5400,
         avg_hr: 135,

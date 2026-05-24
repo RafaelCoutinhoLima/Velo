@@ -8,6 +8,7 @@ import {
 } from '@fitsync/metrics';
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
+import { classifySport } from '../garmin/sport';
 import { evaluateCalibration } from '../lib/calibration';
 import { logger } from '../lib/logger';
 
@@ -119,12 +120,13 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
             athlete_id: internalId,
             garmin_id: act.garmin_id,
             date: act.date,
-            sport: typeof act.sport === 'string' ? act.sport : 'run',
             distance_m: act.distance_m,
             duration_s: act.duration_s,
             avg_hr: act.avg_hr ?? null,
+            // raw_payload guarda activityType.typeKey → esporte derivado na
+            // leitura (sem coluna dedicada, sem migração de banco).
             raw_payload: act.raw,
-            // rtss zerado força recálculo (sport pode ter mudado a fórmula)
+            // rtss zerado força recálculo (fórmula depende do esporte)
             rtss: null,
           };
           if (importedRpe !== null) row.rpe = importedRpe;
@@ -160,7 +162,7 @@ export const garminRoutes = createGarminPlugin();
 type WorkoutRow = {
   garmin_id: string;
   date: string;
-  sport: string | null;
+  type_key: string | null; // raw_payload->activityType->>typeKey (derivamos o esporte daqui)
   distance_m: number;
   duration_s: number;
   avg_hr: number | null;
@@ -175,7 +177,7 @@ type AthleteHr = { fc_max: number | null; fc_rest: number | null; sex: string | 
 //  - sem nada disso → estimativa por duração (1 carga/min, piso de segurança)
 // Mantém a carga comparável entre esportes pra somar no ACWR/CTL/ATL.
 function workoutLoad(w: WorkoutRow, ftpPace: number, hr: AthleteHr): number {
-  const sport = w.sport ?? 'run';
+  const sport = classifySport(w.type_key);
   if (sport === 'run' && w.distance_m > 0 && w.duration_s > 0) {
     return calculateRTSS(
       {
@@ -199,7 +201,9 @@ function workoutLoad(w: WorkoutRow, ftpPace: number, hr: AthleteHr): number {
 async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
   const { data: workouts } = (await db
     .from('workouts')
-    .select('garmin_id, date, sport, distance_m, duration_s, avg_hr, rtss')
+    .select(
+      'garmin_id, date, distance_m, duration_s, avg_hr, rtss, type_key:raw_payload->activityType->>typeKey',
+    )
     .eq('athlete_id', athleteId)
     .order('date', { ascending: true })
     .limit(90)) as { data: WorkoutRow[] | null };
@@ -215,7 +219,7 @@ async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
   const hr: AthleteHr = athleteHr ?? { fc_max: null, fc_rest: null, sex: null };
 
   // FTP pace estimado SÓ das corridas (pace de bike/natação não faz sentido).
-  const runs = workouts.filter((w) => (w.sport ?? 'run') === 'run');
+  const runs = workouts.filter((w) => classifySport(w.type_key) === 'run');
   const ftpPace = estimateFtpPace(runs);
 
   // Agrega carga por DIA (soma todos os esportes do mesmo dia). Crucial: as
