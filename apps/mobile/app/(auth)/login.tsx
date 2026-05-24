@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, TextInput,
+  View, Text, TouchableOpacity, StyleSheet,
   ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, Type } from '../../lib/theme';
 import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
 import { ErrorCard } from '../../components/ErrorCard';
 
 export default function LoginScreen() {
@@ -108,8 +110,11 @@ export default function LoginScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ── Hero ── */}
         <View style={styles.hero}>
-          <Text style={styles.logo}>⚡</Text>
+          <View style={styles.logoBadge}>
+            <Ionicons name="flash" size={38} color={Colors.onAccent} />
+          </View>
           <Text style={styles.title}>FitSync AI</Text>
           <Text style={styles.subtitle}>Seu plano de corrida com IA adaptativa</Text>
         </View>
@@ -127,6 +132,7 @@ export default function LoginScreen() {
           variant="secondary"
           loading={loading}
           style={styles.socialBtn}
+          icon={<Ionicons name="logo-google" size={18} color={Colors.textPrimary} />}
           accessibilityLabel="Entrar com Google"
         />
 
@@ -135,8 +141,8 @@ export default function LoginScreen() {
         {Platform.OS === 'ios' ? (
           <AppleAuthentication.AppleAuthenticationButton
             buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={Radii.md}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            cornerRadius={Radii.full}
             style={styles.appleBtn}
             onPress={loginWithApple}
           />
@@ -154,25 +160,21 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         {showEmailForm && (
-          <View style={[styles.emailForm, Shadow.card]}>
-            <TextInput
-              style={styles.input}
+          <View style={styles.emailForm}>
+            <Input
               placeholder="E-mail"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
               autoCorrect={false}
-              placeholderTextColor={Colors.textMuted}
               accessibilityLabel="Campo e-mail"
             />
-            <TextInput
-              style={styles.input}
+            <Input
               placeholder="Senha"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              placeholderTextColor={Colors.textMuted}
               accessibilityLabel="Campo senha"
             />
             <Button
@@ -200,11 +202,35 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.lg, paddingTop: Spacing.xxl + Spacing.xl, paddingBottom: Spacing.xl, flexGrow: 1 },
+  content: {
+    padding: Spacing.lg,
+    paddingTop: Spacing.xxl + Spacing.xl,
+    paddingBottom: Spacing.xl,
+    flexGrow: 1,
+  },
   hero: { alignItems: 'center', marginBottom: Spacing.xl },
-  logo: { fontSize: 56, marginBottom: Spacing.sm },
-  title: { fontSize: FontSize['4xl'], fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.5 },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, marginTop: Spacing.sm, textAlign: 'center' },
+  logoBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: Radii.xl,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  title: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: FontSize['4xl'],
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+    letterSpacing: Tracking.tight,
+  },
+  subtitle: {
+    ...Type.body,
+    color: Colors.textMuted,
+    marginTop: Spacing.xs,
+    textAlign: 'center',
+  },
   errorWrap: { marginBottom: Spacing.md },
   socialBtn: { marginBottom: Spacing.sm },
   appleBtn: { width: '100%', height: 52, marginBottom: Spacing.sm },
@@ -214,33 +240,24 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   emailToggleText: {
-    color: Colors.primary,
+    fontFamily: Fonts.bodySemiBold,
+    color: Colors.accent,
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
   },
   emailForm: {
     backgroundColor: Colors.surface,
     borderRadius: Radii.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    gap: Spacing.sm,
-  },
-  input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radii.md,
     padding: Spacing.md,
-    fontSize: FontSize.md,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.bg,
-    minHeight: 50,
+    marginBottom: Spacing.md,
   },
   disclaimer: {
+    ...Type.bodySm,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 'auto',
     paddingTop: Spacing.lg,
-    lineHeight: 16,
   },
 });

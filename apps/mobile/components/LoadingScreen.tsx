@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Colors, FontSize, FontWeight, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Spacing } from '../lib/theme';
 
 interface LoadingScreenProps {
   message?: string;
@@ -26,6 +26,7 @@ const styles = StyleSheet.create({
   },
   message: {
     marginTop: Spacing.md,
+    fontFamily: Fonts.bodySemiBold,
     fontSize: FontSize.lg,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
@@ -33,6 +34,7 @@ const styles = StyleSheet.create({
   },
   subMessage: {
     marginTop: Spacing.sm,
+    fontFamily: Fonts.body,
     fontSize: FontSize.sm,
     color: Colors.textMuted,
     textAlign: 'center',

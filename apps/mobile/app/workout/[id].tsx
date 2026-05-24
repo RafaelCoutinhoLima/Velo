@@ -8,13 +8,17 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
-
-const LIGHT = '300' as const;
+import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, Type } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
+
+const PT_WEEKDAYS_FULL = [
+  'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+  'Quinta-feira', 'Sexta-feira', 'Sábado',
+];
 
 const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   easy:     { label: 'Regenerativo', color: Colors.workoutEasy },
@@ -48,13 +52,17 @@ function formatDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function weekday(iso: string): string {
+  return PT_WEEKDAYS_FULL[new Date(`${iso}T12:00:00`).getDay()] ?? '';
+}
+
 function formatDuration(totalS: number): string {
   const h = Math.floor(totalS / 3600);
   const m = Math.floor((totalS % 3600) / 60);
   const s = totalS % 60;
   if (h > 0) return `${h}h${String(m).padStart(2, '0')}`;
   if (s > 0) return `${m}m${String(s).padStart(2, '0')}s`;
-  return `${m}min`;
+  return `${m}`;
 }
 
 interface Workout {
@@ -78,27 +86,49 @@ interface Workout {
   description?: string;
 }
 
-function StatBox({ value, label, highlight }: { value: string; label: string; highlight?: boolean }) {
+// Painel grande dividido em duas métricas (Distância | Duração).
+function SplitPanel({
+  left,
+  right,
+}: {
+  left: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
+  right: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
+}) {
   return (
-    <View style={styles.statBox}>
-      <Text style={[styles.statValue, highlight && styles.statValueHighlight]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.splitPanel}>
+      <View style={styles.splitSide}>
+        <View style={styles.splitLabelRow}>
+          <Ionicons name={left.icon} size={15} color={Colors.accent} />
+          <Text style={styles.splitLabel}>{left.label}</Text>
+        </View>
+        <Text style={styles.splitValue}>
+          {left.value}
+          <Text style={styles.splitUnit}> {left.unit}</Text>
+        </Text>
+      </View>
+      <View style={styles.splitDivider} />
+      <View style={[styles.splitSide, { alignItems: 'flex-end' }]}>
+        <View style={styles.splitLabelRow}>
+          <Ionicons name={right.icon} size={15} color={Colors.accent} />
+          <Text style={styles.splitLabel}>{right.label}</Text>
+        </View>
+        <Text style={styles.splitValue}>
+          {right.value}
+          <Text style={styles.splitUnit}> {right.unit}</Text>
+        </Text>
+      </View>
     </View>
   );
 }
 
-function MetricRow({ items }: { items: { icon: string; value: string; label: string }[] }) {
+function GridStat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
   return (
-    <View style={styles.metricRow}>
-      {items.map((item) => (
-        <View key={item.label} style={styles.metricItem}>
-          <Text style={styles.metricIcon}>{item.icon}</Text>
-          <View>
-            <Text style={styles.metricValue}>{item.value}</Text>
-            <Text style={styles.metricLabel}>{item.label}</Text>
-          </View>
-        </View>
-      ))}
+    <View style={styles.gridStat}>
+      <Ionicons name={icon} size={18} color={Colors.textMuted} />
+      <View>
+        <Text style={styles.gridValue}>{value}</Text>
+        <Text style={styles.gridLabel}>{label}</Text>
+      </View>
     </View>
   );
 }
@@ -106,39 +136,11 @@ function MetricRow({ items }: { items: { icon: string; value: string; label: str
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const session = useAuthStore((s) => s.session);
-  const { get, post, patch } = useApi();
-  const insets = { top: Spacing.xl, bottom: Spacing.md };
+  const { get, patch } = useApi();
 
   const [rpe, setRpe] = useState<number | null>(null);
   const [savingRpe, setSavingRpe] = useState(false);
   const [rpeError, setRpeError] = useState<string | null>(null);
-
-  const [fbStatus, setFbStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [fbError, setFbError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{
-    texto_principal: string;
-    destaque_positivo?: string;
-    sugestao?: string;
-    emoji_resumo?: string;
-  } | null>(null);
-
-  async function loadFeedback() {
-    setFbStatus('loading');
-    setFbError(null);
-    try {
-      const res = await post<{
-        texto_principal: string;
-        destaque_positivo?: string;
-        sugestao?: string;
-        emoji_resumo?: string;
-      }>('/feedback', { workout_id: id, athlete_id: session?.athlete_id });
-      setFeedback(res);
-      setFbStatus('done');
-    } catch (e: unknown) {
-      setFbStatus('error');
-      setFbError(e instanceof Error ? e.message : 'Não conseguimos gerar o feedback.');
-    }
-  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['workout', id],
@@ -163,22 +165,27 @@ export default function WorkoutDetailScreen() {
     }
   }
 
-  const headerStyle = { paddingTop: insets.top + Spacing.sm };
+  function BackButton() {
+    return (
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel="Voltar"
+      >
+        <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+      </TouchableOpacity>
+    );
+  }
 
   if (isLoading) return <LoadingScreen message="Carregando treino..." />;
 
   if (isError || !data?.workout) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <TouchableOpacity
-          style={styles.backBar}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-        >
-          <Text style={styles.backArrow}>‹</Text>
-          <Text style={styles.backLabel}>Voltar</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <BackButton />
+        </View>
         <View style={styles.content}>
           <ErrorCard message="Treino não encontrado ou falha ao carregar." />
         </View>
@@ -189,138 +196,121 @@ export default function WorkoutDetailScreen() {
   const w = data.workout;
   const typeConfig = TYPE_CONFIG[w.type ?? 'easy'] ?? TYPE_CONFIG.easy;
   const distKm = w.distance_m > 0 ? (w.distance_m / 1000).toFixed(1) : '—';
+  const heroTitle = (w.activity_name?.trim() || typeConfig.label).toUpperCase();
 
   return (
     <View style={styles.container}>
-      {/* ── Back bar ── */}
-      <TouchableOpacity
-        style={[styles.backBar, headerStyle]}
-        onPress={() => router.back()}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Voltar para histórico"
-      >
-        <Text style={styles.backArrow}>‹</Text>
-        <Text style={styles.backLabel}>Voltar</Text>
-      </TouchableOpacity>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <BackButton />
+        <View style={[styles.typePill, { backgroundColor: typeConfig.color }]}>
+          <Text style={styles.typePillText}>{typeConfig.label}</Text>
+        </View>
+      </View>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero header ── */}
-        <View style={[styles.heroCard, Shadow.card, { borderLeftColor: typeConfig.color }]}>
-          <View style={styles.heroTop}>
-            <View style={[styles.typePill, { backgroundColor: typeConfig.color + '20' }]}>
-              <View style={[styles.typeDot, { backgroundColor: typeConfig.color }]} />
-              <Text style={[styles.typePillText, { color: typeConfig.color }]}>
-                {typeConfig.label.toUpperCase()}
-              </Text>
+        {/* ── Hero ── */}
+        <View style={styles.hero}>
+          <View style={styles.heroPills}>
+            <Text style={styles.datePill}>{weekday(w.date)}</Text>
+            <Text style={styles.datePillMuted}>{formatDate(w.date)}</Text>
+          </View>
+          <Text style={styles.heroTitle}>{heroTitle}</Text>
+          {w.location ? (
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={15} color={Colors.textMuted} />
+              <Text style={styles.locationText}>{w.location}</Text>
             </View>
-            {w.rtss != null && (
-              <View style={styles.rtssChip}>
-                <Text style={styles.rtssText}>{w.rtss.toFixed(1)} rTSS</Text>
-              </View>
-            )}
-          </View>
-
-          {w.activity_name ? (
-            <Text style={styles.activityName}>{w.activity_name}</Text>
           ) : null}
+        </View>
 
-          <View style={styles.heroMeta}>
-            <Text style={styles.heroDate}>{formatDate(w.date)}</Text>
-            {w.location ? <Text style={styles.heroSep}>·</Text> : null}
-            {w.location ? <Text style={styles.heroLocation}>📍 {w.location}</Text> : null}
+        {/* ── Distância | Duração ── */}
+        <SplitPanel
+          left={{ icon: 'map-outline', label: 'Distância', value: distKm, unit: 'km' }}
+          right={{
+            icon: 'timer-outline',
+            label: 'Duração',
+            value: w.duration_s > 0 ? formatDuration(w.duration_s) : '—',
+            unit: w.duration_s >= 3600 ? '' : 'min',
+          }}
+        />
+
+        {/* ── FC média (destaque) ── */}
+        <View style={styles.hrPanel}>
+          <Ionicons name="heart" size={34} color={Colors.danger} />
+          <Text style={styles.hrValue}>
+            {w.avg_hr != null ? w.avg_hr : '—'}
+            <Text style={styles.hrUnit}>  BPM Médio</Text>
+          </Text>
+        </View>
+
+        {/* ── Grade de métricas ── */}
+        <View style={styles.gridCard}>
+          <View style={styles.gridRow}>
+            <GridStat
+              icon="speedometer-outline"
+              value={w.avg_pace_s ? `${formatPace(w.avg_pace_s)}/km` : '—'}
+              label="Pace médio"
+            />
+            <GridStat
+              icon="heart-outline"
+              value={w.max_hr != null ? `${w.max_hr} bpm` : '—'}
+              label="FC máxima"
+            />
           </View>
-        </View>
-
-        {/* ── Hero stats: distance · pace · duration ── */}
-        <View style={[styles.statsHero, Shadow.card]}>
-          <StatBox value={`${distKm}`} label="km" />
-          <View style={styles.statDivider} />
-          <StatBox
-            value={w.avg_pace_s ? formatPace(w.avg_pace_s) : '—'}
-            label="pace médio"
-            highlight
-          />
-          <View style={styles.statDivider} />
-          <StatBox
-            value={w.duration_s > 0 ? formatDuration(w.duration_s) : '—'}
-            label="tempo"
-          />
-        </View>
-
-        {/* ── Metrics grid ── */}
-        <View style={[styles.metricsCard, Shadow.card]}>
-          <MetricRow
-            items={[
-              {
-                icon: '♥',
-                value: w.avg_hr != null ? `${w.avg_hr} bpm` : '—',
-                label: 'FC média',
-              },
-              {
-                icon: '♥',
-                value: w.max_hr != null ? `${w.max_hr} bpm` : '—',
-                label: 'FC máx',
-              },
-            ]}
-          />
-          <View style={styles.metricDivider} />
-          <MetricRow
-            items={[
-              {
-                icon: '🔥',
-                value: w.calories != null ? `${w.calories} kcal` : '—',
-                label: 'Calorias',
-              },
-              {
-                icon: '👣',
-                value: w.steps != null ? w.steps.toLocaleString('pt-BR') : '—',
-                label: 'Passos',
-              },
-            ]}
-          />
-          <View style={styles.metricDivider} />
-          <MetricRow
-            items={[
-              {
-                icon: '↑',
-                value: w.elevation_gain != null ? `${w.elevation_gain}m` : '—',
-                label: 'Ganho alt.',
-              },
-              {
-                icon: '↓',
-                value: w.elevation_loss != null ? `${w.elevation_loss}m` : '—',
-                label: 'Perda alt.',
-              },
-            ]}
-          />
-          {w.vo2max != null && (
+          <View style={styles.gridSep} />
+          <View style={styles.gridRow}>
+            <GridStat
+              icon="flame-outline"
+              value={w.calories != null ? `${w.calories}` : '—'}
+              label="Calorias"
+            />
+            <GridStat
+              icon="footsteps-outline"
+              value={w.steps != null ? w.steps.toLocaleString('pt-BR') : '—'}
+              label="Passos"
+            />
+          </View>
+          {(w.elevation_gain != null || w.vo2max != null || w.rtss != null) ? (
             <>
-              <View style={styles.metricDivider} />
-              <MetricRow
-                items={[
-                  { icon: '🫁', value: `${w.vo2max}`, label: 'VO₂ máx estimado' },
-                ]}
-              />
+              <View style={styles.gridSep} />
+              <View style={styles.gridRow}>
+                <GridStat
+                  icon="trending-up-outline"
+                  value={w.elevation_gain != null ? `${w.elevation_gain} m` : '—'}
+                  label="Ganho de altitude"
+                />
+                <GridStat
+                  icon="pulse-outline"
+                  value={
+                    w.rtss != null
+                      ? `${w.rtss.toFixed(0)} rTSS`
+                      : w.vo2max != null
+                        ? `${w.vo2max}`
+                        : '—'
+                  }
+                  label={w.rtss != null ? 'Carga (rTSS)' : 'VO₂ máx'}
+                />
+              </View>
             </>
-          )}
+          ) : null}
         </View>
 
-        {/* ── RPE (opcional) ── */}
-        <View style={[styles.rpeCard, Shadow.card]}>
-          <Text style={styles.rpeTitle}>Esforço percebido (opcional)</Text>
-          <Text style={styles.rpeSub}>
+        {/* ── RPE ── */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Esforço percebido</Text>
+          <Text style={styles.cardSub}>
             Como você sentiu esse treino? Ajuda a calibrar seu plano.
           </Text>
-          {rpe != null && (
+          {rpe != null ? (
             <Text style={[styles.rpeSelected, { color: rpeColor(rpe) }]}>
               {rpe} — {RPE_LABELS[rpe]}
             </Text>
-          )}
+          ) : null}
           <View style={styles.rpeRow}>
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <TouchableOpacity
@@ -351,56 +341,23 @@ export default function WorkoutDetailScreen() {
         </View>
 
         {/* ── Feedback do treinador ── */}
-        <View style={[styles.coachCard, Shadow.card]}>
-          <Text style={styles.coachTitle}>Feedback do treinador</Text>
-          {fbStatus === 'done' && feedback ? (
-            <>
-              <Text style={styles.coachText}>
-                {feedback.emoji_resumo ? `${feedback.emoji_resumo} ` : ''}
-                {feedback.texto_principal}
-              </Text>
-              {feedback.destaque_positivo ? (
-                <View style={styles.coachHighlight}>
-                  <Text style={styles.coachHighlightText}>✅ {feedback.destaque_positivo}</Text>
-                </View>
-              ) : null}
-              {feedback.sugestao ? (
-                <View style={styles.coachSuggestion}>
-                  <Text style={styles.coachSuggestionText}>💡 {feedback.sugestao}</Text>
-                </View>
-              ) : null}
-            </>
-          ) : fbStatus === 'error' ? (
-            <>
-              <ErrorCard message={fbError ?? 'Não conseguimos gerar o feedback.'} />
-              <TouchableOpacity
-                style={styles.coachBtn}
-                onPress={loadFeedback}
-                accessibilityRole="button"
-                accessibilityLabel="Tentar gerar o feedback novamente"
-              >
-                <Text style={styles.coachBtnText}>Tentar novamente</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.coachSub}>
-                Receba uma análise personalizada deste treino com base no seu pace, FC e histórico.
-              </Text>
-              <TouchableOpacity
-                style={[styles.coachBtn, fbStatus === 'loading' && styles.coachBtnDisabled]}
-                onPress={loadFeedback}
-                disabled={fbStatus === 'loading'}
-                accessibilityRole="button"
-                accessibilityLabel="Ver feedback do treinador para este treino"
-                accessibilityState={{ busy: fbStatus === 'loading' }}
-              >
-                <Text style={styles.coachBtnText}>
-                  {fbStatus === 'loading' ? 'Analisando seu treino…' : 'Ver feedback do treinador'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+        <View style={styles.coachCard}>
+          <View style={styles.coachHead}>
+            <Ionicons name="sparkles" size={18} color={Colors.accent} />
+            <Text style={styles.coachLabel}>Feedback do treinador</Text>
+          </View>
+          <Text style={styles.cardSub}>
+            Receba uma análise personalizada deste treino com base no seu pace, FC e histórico.
+          </Text>
+          <TouchableOpacity
+            style={styles.coachBtn}
+            onPress={() => router.push(`/feedback/${id}` as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Ver feedback do treinador para este treino"
+          >
+            <Text style={styles.coachBtnText}>Ver feedback do treinador</Text>
+            <Ionicons name="arrow-forward" size={16} color={Colors.accent} />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -409,188 +366,197 @@ export default function WorkoutDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  backBar: {
+
+  // Header
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.md,
     paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xl + Spacing.xs,
     paddingBottom: Spacing.sm,
-    gap: 4,
-    minHeight: 52,
-    backgroundColor: Colors.bg,
   },
-  backArrow: {
-    fontSize: 32,
-    color: Colors.primary,
-    fontWeight: LIGHT,
-    lineHeight: 36,
-    marginTop: -2,
-  },
-  backLabel: {
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    fontWeight: FontWeight.semibold,
-  },
-  scroll: { flex: 1 },
-  content: { padding: Spacing.md, gap: Spacing.sm },
-
-  // Hero header
-  heroCard: {
-    backgroundColor: Colors.surface,
+  backBtn: {
+    width: 44,
+    height: 44,
     borderRadius: Radii.md,
-    padding: Spacing.md,
-    borderLeftWidth: 4,
-    gap: Spacing.xs,
-  },
-  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  typePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-  },
-  typeDot: { width: 8, height: 8, borderRadius: Radii.full },
-  typePillText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, letterSpacing: 0.5 },
-  rtssChip: {
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-  },
-  rtssText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.bold },
-  activityName: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-    marginTop: Spacing.xs,
-  },
-  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  heroDate: { fontSize: FontSize.sm, color: Colors.textMuted },
-  heroSep: { fontSize: FontSize.sm, color: Colors.border },
-  heroLocation: { fontSize: FontSize.sm, color: Colors.textMuted },
-
-  // Hero stats
-  statsHero: {
     backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  statBox: { alignItems: 'center', flex: 1 },
-  statValue: {
-    fontSize: FontSize['2xl'],
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
-  },
-  statValueHighlight: { color: Colors.primary },
-  statLabel: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  statDivider: { width: 1, height: 36, backgroundColor: Colors.border },
-
-  // Metrics grid
-  metricsCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  metricRow: { flexDirection: 'row', paddingVertical: Spacing.sm },
-  metricItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  metricIcon: { fontSize: 20, width: 28, textAlign: 'center' },
-  metricValue: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textPrimary,
-  },
-  metricLabel: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 1 },
-  metricDivider: { height: 1, backgroundColor: Colors.border },
-
-  // RPE
-  rpeCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-  },
-  rpeTitle: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.bold,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  rpeSub: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    marginBottom: Spacing.sm,
-    lineHeight: 16,
-  },
-  rpeSelected: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    marginBottom: Spacing.sm,
-  },
-  rpeRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
-  rpeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: Radii.sm,
     borderWidth: 1.5,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.bg,
   },
-  rpeBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textMuted },
-  rpeBtnTextActive: { color: Colors.surface },
-  rpeStatus: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.sm },
-
-  // Feedback do treinador
-  coachCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.accent,
+  typePill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radii.sm,
   },
-  coachTitle: {
-    fontSize: FontSize.sm,
+  typePillText: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
+    color: Colors.onAccent,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+  },
+
+  scroll: { flex: 1 },
+  content: { padding: Spacing.md, gap: Spacing.md, paddingBottom: Spacing.xxl },
+
+  // Hero
+  hero: { gap: Spacing.sm },
+  heroPills: { flexDirection: 'row', gap: Spacing.sm },
+  datePill: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.onAccent,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: Radii.sm,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+    overflow: 'hidden',
+  },
+  datePillMuted: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  heroTitle: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: 42,
+    lineHeight: 46,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+    letterSpacing: Tracking.tight,
+    textTransform: 'uppercase',
+  },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { ...Type.bodySm, color: Colors.textMuted },
+
+  // Split panel
+  splitPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radii.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+  },
+  splitSide: { flex: 1, gap: Spacing.xs },
+  splitLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  splitLabel: {
+    fontFamily: Fonts.data,
+    fontSize: 11,
     color: Colors.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: Spacing.xs,
+    letterSpacing: Tracking.wide,
   },
-  coachSub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20, marginBottom: Spacing.md },
-  coachText: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 24 },
-  coachHighlight: {
-    backgroundColor: Colors.successLight,
-    borderRadius: Radii.sm,
-    padding: Spacing.sm,
-    marginTop: Spacing.sm,
+  splitValue: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: 34,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
   },
-  coachHighlightText: { fontSize: FontSize.sm, color: Colors.success, lineHeight: 20 },
-  coachSuggestion: {
-    backgroundColor: Colors.warningLight,
-    borderRadius: Radii.sm,
-    padding: Spacing.sm,
-    marginTop: Spacing.sm,
+  splitUnit: { fontFamily: Fonts.display, fontSize: FontSize.md, color: Colors.textMuted },
+  splitDivider: { width: 1, height: 48, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
+
+  // HR panel
+  hrPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.lg,
   },
-  coachSuggestionText: { fontSize: FontSize.sm, color: Colors.warning, lineHeight: 20 },
+  hrValue: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: 38,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+  },
+  hrUnit: { fontFamily: Fonts.display, fontSize: FontSize.md, color: Colors.textMuted },
+
+  // Metrics grid
+  gridCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+  },
+  gridRow: { flexDirection: 'row', paddingVertical: Spacing.sm },
+  gridStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  gridValue: { fontFamily: Fonts.data, fontSize: FontSize.md, color: Colors.textPrimary },
+  gridLabel: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 1 },
+  gridSep: { height: 1, backgroundColor: Colors.border },
+
+  // Generic card
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+  },
+  cardLabel: { ...Type.label, color: Colors.textMuted, marginBottom: 3 },
+  cardSub: { ...Type.bodySm, color: Colors.textSecondary, marginBottom: Spacing.md },
+
+  // RPE
+  rpeSelected: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, marginBottom: Spacing.sm },
+  rpeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  rpeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.full,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceAlt,
+  },
+  rpeBtnText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: Colors.textMuted },
+  rpeBtnTextActive: { color: Colors.onAccent },
+  rpeStatus: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: Spacing.sm },
+
+  // Coach card
+  coachCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.accent,
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: Colors.border,
+    borderRightColor: Colors.border,
+    borderBottomColor: Colors.border,
+    padding: Spacing.md,
+  },
+  coachHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+  coachLabel: { ...Type.label, color: Colors.accent },
   coachBtn: {
+    flexDirection: 'row',
     backgroundColor: Colors.accentLight,
-    borderRadius: Radii.md,
+    borderRadius: Radii.full,
     paddingVertical: Spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
-  coachBtnDisabled: { opacity: 0.6 },
-  coachBtnText: { color: Colors.accent, fontSize: FontSize.md, fontWeight: FontWeight.semibold },
+  coachBtnText: { fontFamily: Fonts.display, fontSize: FontSize.md, color: Colors.accent },
 });

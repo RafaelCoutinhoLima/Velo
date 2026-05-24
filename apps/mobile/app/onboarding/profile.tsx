@@ -11,11 +11,13 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, Type } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
+import { StepBar } from '../../components/StepBar';
 
 type Frequency = '2x' | '3x' | '4x' | '5x+';
 type Sex = 'M' | 'F';
@@ -25,131 +27,13 @@ const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => CURRENT_YEAR
 const ITEM_W = 72;
 const ITEM_GAP = 8;
 
-
-const STEPS = ['Perfil', 'Objetivo', 'Garmin', 'Pronto'];
-
-function StepBar({ current }: { current: number }) {
-  return (
-    <View style={sb.row}>
-      {STEPS.map((label, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <View key={label} style={sb.stepWrap}>
-            <View style={[sb.pill, done && sb.pillDone, active && sb.pillActive]}>
-              {done ? (
-                <Text style={sb.pillTextDone}>✓</Text>
-              ) : (
-                <Text style={[sb.pillNum, active && sb.pillNumActive]}>{i + 1}</Text>
-              )}
-            </View>
-            <Text style={[sb.label, active && sb.labelActive, done && sb.labelDone]}>{label}</Text>
-            {i < STEPS.length - 1 && <View style={[sb.connector, done && sb.connectorDone]} />}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-const sb = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    marginBottom: Spacing.xl,
-    gap: 0,
-  },
-  stepWrap: {
-    alignItems: 'center',
-    position: 'relative',
-    flex: 1,
-  },
-  pill: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    zIndex: 1,
-  },
-  pillActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary,
-  },
-  pillDone: {
-    borderColor: Colors.success,
-    backgroundColor: Colors.success,
-  },
-  pillNum: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: Colors.textMuted,
-  },
-  pillNumActive: {
-    color: Colors.surface,
-  },
-  pillTextDone: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: Colors.surface,
-  },
-  label: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    fontWeight: FontWeight.medium,
-    textAlign: 'center',
-  },
-  labelActive: {
-    color: Colors.primary,
-    fontWeight: FontWeight.bold,
-  },
-  labelDone: {
-    color: Colors.success,
-  },
-  connector: {
-    position: 'absolute',
-    top: 15,
-    right: '-50%',
-    left: '50%',
-    height: 2,
-    backgroundColor: Colors.border,
-    zIndex: 0,
-  },
-  connectorDone: {
-    backgroundColor: Colors.success,
-  },
-});
-
 function SectionCard({ children }: { children: React.ReactNode }) {
-  return <View style={[sc.card, Shadow.card]}>{children}</View>;
+  return <View style={styles.sectionCard}>{children}</View>;
 }
-const sc = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-});
 
 function SectionTitle({ children }: { children: string }) {
-  return <Text style={st.text}>{children}</Text>;
+  return <Text style={styles.sectionTitle}>{children}</Text>;
 }
-const st = StyleSheet.create({
-  text: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: Spacing.md,
-  },
-});
 
 function YearPicker({ value, onChange }: { value: number | null; onChange: (y: number) => void }) {
   const listRef = useRef<FlatList>(null);
@@ -163,9 +47,9 @@ function YearPicker({ value, onChange }: { value: number | null; onChange: (y: n
 
   return (
     <View>
-      <View style={yp.displayRow}>
-        <Text style={yp.displayValue}>{value ?? '—'}</Text>
-        <Text style={yp.displayUnit}>ano</Text>
+      <View style={styles.pickerDisplay}>
+        <Text style={styles.pickerValue}>{value ?? '—'}</Text>
+        <Text style={styles.pickerUnit}>ano</Text>
       </View>
       <FlatList
         ref={listRef}
@@ -179,13 +63,13 @@ function YearPicker({ value, onChange }: { value: number | null; onChange: (y: n
         keyExtractor={(y) => String(y)}
         renderItem={({ item: year, index }) => (
           <TouchableOpacity
-            style={[yp.item, value === year && yp.itemActive]}
+            style={[styles.yearItem, value === year && styles.yearItemActive]}
             onPress={() => handleSelect(year, index)}
             accessibilityRole="button"
             accessibilityLabel={`Ano ${year}`}
             accessibilityState={{ selected: value === year }}
           >
-            <Text style={[yp.itemText, value === year && yp.itemTextActive]}>{year}</Text>
+            <Text style={[styles.yearText, value === year && styles.yearTextActive]}>{year}</Text>
           </TouchableOpacity>
         )}
         contentContainerStyle={{ paddingHorizontal: Spacing.xs }}
@@ -193,31 +77,12 @@ function YearPicker({ value, onChange }: { value: number | null; onChange: (y: n
     </View>
   );
 }
-const yp = StyleSheet.create({
-  displayRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
-  displayValue: { fontSize: FontSize['4xl'], fontWeight: FontWeight.extrabold, color: Colors.primary },
-  displayUnit: { fontSize: FontSize.md, color: Colors.textMuted },
-  item: {
-    width: ITEM_W,
-    height: 44,
-    borderRadius: Radii.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: ITEM_GAP,
-    backgroundColor: Colors.bg,
-  },
-  itemActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  itemText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.medium },
-  itemTextActive: { color: Colors.surface, fontWeight: FontWeight.bold },
-});
 
 function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
   return (
-    <View style={wp.row}>
+    <View style={styles.weightRow}>
       <TextInput
-        style={wp.input}
+        style={styles.weightInput}
         value={value}
         onChangeText={onChange}
         keyboardType="decimal-pad"
@@ -226,24 +91,10 @@ function WeightPicker({ value, onChange }: { value: string; onChange: (w: string
         maxLength={6}
         accessibilityLabel="Peso em kg"
       />
-      <Text style={wp.unit}>kg</Text>
+      <Text style={styles.pickerUnit}>kg</Text>
     </View>
   );
 }
-const wp = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
-  input: {
-    fontSize: FontSize['4xl'],
-    fontWeight: FontWeight.extrabold,
-    color: Colors.primary,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.primary,
-    minWidth: 100,
-    paddingVertical: Spacing.xs,
-    textAlign: 'center',
-  },
-  unit: { fontSize: FontSize.md, color: Colors.textMuted },
-});
 
 const FREQ_LABELS: Record<Frequency, string> = {
   '2x': '2× por semana',
@@ -252,91 +103,44 @@ const FREQ_LABELS: Record<Frequency, string> = {
   '5x+': '5× ou mais',
 };
 
-function FreqPicker({ value, onChange }: { value: Frequency | null; onChange: (f: Frequency) => void }) {
-  const options: Frequency[] = ['2x', '3x', '4x', '5x+'];
+function OptionGrid<T extends string>({
+  options,
+  value,
+  onChange,
+  render,
+  labelFor,
+}: {
+  options: T[];
+  value: T | null;
+  onChange: (v: T) => void;
+  render: (opt: T, active: boolean) => React.ReactNode;
+  labelFor: (opt: T) => string;
+}) {
   return (
-    <View style={fp.grid}>
+    <View style={styles.optGrid}>
       {options.map((opt) => {
         const active = value === opt;
         return (
           <TouchableOpacity
             key={opt}
-            style={[fp.card, active && fp.cardActive]}
+            style={[styles.optCard, active && styles.optCardActive]}
             onPress={() => onChange(opt)}
             accessibilityRole="radio"
-            accessibilityLabel={FREQ_LABELS[opt]}
+            accessibilityLabel={labelFor(opt)}
             accessibilityState={{ selected: active }}
           >
-            <Text style={[fp.freq, active && fp.freqActive]}>{opt}</Text>
-            <Text style={[fp.label, active && fp.labelActive]}>
-              {FREQ_LABELS[opt].replace(opt + ' ', '')}
-            </Text>
-            {active && <View style={fp.check}><Text style={fp.checkText}>✓</Text></View>}
+            {render(opt, active)}
+            {active ? (
+              <View style={styles.optCheck}>
+                <Ionicons name="checkmark" size={12} color={Colors.onAccent} />
+              </View>
+            ) : null}
           </TouchableOpacity>
         );
       })}
     </View>
   );
 }
-const SEX_LABELS: Record<Sex, string> = {
-  M: 'Masculino',
-  F: 'Feminino',
-};
-
-function SexPicker({ value, onChange }: { value: Sex | null; onChange: (s: Sex) => void }) {
-  const options: Sex[] = ['M', 'F'];
-  return (
-    <View style={fp.grid}>
-      {options.map((opt) => {
-        const active = value === opt;
-        return (
-          <TouchableOpacity
-            key={opt}
-            style={[fp.card, active && fp.cardActive]}
-            onPress={() => onChange(opt)}
-            accessibilityRole="radio"
-            accessibilityLabel={SEX_LABELS[opt]}
-            accessibilityState={{ selected: active }}
-          >
-            <Text style={[fp.freq, active && fp.freqActive]}>{SEX_LABELS[opt]}</Text>
-            {active && <View style={fp.check}><Text style={fp.checkText}>✓</Text></View>}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-const fp = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  card: {
-    flex: 1,
-    minWidth: '45%',
-    padding: Spacing.md,
-    borderRadius: Radii.md,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bg,
-    position: 'relative',
-  },
-  cardActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
-  freq: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: 2 },
-  freqActive: { color: Colors.primary },
-  label: { fontSize: FontSize.xs, color: Colors.textMuted },
-  labelActive: { color: Colors.primary },
-  check: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkText: { fontSize: 10, color: Colors.surface, fontWeight: FontWeight.bold },
-});
 
 export default function ProfileScreen() {
   const session = useAuthStore((s) => s.session);
@@ -350,11 +154,6 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const isValid = birthYear !== null && weightKg.length > 0 && sex !== null && frequency !== null;
-
-  function handleYearChange(y: number) { setError(null); setBirthYear(y); }
-  function handleWeightChange(w: string) { setError(null); setWeightKg(w); }
-  function handleSexChange(s: Sex) { setError(null); setSex(s); }
-  function handleFreqChange(f: Frequency) { setError(null); setFrequency(f); }
 
   async function next() {
     if (!isValid || !session?.athlete_id) return;
@@ -385,13 +184,12 @@ export default function ProfileScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-
-        <View style={styles.heroSection}>
-          <Text style={styles.title}>Configure{'\n'}seu perfil</Text>
+        <View style={styles.hero}>
+          <Text style={styles.title}>Perfil esportivo</Text>
           <Text style={styles.subtitle}>Para calibrar seus treinos com precisão</Text>
         </View>
 
-        <StepBar current={1} />
+        <StepBar current={0} />
 
         {error ? (
           <View style={{ marginBottom: Spacing.md }}>
@@ -401,22 +199,45 @@ export default function ProfileScreen() {
 
         <SectionCard>
           <SectionTitle>Ano de nascimento</SectionTitle>
-          <YearPicker value={birthYear} onChange={handleYearChange} />
+          <YearPicker value={birthYear} onChange={(y) => { setError(null); setBirthYear(y); }} />
         </SectionCard>
 
         <SectionCard>
           <SectionTitle>Peso corporal</SectionTitle>
-          <WeightPicker value={weightKg} onChange={handleWeightChange} />
+          <WeightPicker value={weightKg} onChange={(w) => { setError(null); setWeightKg(w); }} />
         </SectionCard>
 
         <SectionCard>
           <SectionTitle>Sexo biológico</SectionTitle>
-          <SexPicker value={sex} onChange={handleSexChange} />
+          <OptionGrid<Sex>
+            options={['M', 'F']}
+            value={sex}
+            onChange={(s) => { setError(null); setSex(s); }}
+            labelFor={(s) => (s === 'M' ? 'Masculino' : 'Feminino')}
+            render={(s, active) => (
+              <Text style={[styles.optBig, active && styles.optBigActive]}>
+                {s === 'M' ? 'Masculino' : 'Feminino'}
+              </Text>
+            )}
+          />
         </SectionCard>
 
         <SectionCard>
           <SectionTitle>Frequência semanal</SectionTitle>
-          <FreqPicker value={frequency} onChange={handleFreqChange} />
+          <OptionGrid<Frequency>
+            options={['2x', '3x', '4x', '5x+']}
+            value={frequency}
+            onChange={(f) => { setError(null); setFrequency(f); }}
+            labelFor={(f) => FREQ_LABELS[f]}
+            render={(f, active) => (
+              <>
+                <Text style={[styles.optBig, active && styles.optBigActive]}>{f}</Text>
+                <Text style={[styles.optSub, active && styles.optSubActive]}>
+                  {FREQ_LABELS[f].replace(f + ' ', '')}
+                </Text>
+              </>
+            )}
+          />
         </SectionCard>
 
         <Button
@@ -435,14 +256,87 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  heroSection: { marginBottom: Spacing.xl },
-  title: {
-    fontSize: 32,
+  hero: { marginBottom: Spacing.lg },
+  title: { ...Type.display, color: Colors.textPrimary },
+  subtitle: { ...Type.body, color: Colors.textMuted, marginTop: Spacing.xs },
+  btn: { marginTop: Spacing.sm },
+
+  sectionCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: { ...Type.label, color: Colors.textMuted, marginBottom: Spacing.md },
+
+  pickerDisplay: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs, marginBottom: Spacing.md },
+  pickerValue: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: FontSize['4xl'],
+    fontWeight: FontWeight.extrabold,
+    color: Colors.primary,
+  },
+  pickerUnit: { ...Type.body, color: Colors.textMuted },
+
+  yearItem: {
+    width: ITEM_W,
+    height: 44,
+    borderRadius: Radii.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: ITEM_GAP,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  yearItemActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  yearText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: Colors.textSecondary },
+  yearTextActive: { color: Colors.onAccent },
+
+  weightRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
+  weightInput: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: FontSize['4xl'],
+    fontWeight: FontWeight.extrabold,
+    color: Colors.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.primary,
+    minWidth: 100,
+    paddingVertical: Spacing.xs,
+    textAlign: 'center',
+  },
+
+  optGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  optCard: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    padding: Spacing.md,
+    borderRadius: Radii.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  optCardActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
+  optBig: {
+    fontFamily: Fonts.display,
+    fontSize: FontSize.xl,
     fontWeight: FontWeight.extrabold,
     color: Colors.textPrimary,
-    lineHeight: 40,
-    marginBottom: Spacing.xs,
   },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, lineHeight: 22 },
-  btn: { marginTop: Spacing.sm },
+  optBigActive: { color: Colors.primary },
+  optSub: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+  optSubActive: { color: Colors.primary },
+  optCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

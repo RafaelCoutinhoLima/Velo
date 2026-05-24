@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, Radii, Spacing, Type } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
@@ -13,12 +14,12 @@ import { ErrorCard } from '../../components/ErrorCard';
 const MIN_S = 600; // 10 min
 const MAX_S = 840; // 14 min
 
-const STEPS = [
-  { icon: '📍', text: 'Use uma pista plana ou terreno aberto com bom sinal de GPS.' },
-  { icon: '🔥', text: 'Aqueça 5–10 min em ritmo leve antes de iniciar.' },
-  { icon: '⏱️', text: 'Corra 12 minutos na maior distância que conseguir sustentar.' },
-  { icon: '❤️', text: 'Use a cinta ou o sensor de pulso do Garmin para capturar a FC.' },
-  { icon: '🔄', text: 'Sincronize o Garmin ao terminar e selecione a corrida abaixo.' },
+const STEPS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
+  { icon: 'location-outline', text: 'Use uma pista plana ou terreno aberto com bom sinal de GPS.' },
+  { icon: 'flame-outline', text: 'Aqueça 5–10 min em ritmo leve antes de iniciar.' },
+  { icon: 'stopwatch-outline', text: 'Corra 12 minutos na maior distância que conseguir sustentar.' },
+  { icon: 'heart-outline', text: 'Use a cinta ou o sensor de pulso do Garmin para capturar a FC.' },
+  { icon: 'sync-outline', text: 'Sincronize o Garmin ao terminar e selecione a corrida abaixo.' },
 ];
 
 interface WorkoutListItem {
@@ -127,16 +128,16 @@ export default function CooperScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backBar}
-        onPress={() => router.back()}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Voltar"
-      >
-        <Text style={styles.backArrow}>‹</Text>
-        <Text style={styles.backLabel}>Voltar</Text>
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -153,26 +154,31 @@ export default function CooperScreen() {
         <TouchableOpacity
           style={styles.guideToggle}
           onPress={() => setShowGuide((v) => !v)}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityState={{ expanded: showGuide }}
           accessibilityLabel="Como realizar o Teste de Cooper"
         >
           <Text style={styles.guideToggleText}>
-            {showGuide ? 'Ocultar instruções ▲' : 'Como realizar o teste ▼'}
+            {showGuide ? 'Ocultar instruções' : 'Como realizar o teste'}
           </Text>
+          <Ionicons
+            name={showGuide ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={Colors.primary}
+          />
         </TouchableOpacity>
 
-        {showGuide && (
+        {showGuide ? (
           <View style={styles.guideBox}>
             {STEPS.map((step) => (
               <View key={step.text} style={styles.step}>
-                <Text style={styles.stepIcon}>{step.icon}</Text>
+                <Ionicons name={step.icon} size={18} color={Colors.primary} />
                 <Text style={styles.stepText}>{step.text}</Text>
               </View>
             ))}
           </View>
-        )}
+        ) : null}
 
         <Input
           label="FC de repouso (bpm)"
@@ -201,6 +207,7 @@ export default function CooperScreen() {
 
         {eligible.length === 0 ? (
           <View style={styles.empty}>
+            <Ionicons name="walk-outline" size={36} color={Colors.textMuted} />
             <Text style={styles.emptyText}>Nenhuma corrida de ~12 minutos encontrada</Text>
             <Text style={styles.emptyHint}>
               Faça o teste seguindo as instruções acima, sincronize o Garmin e volte aqui — ou
@@ -211,7 +218,7 @@ export default function CooperScreen() {
           eligible.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={[styles.card, Shadow.card]}
+              style={styles.card}
               onPress={() => selectActivity(item)}
               activeOpacity={0.85}
               accessibilityRole="button"
@@ -226,7 +233,10 @@ export default function CooperScreen() {
                 <Text style={styles.cardMeta}>{fmtPace(item.duration_s, item.distance_m)}</Text>
                 {item.avg_hr ? <Text style={styles.cardMeta}>{item.avg_hr} bpm méd</Text> : null}
               </View>
-              <Text style={styles.cardCta}>Usar esta corrida →</Text>
+              <View style={styles.cardCtaRow}>
+                <Text style={styles.cardCta}>Usar esta corrida</Text>
+                <Ionicons name="arrow-forward" size={15} color={Colors.primary} />
+              </View>
             </TouchableOpacity>
           ))
         )}
@@ -245,63 +255,78 @@ export default function CooperScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  backBar: {
+  header: {
     flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xxl,
+    paddingTop: Spacing.xl + Spacing.xs,
     paddingBottom: Spacing.sm,
-    gap: 4,
-    minHeight: 52,
   },
-  backArrow: { fontSize: 32, color: Colors.primary, fontWeight: '300', lineHeight: 36, marginTop: -2 },
-  backLabel: { fontSize: FontSize.md, color: Colors.primary, fontWeight: FontWeight.semibold },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scroll: { flex: 1 },
   content: { padding: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl },
-  title: { fontSize: 32, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: Spacing.xs },
-  subtitle: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 21, marginBottom: Spacing.md },
+  title: { ...Type.display, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  subtitle: { ...Type.bodySm, color: Colors.textSecondary, marginBottom: Spacing.md },
   guideToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: Spacing.sm + 2,
     paddingHorizontal: Spacing.md,
     backgroundColor: Colors.primaryMuted,
-    borderRadius: Radii.sm,
+    borderRadius: Radii.md,
     marginBottom: Spacing.md,
   },
-  guideToggleText: { color: Colors.primary, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  guideToggleText: { fontFamily: Fonts.bodySemiBold, color: Colors.primary, fontSize: FontSize.sm },
   guideBox: {
     backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
+    borderRadius: Radii.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
+    gap: Spacing.sm,
   },
-  step: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.sm, gap: Spacing.sm },
-  stepIcon: { fontSize: 18, width: 24 },
-  stepText: { flex: 1, color: Colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20 },
-  hint: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: -Spacing.sm, marginBottom: Spacing.md, lineHeight: 16 },
-  sectionLabel: {
+  step: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  stepText: { flex: 1, ...Type.bodySm, color: Colors.textSecondary },
+  hint: {
+    ...Type.bodySm,
     fontSize: FontSize.xs,
-    fontWeight: FontWeight.bold,
     color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: Spacing.sm,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.md,
   },
-  empty: { paddingVertical: Spacing.xl, alignItems: 'center' },
-  emptyText: { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: Colors.textPrimary, marginBottom: Spacing.xs, textAlign: 'center' },
-  emptyHint: { fontSize: FontSize.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  sectionLabel: { ...Type.label, color: Colors.textMuted, marginBottom: Spacing.sm },
+  empty: { paddingVertical: Spacing.xl, alignItems: 'center', gap: Spacing.xs },
+  emptyText: { ...Type.subtitle, fontSize: FontSize.md, color: Colors.textPrimary, textAlign: 'center' },
+  emptyHint: { ...Type.bodySm, color: Colors.textMuted, textAlign: 'center' },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  cardDate: { fontSize: FontSize.xs, color: Colors.textMuted },
-  cardDuration: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  cardDate: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  cardDuration: { fontFamily: Fonts.data, fontSize: FontSize.xl, color: Colors.textPrimary },
   cardMetaRow: { flexDirection: 'row', gap: Spacing.md, flexWrap: 'wrap', marginTop: Spacing.xs },
-  cardMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  cardCta: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold, marginTop: Spacing.sm },
+  cardMeta: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: Colors.textSecondary },
+  cardCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm },
+  cardCta: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: Colors.primary },
   skipBtn: { marginTop: Spacing.md },
 });

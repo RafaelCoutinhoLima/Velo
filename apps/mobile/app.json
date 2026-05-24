@@ -23,7 +23,8 @@
         {
           "color": "#1e40af"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

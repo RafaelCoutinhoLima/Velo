@@ -1,0 +1,214 @@
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '../../lib/store';
+import { useApi } from '../../lib/api';
+import { Colors, Fonts, FontSize, Radii, Spacing, Tracking, Type } from '../../lib/theme';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { ErrorCard } from '../../components/ErrorCard';
+import { Button } from '../../components/Button';
+
+interface Feedback {
+  texto_principal: string;
+  destaque_positivo?: string;
+  sugestao?: string;
+  emoji_resumo?: string;
+}
+
+// "Feedback Pós-Treino" — análise comemorativa do treino concluído, gerada
+// pela IA. Acessada a partir do detalhe do treino (workout/[id]).
+export default function FeedbackScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const session = useAuthStore((s) => s.session);
+  const { post } = useApi();
+
+  const [status, setStatus] = useState<'loading' | 'done' | 'error'>('loading');
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setStatus('loading');
+    setError(null);
+    try {
+      const res = await post<Feedback>('/feedback', {
+        workout_id: id,
+        athlete_id: session?.athlete_id,
+      });
+      setFeedback(res);
+      setStatus('done');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Não conseguimos gerar o feedback.');
+      setStatus('error');
+    }
+  }
+
+  useEffect(() => {
+    if (id && session) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, session]);
+
+  if (status === 'loading') {
+    return (
+      <LoadingScreen
+        message="Analisando seu treino"
+        subMessage="A IA está revisando seu pace, FC e histórico"
+      />
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
+        >
+          <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {status === 'error' ? (
+          <>
+            <ErrorCard message={error ?? 'Não conseguimos gerar o feedback.'} />
+            <Button label="Tentar novamente" onPress={load} style={{ marginTop: Spacing.md }} />
+          </>
+        ) : feedback ? (
+          <>
+            {/* ── Hero comemorativo ── */}
+            <View style={styles.hero}>
+              <View style={styles.emojiCircle}>
+                <Text style={styles.emoji}>{feedback.emoji_resumo || '🎯'}</Text>
+              </View>
+              <Text style={styles.eyebrow}>Feedback do treinador</Text>
+              <Text style={styles.heroTitle}>Treino analisado</Text>
+            </View>
+
+            {/* ── Texto principal ── */}
+            <View style={styles.mainCard}>
+              <Text style={styles.mainText}>{feedback.texto_principal}</Text>
+            </View>
+
+            {/* ── Destaque positivo ── */}
+            {feedback.destaque_positivo ? (
+              <View style={[styles.insightCard, styles.positiveCard]}>
+                <View style={[styles.insightIcon, { backgroundColor: Colors.successLight }]}>
+                  <Ionicons name="trophy" size={18} color={Colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.insightLabel, { color: Colors.success }]}>Destaque</Text>
+                  <Text style={styles.insightText}>{feedback.destaque_positivo}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* ── Sugestão ── */}
+            {feedback.sugestao ? (
+              <View style={[styles.insightCard, styles.suggestionCard]}>
+                <View style={[styles.insightIcon, { backgroundColor: Colors.warningLight }]}>
+                  <Ionicons name="bulb" size={18} color={Colors.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.insightLabel, { color: Colors.warning }]}>Próximo passo</Text>
+                  <Text style={styles.insightText}>{feedback.sugestao}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            <Button
+              label="Voltar ao treino"
+              variant="secondary"
+              onPress={() => router.back()}
+              style={{ marginTop: Spacing.md }}
+            />
+          </>
+        ) : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.bg },
+  header: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xl + Spacing.xs,
+    paddingBottom: Spacing.sm,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: { padding: Spacing.lg, gap: Spacing.md },
+
+  hero: { alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm },
+  emojiCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 2,
+    borderColor: 'rgba(195,244,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emoji: { fontSize: 44 },
+  eyebrow: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.accent,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wider,
+  },
+  heroTitle: { ...Type.headline, color: Colors.textPrimary },
+
+  mainCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+  },
+  mainText: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.lg,
+    color: Colors.textPrimary,
+    lineHeight: 26,
+  },
+
+  insightCard: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    padding: Spacing.md,
+  },
+  positiveCard: { backgroundColor: Colors.surface, borderColor: 'rgba(61,220,132,0.3)' },
+  suggestionCard: { backgroundColor: Colors.surface, borderColor: 'rgba(245,166,35,0.3)' },
+  insightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightLabel: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: FontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+    marginBottom: 3,
+  },
+  insightText: { ...Type.bodySm, color: Colors.textPrimary },
+});

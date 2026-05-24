@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, FontWeight, Radii, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing } from '../lib/theme';
 
 // Espelha o superset estruturado de apps/api/src/claude/schemas.ts
 // (generation_spec.md §2.3). Campos opcionais — plano legado não os tem.
@@ -170,6 +170,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   headerLabel: {
+    fontFamily: Fonts.bodySemiBold,
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
     color: Colors.textSecondary,
@@ -182,6 +183,7 @@ const styles = StyleSheet.create({
   },
   row: { gap: 4 },
   rowLabel: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
     color: Colors.textMuted,
@@ -191,13 +193,19 @@ const styles = StyleSheet.create({
   rowBody: { gap: Spacing.xs },
   rowMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   rowDuration: {
+    fontFamily: Fonts.data,
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
   },
-  rowPace: { fontSize: FontSize.sm, color: Colors.textSecondary, fontVariant: ['tabular-nums'] },
-  mainDesc: { fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 21 },
+  rowPace: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontVariant: ['tabular-nums'],
+  },
+  mainDesc: { fontFamily: Fonts.body, fontSize: FontSize.md, color: Colors.textPrimary, lineHeight: 21 },
   repsBox: {
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Radii.sm,
@@ -206,20 +214,21 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   repsText: {
+    fontFamily: Fonts.data,
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
   },
   repsZone: { color: Colors.primary },
-  recoveryText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  recoveryText: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: Colors.textSecondary },
   zoneChip: {
     backgroundColor: Colors.primaryMuted,
     borderRadius: Radii.full,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
   },
-  zoneChipText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary },
+  zoneChipText: { fontFamily: Fonts.data, fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary },
   loadChip: {
     alignSelf: 'flex-start',
     backgroundColor: Colors.accentLight,
@@ -228,6 +237,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   loadChipText: {
+    fontFamily: Fonts.data,
     fontSize: FontSize.xs,
     fontWeight: FontWeight.semibold,
     color: Colors.accent,
@@ -240,11 +250,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   notesLabel: {
+    fontFamily: Fonts.bodyBold,
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
     color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  notesText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19, fontStyle: 'italic' },
+  notesText: { fontFamily: Fonts.body, fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19, fontStyle: 'italic' },
 });

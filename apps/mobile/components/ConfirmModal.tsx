@@ -1,5 +1,5 @@
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radii, Shadow, Spacing } from '../lib/theme';
 
 interface ConfirmModalProps {
   visible: boolean;
@@ -72,12 +72,14 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   title: {
+    fontFamily: Fonts.display,
     fontSize: FontSize.xl,
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   message: {
+    fontFamily: Fonts.body,
     fontSize: FontSize.md,
     color: Colors.textSecondary,
     lineHeight: 22,
@@ -93,6 +95,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelText: {
+    fontFamily: Fonts.bodySemiBold,
     fontSize: FontSize.md,
     color: Colors.textSecondary,
     fontWeight: FontWeight.semibold,
@@ -104,6 +107,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmText: {
+    fontFamily: Fonts.display,
     fontSize: FontSize.md,
     color: Colors.onAccent,
     fontWeight: FontWeight.extrabold,

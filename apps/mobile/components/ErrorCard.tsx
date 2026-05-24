@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Colors, FontSize, Radii, Spacing } from '../lib/theme';
+import { Colors, Fonts, FontSize, Radii, Spacing } from '../lib/theme';
 
 interface ErrorCardProps {
   message: string;
@@ -31,6 +31,7 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
+    fontFamily: Fonts.body,
     fontSize: FontSize.sm,
     color: Colors.danger,
     lineHeight: 20,

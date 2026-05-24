@@ -10,14 +10,17 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { WorkoutCard, type WorkoutStatus, type WorkoutType } from '@fitsync/ui';
+import Svg, { Circle } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
+import type { WorkoutStatus, WorkoutType } from '@fitsync/ui';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radii, Shadow, Spacing, Tracking, Type } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
+import { TopBar } from '../../components/TopBar';
 import {
   WorkoutStructure,
   type WorkoutStructureData,
@@ -25,6 +28,28 @@ import {
 
 // Indexado por Date.getDay() (0 = domingo … 6 = sábado).
 const PT_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const PT_WEEKDAYS_FULL = [
+  'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+  'Quinta-feira', 'Sexta-feira', 'Sábado',
+];
+
+// Nome legível e cor de sinalização por tipo de treino.
+const TYPE_LABELS: Record<WorkoutType, string> = {
+  easy: 'Rodagem Leve',
+  interval: 'Treino Intervalado',
+  tempo: 'Treino de Tempo',
+  long: 'Treino Longo',
+  rest: 'Descanso',
+  cross: 'Cross Training',
+};
+const TYPE_COLORS: Record<WorkoutType, string> = {
+  easy: Colors.workoutEasy,
+  interval: Colors.workoutInterval,
+  tempo: Colors.workoutTempo,
+  long: Colors.workoutLong,
+  rest: Colors.workoutRest,
+  cross: Colors.workoutCross,
+};
 
 interface WorkoutDay extends WorkoutStructureData {
   day: number;
@@ -62,11 +87,8 @@ function getDayLabel(weekStart: string, dayNumber: number): string {
   return PT_WEEKDAYS[planDayDate(weekStart, dayNumber).getDay()];
 }
 
-function getDayDateLabel(weekStart: string, dayNumber: number): string {
-  return planDayDate(weekStart, dayNumber).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-  });
+function getDayLabelFull(weekStart: string, dayNumber: number): string {
+  return PT_WEEKDAYS_FULL[planDayDate(weekStart, dayNumber).getDay()];
 }
 
 function getTodayDayNumber(weekStart: string): number | null {
@@ -95,6 +117,14 @@ function computeStatus(weekStart: string, dayNumber: number, type: WorkoutType):
   return 'future';
 }
 
+// Rótulo de zona a partir do array de zonas (ex.: [2] → "Z2", [4,5] → "Z4-Z5").
+function zoneLabel(zones: number[]): string | null {
+  if (!zones || zones.length === 0) return null;
+  const min = Math.min(...zones);
+  const max = Math.max(...zones);
+  return min === max ? `Z${min}` : `Z${min}-Z${max}`;
+}
+
 function usePlan(athleteId: string) {
   const { get } = useApi();
   return useQuery({
@@ -116,6 +146,76 @@ function useMoveMutation(planId: string) {
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['plan'] }),
   });
+}
+
+// ── Anel de progresso da meta semanal ─────────────────────────────────
+function WeeklyGoalRing({ done, total }: { done: number; total: number }) {
+  const progress = total > 0 ? Math.min(done / total, 1) : 0;
+  const SIZE = 56;
+  const STROKE = 5;
+  const R = (SIZE - STROKE) / 2;
+  const C = 2 * Math.PI * R;
+
+  return (
+    <View style={styles.goalCard}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.goalTitle}>Meta da Semana</Text>
+        <Text style={styles.goalSub}>
+          {done} de {total} treino{total === 1 ? '' : 's'} concluído{done === 1 ? '' : 's'}
+        </Text>
+      </View>
+      <View style={{ width: SIZE, height: SIZE }}>
+        <Svg width={SIZE} height={SIZE}>
+          <Circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            stroke={Colors.surfaceAlt}
+            strokeWidth={STROKE}
+            fill="none"
+          />
+          <Circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            stroke={Colors.primary}
+            strokeWidth={STROKE}
+            fill="none"
+            strokeDasharray={C}
+            strokeDashoffset={C * (1 - progress)}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+          />
+        </Svg>
+        <View style={styles.goalPctWrap}>
+          <Text style={styles.goalPct}>{Math.round(progress * 100)}%</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Banner "Coach Insights" (substitui o antigo WhyCard) ──────────────
+function CoachInsights({ text }: { text: string }) {
+  return (
+    <View style={styles.coachBanner}>
+      <Ionicons name="sparkles" size={20} color={Colors.accent} style={{ marginTop: 1 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.coachLabel}>Coach Insights</Text>
+        <Text style={styles.coachText}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Chip de métrica do hero ───────────────────────────────────────────
+function MetricChip({ icon, value, tint }: { icon: keyof typeof Ionicons.glyphMap; value: string; tint?: string }) {
+  return (
+    <View style={[styles.chip, tint ? { borderColor: tint + '55' } : null]}>
+      <Ionicons name={icon} size={15} color={tint ?? Colors.textMuted} />
+      <Text style={[styles.chipText, tint ? { color: tint } : null]}>{value}</Text>
+    </View>
+  );
 }
 
 function EmptyPlan({ athleteId, onPlanReady }: { athleteId: string; onPlanReady: () => void }) {
@@ -163,59 +263,39 @@ function EmptyPlan({ athleteId, onPlanReady }: { athleteId: string; onPlanReady:
     }, 5000);
   }
 
-  return (
-    <View style={styles.center}>
-      {generating ? (
-        <>
-          <LoadingScreen
-            message={jobId ? 'Processando seu plano...' : 'Gerando seu plano com IA...'}
-            subMessage="Isso pode levar até 1 minuto"
-          />
-        </>
-      ) : (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyTitle}>Nenhum plano ativo</Text>
-          <Text style={styles.emptyText}>
-            Gere seu primeiro plano semanal personalizado com base no seu perfil e histórico.
-          </Text>
-          <Button
-            label="Gerar meu plano"
-            onPress={generate}
-            style={styles.generateBtn}
-            accessibilityLabel="Gerar plano de treino com IA"
-          />
-        </View>
-      )}
-    </View>
-  );
-}
-
-function WhyCard({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
+  if (generating) {
+    return (
+      <LoadingScreen
+        message={jobId ? 'Processando seu plano...' : 'Gerando seu plano com IA...'}
+        subMessage="Isso pode levar até 1 minuto"
+      />
+    );
+  }
 
   return (
-    <TouchableOpacity
-      style={styles.whyCard}
-      onPress={() => setExpanded(!expanded)}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel={expanded ? 'Recolher justificativa do plano' : 'Ver justificativa do plano'}
-      accessibilityState={{ expanded }}
-    >
-      <View style={styles.whyHeader}>
-        <Text style={styles.whyLabel}>Por que esses treinos</Text>
-        <Text style={styles.whyChevron}>{expanded ? '▲' : '▼'}</Text>
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIconCircle}>
+        <Ionicons name="calendar-outline" size={36} color={Colors.primary} />
       </View>
-      {expanded && <Text style={styles.whyText}>{text}</Text>}
-    </TouchableOpacity>
+      <Text style={styles.emptyTitle}>Nenhum plano ativo</Text>
+      <Text style={styles.emptyText}>
+        Gere seu primeiro plano semanal personalizado com base no seu perfil e histórico.
+      </Text>
+      <Button
+        label="Gerar meu plano"
+        onPress={generate}
+        style={styles.generateBtn}
+        icon={<Ionicons name="sparkles" size={18} color={Colors.onAccent} />}
+        accessibilityLabel="Gerar plano de treino com IA"
+      />
+    </View>
   );
 }
 
 function CalibrationBanner() {
   return (
     <View style={styles.calibBanner} accessibilityRole="alert">
-      <Text style={styles.calibIcon}>🧪</Text>
+      <Ionicons name="flask" size={20} color={Colors.accent} />
       <View style={{ flex: 1 }}>
         <Text style={styles.calibTitle}>Modo calibração</Text>
         <Text style={styles.calibText}>
@@ -235,14 +315,14 @@ function CalibrationDoneNotice({ onDismiss }: { onDismiss: () => void }) {
       accessibilityRole="button"
       accessibilityLabel="Calibração concluída. Toque para dispensar."
     >
-      <Text style={styles.calibIcon}>✅</Text>
+      <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
       <View style={{ flex: 1 }}>
         <Text style={styles.calibDoneTitle}>Calibração concluída</Text>
         <Text style={styles.calibText}>
           Já conhecemos seu condicionamento — seu plano agora progride normalmente.
         </Text>
       </View>
-      <Text style={styles.calibDismiss}>✕</Text>
+      <Ionicons name="close" size={18} color={Colors.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -271,11 +351,18 @@ function SendToWatch({ athleteId }: { athleteId: string }) {
   return (
     <View style={styles.sendSection}>
       <Button
-        label={status === 'sent' ? 'Enviado ✓' : 'Enviar semana pro relógio'}
+        label={status === 'sent' ? 'Enviado' : 'Enviar semana pro relógio'}
         onPress={send}
         variant="secondary"
         loading={status === 'sending'}
         disabled={status === 'sending' || status === 'sent'}
+        icon={
+          <Ionicons
+            name={status === 'sent' ? 'checkmark' : 'watch-outline'}
+            size={18}
+            color={Colors.textPrimary}
+          />
+        }
         accessibilityLabel="Enviar treinos da semana para o relógio Garmin"
       />
       {status === 'error' && message ? (
@@ -289,56 +376,6 @@ function SendToWatch({ athleteId }: { athleteId: string }) {
     </View>
   );
 }
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Bom dia';
-  if (h < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
-function formatWeekRange(weekStart: string) {
-  const start = new Date(`${weekStart}T12:00:00`);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
-  return `${start.toLocaleDateString('pt-BR', opts)} – ${end.toLocaleDateString('pt-BR', opts)}`;
-}
-
-function PlanHeader({ weekStart }: { weekStart: string }) {
-  const today = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
-
-  return (
-    <View style={headerStyles.wrapper}>
-      <View style={{ flex: 1 }}>
-        <Text style={headerStyles.greeting}>{getGreeting()}</Text>
-        <Text style={headerStyles.date}>{today}</Text>
-      </View>
-      <View style={headerStyles.badge}>
-        <Text style={headerStyles.badgeText}>{formatWeekRange(weekStart)}</Text>
-      </View>
-    </View>
-  );
-}
-const headerStyles = StyleSheet.create({
-  wrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-    paddingTop: Spacing.sm,
-  },
-  greeting: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  date: { fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
-  badge: {
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: Radii.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-  },
-  badgeText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
-});
 
 export default function PlanScreen() {
   const session = useAuthStore((s) => s.session);
@@ -368,6 +405,7 @@ export default function PlanScreen() {
 
   const [days, setDays] = useState<WorkoutDay[]>([]);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [pendingMove, setPendingMove] = useState<{ from: number; to: number; warning: string } | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -427,73 +465,147 @@ export default function PlanScreen() {
       .finally(() => setPendingMove(null));
   }
 
+  // Tap em um dia: alvo de mover (se algo selecionado) ou alterna a
+  // estrutura expandida.
+  function handleDayPress(dayNumber: number) {
+    if (selectedDay !== null && selectedDay !== dayNumber) {
+      handleMoveTo(dayNumber);
+    } else if (selectedDay === dayNumber) {
+      setSelectedDay(null);
+    } else {
+      setExpandedDay((prev) => (prev === dayNumber ? null : dayNumber));
+    }
+  }
+
   if (!session) return null;
-  if (isLoading) return <LoadingScreen message="Carregando seu plano..." />;
-  if (!plan) return <EmptyPlan athleteId={session.athlete_id} onPlanReady={refetch} />;
+  if (isLoading) {
+    return (
+      <View style={styles.screen}>
+        <TopBar />
+        <LoadingScreen message="Carregando seu plano..." />
+      </View>
+    );
+  }
+  if (!plan) {
+    return (
+      <View style={styles.screen}>
+        <TopBar />
+        <EmptyPlan athleteId={session.athlete_id} onPlanReady={refetch} />
+      </View>
+    );
+  }
 
   const todayDayNumber = getTodayDayNumber(plan.week_start);
   const todayWorkout = todayDayNumber ? days.find((d) => d.day === todayDayNumber) : null;
   const restOfWeek = days.filter((d) => d.day !== todayDayNumber);
 
+  // Progresso da meta: treinos (não-descanso) já concluídos / total.
+  const trainingDays = days.filter((d) => d.type !== 'rest');
+  const doneCount = trainingDays.filter(
+    (d) => computeStatus(plan.week_start, d.day, d.type) === 'done',
+  ).length;
+
   return (
-    <>
+    <View style={styles.screen}>
+      <TopBar />
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={Colors.primary}
+          />
+        }
       >
-        {/* Header greeting */}
-        <PlanHeader weekStart={plan.week_start} />
+        <WeeklyGoalRing done={doneCount} total={trainingDays.length} />
 
         {showCalibDone ? (
           <CalibrationDoneNotice onDismiss={() => setShowCalibDone(false)} />
         ) : null}
         {calibrationMode ? <CalibrationBanner /> : null}
 
-        {/* Hero card — treino de hoje sempre no topo */}
-        {todayWorkout && (
-          <View style={styles.heroSection}>
-            <Text style={styles.heroLabel}>HOJE</Text>
-            <Animated.View style={selectedDay === todayWorkout.day ? { transform: [{ scale: pulseAnim }] } : undefined}>
-              <TouchableOpacity
-                onLongPress={() => handleLongPress(todayWorkout.day)}
-                onPress={() => {
-                  if (selectedDay !== null && selectedDay !== todayWorkout.day) {
-                    handleMoveTo(todayWorkout.day);
-                  } else if (selectedDay === todayWorkout.day) {
-                    setSelectedDay(null);
-                  }
-                }}
-                activeOpacity={0.9}
-                delayLongPress={400}
-                accessibilityLabel={`Treino de hoje: ${todayWorkout.type}, ${todayWorkout.duration_min} minutos`}
-                accessibilityHint="Segure para mover de dia"
-              >
-                <WorkoutCard
-                  dayLabel={getDayLabel(plan.week_start, todayWorkout.day)}
-                  dateLabel={getDayDateLabel(plan.week_start, todayWorkout.day)}
-                  type={todayWorkout.type}
-                  duration_min={todayWorkout.duration_min}
-                  distance_km={todayWorkout.distance_km}
-                  zones={todayWorkout.zones}
-                  description={todayWorkout.description}
-                  status="today"
-                  isDragging={selectedDay === todayWorkout.day}
-                  style={[
-                    styles.heroCard,
-                    selectedDay === todayWorkout.day && styles.cardSelected,
-                    selectedDay !== null && selectedDay !== todayWorkout.day && styles.cardTarget,
-                  ]}
-                />
-              </TouchableOpacity>
-            </Animated.View>
-            <WorkoutStructure data={todayWorkout} advancedMode={advancedMode} />
-            {/* Drag handle hint */}
-            <Text style={styles.dragHandle}>⠿ Segure para mover de dia</Text>
-          </View>
-        )}
+        {/* ── Hero: treino de hoje ── */}
+        {todayWorkout ? (
+          <Animated.View
+            style={selectedDay === todayWorkout.day ? { transform: [{ scale: pulseAnim }] } : undefined}
+          >
+            <TouchableOpacity
+              activeOpacity={0.95}
+              delayLongPress={400}
+              onLongPress={() => handleLongPress(todayWorkout.day)}
+              onPress={() => {
+                if (selectedDay !== null && selectedDay !== todayWorkout.day) {
+                  handleMoveTo(todayWorkout.day);
+                } else if (selectedDay === todayWorkout.day) {
+                  setSelectedDay(null);
+                }
+              }}
+              style={[
+                styles.heroCard,
+                selectedDay !== null && selectedDay !== todayWorkout.day && styles.cardTarget,
+              ]}
+              accessibilityLabel={`Treino de hoje: ${TYPE_LABELS[todayWorkout.type]}, ${todayWorkout.duration_min} minutos`}
+              accessibilityHint="Segure para mover de dia"
+            >
+              <View style={styles.heroEyebrowRow}>
+                <View style={styles.heroPill}>
+                  <Text style={styles.heroPillText}>Treino de Hoje</Text>
+                </View>
+                <Text style={styles.heroWeekday}>
+                  {getDayLabelFull(plan.week_start, todayWorkout.day)}
+                </Text>
+              </View>
 
-        {plan.why_text ? <WhyCard text={plan.why_text} /> : null}
+              <Text style={styles.heroTitle}>{TYPE_LABELS[todayWorkout.type]}</Text>
+
+              <View style={styles.chipRow}>
+                <MetricChip icon="timer-outline" value={`${todayWorkout.duration_min} min`} />
+                {zoneLabel(todayWorkout.zones) ? (
+                  <MetricChip
+                    icon="heart-outline"
+                    value={zoneLabel(todayWorkout.zones)!}
+                    tint={Colors.accent}
+                  />
+                ) : null}
+                {todayWorkout.parte_principal?.pace_alvo ? (
+                  <MetricChip
+                    icon="speedometer-outline"
+                    value={`Pace ${todayWorkout.parte_principal.pace_alvo}`}
+                  />
+                ) : todayWorkout.distance_km > 0 ? (
+                  <MetricChip icon="map-outline" value={`${todayWorkout.distance_km} km`} />
+                ) : null}
+              </View>
+
+              {todayWorkout.type !== 'rest' ? (
+                <Button
+                  label={expandedDay === todayWorkout.day ? 'Recolher treino' : 'Começar Treino'}
+                  onPress={() =>
+                    setExpandedDay((p) => (p === todayWorkout.day ? null : todayWorkout.day))
+                  }
+                  icon={
+                    <Ionicons
+                      name={expandedDay === todayWorkout.day ? 'chevron-up' : 'play'}
+                      size={20}
+                      color={Colors.onAccent}
+                    />
+                  }
+                  accessibilityLabel="Ver estrutura do treino de hoje"
+                />
+              ) : null}
+            </TouchableOpacity>
+          </Animated.View>
+        ) : null}
+
+        {todayWorkout && expandedDay === todayWorkout.day ? (
+          <WorkoutStructure data={todayWorkout} advancedMode={advancedMode} />
+        ) : null}
+
+        {plan.why_text ? <CoachInsights text={plan.why_text} /> : null}
 
         {selectedDay !== null ? (
           <View style={styles.moveBanner}>
@@ -508,65 +620,115 @@ export default function PlanScreen() {
               <Text style={styles.moveBannerCancel}>Cancelar</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
+        ) : (
+          <Text style={styles.dragHint}>⠿  Segure um treino para mover de dia</Text>
+        )}
 
-        {/* Restante da semana */}
-        {restOfWeek.length > 0 && (
-          <>
-            <Text style={styles.weekLabel}>Esta semana</Text>
+        {/* ── Timeline do restante da semana ── */}
+        {restOfWeek.length > 0 ? (
+          <View style={styles.timeline}>
+            <View style={styles.timelineLine} />
             {restOfWeek.map((item) => {
+              const status = computeStatus(plan.week_start, item.day, item.type);
               const isSelected = selectedDay === item.day;
               const isTarget = selectedDay !== null && selectedDay !== item.day;
+              const isExpanded = expandedDay === item.day;
+              const isDone = status === 'done';
+              const tint = TYPE_COLORS[item.type];
+              const zl = zoneLabel(item.zones);
+
               return (
-                <View key={item.day} style={styles.dayBlock}>
-                  <Animated.View style={isSelected ? { transform: [{ scale: pulseAnim }] } : undefined}>
+                <View key={item.day}>
+                  <Animated.View
+                    style={[
+                      styles.timelineRow,
+                      isSelected ? { transform: [{ scale: pulseAnim }] } : null,
+                    ]}
+                  >
+                    <View style={styles.dotCol}>
+                      {isDone ? (
+                        <View style={styles.dotDone}>
+                          <Ionicons name="checkmark" size={12} color={Colors.bg} />
+                        </View>
+                      ) : (
+                        <View style={[styles.dot, isExpanded && styles.dotActive]} />
+                      )}
+                    </View>
                     <TouchableOpacity
-                      onLongPress={() => handleLongPress(item.day)}
-                      onPress={() => {
-                        if (selectedDay !== null && selectedDay !== item.day) {
-                          handleMoveTo(item.day);
-                        } else if (selectedDay === item.day) {
-                          setSelectedDay(null);
-                        }
-                      }}
                       activeOpacity={0.85}
                       delayLongPress={400}
-                      accessibilityLabel={`${getDayLabel(plan.week_start, item.day)}: ${item.type}, ${item.duration_min} minutos`}
+                      onLongPress={() => handleLongPress(item.day)}
+                      onPress={() => handleDayPress(item.day)}
+                      style={[
+                        styles.dayCard,
+                        isDone && styles.dayCardDone,
+                        item.type === 'rest' && styles.dayCardRest,
+                        isSelected && styles.cardSelected,
+                        isTarget && styles.cardTarget,
+                      ]}
+                      accessibilityLabel={`${getDayLabel(plan.week_start, item.day)}: ${TYPE_LABELS[item.type]}, ${item.duration_min} minutos`}
                       accessibilityHint="Segure para mover de dia"
                     >
-                      <WorkoutCard
-                        dayLabel={getDayLabel(plan.week_start, item.day)}
-                        dateLabel={getDayDateLabel(plan.week_start, item.day)}
-                        type={item.type}
-                        duration_min={item.duration_min}
-                        distance_km={item.distance_km}
-                        zones={item.zones}
-                        description={item.description}
-                        status={computeStatus(plan.week_start, item.day, item.type)}
-                        isDragging={isSelected}
-                        style={[isSelected && styles.cardSelected, isTarget && styles.cardTarget]}
-                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.dayEyebrow}>
+                          {getDayLabel(plan.week_start, item.day)}
+                          {isDone ? ' • Feito' : ''}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dayName,
+                            (isDone || item.type === 'rest') && styles.dayNameMuted,
+                          ]}
+                        >
+                          {TYPE_LABELS[item.type]}
+                        </Text>
+                      </View>
+                      {item.type !== 'rest' ? (
+                        <View style={styles.dayBadges}>
+                          <Text style={styles.dayBadge}>{item.duration_min}m</Text>
+                          {zl ? (
+                            <Text style={[styles.dayBadge, styles.dayBadgeZone, { color: tint, borderColor: tint + '55' }]}>
+                              {zl}
+                            </Text>
+                          ) : null}
+                        </View>
+                      ) : null}
                     </TouchableOpacity>
                   </Animated.View>
-                  <WorkoutStructure data={item} advancedMode={advancedMode} />
+                  {isExpanded && item.type !== 'rest' ? (
+                    <View style={styles.rowStructure}>
+                      <WorkoutStructure data={item} advancedMode={advancedMode} />
+                    </View>
+                  ) : null}
                 </View>
               );
             })}
-          </>
-        )}
+          </View>
+        ) : null}
+
+        {/* ── Ações ── */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/metrics' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Ver métricas e detalhes"
+          >
+            <Ionicons name="analytics-outline" size={18} color={Colors.textPrimary} />
+            <Text style={styles.actionBtnText}>Detalhes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => router.push('/plan/new' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Pedir um novo plano"
+          >
+            <Ionicons name="sparkles-outline" size={18} color={Colors.accent} />
+            <Text style={[styles.actionBtnText, { color: Colors.accent }]}>Novo Plano</Text>
+          </TouchableOpacity>
+        </View>
 
         <SendToWatch athleteId={session.athlete_id} />
-
-        {advancedMode ? (
-          <TouchableOpacity
-            style={styles.advancedLink}
-            onPress={() => router.push('/metrics' as never)}
-            accessibilityRole="link"
-            accessibilityLabel="Ver métricas técnicas ACWR, CTL e TSB"
-          >
-            <Text style={styles.advancedLinkText}>Ver métricas técnicas →</Text>
-          </TouchableOpacity>
-        ) : null}
 
         <Text style={styles.disclaimerFooter}>
           FitSync não substitui acompanhamento médico ou profissional.
@@ -583,46 +745,111 @@ export default function PlanScreen() {
         onConfirm={confirmMove}
         onCancel={() => setPendingMove(null)}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.md, paddingTop: Spacing.xxl + Spacing.md, paddingBottom: Spacing.xl },
-  center: { flex: 1 },
-  heroSection: { marginBottom: Spacing.md },
-  heroLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.primary,
-    letterSpacing: 1.5,
-    marginBottom: Spacing.sm,
-  },
-  // O destaque do "hoje" vem do glow lime do próprio WorkoutCard
-  // (todayCard). NÃO empilhar Shadow.elevated aqui: a sombra preta de
-  // raio 20 vazava por cima do card "Estrutura do treino" logo abaixo.
-  heroCard: {
+  screen: { flex: 1, backgroundColor: Colors.bg },
+  container: { flex: 1 },
+  content: { padding: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.md },
+
+  // Weekly goal
+  goalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
     borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
   },
-  dayBlock: {
-    marginBottom: Spacing.md,
-  },
-  dragHandle: {
+  goalTitle: { ...Type.title, color: Colors.textPrimary },
+  goalSub: { ...Type.bodySm, color: Colors.textMuted, marginTop: 2 },
+  goalPctWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  goalPct: {
+    fontFamily: Fonts.data,
     fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
-    letterSpacing: 0.3,
+    fontWeight: FontWeight.bold,
+    color: Colors.primary,
   },
+
+  // Hero card
+  heroCard: {
+    backgroundColor: 'rgba(195,244,0,0.06)',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: Radii.xl,
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    ...Shadow.glow,
+  },
+  heroEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  heroPill: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radii.full,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 4,
+  },
+  heroPillText: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.onAccent,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+  },
+  heroWeekday: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+  },
+  heroTitle: { ...Type.display, color: Colors.textPrimary },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 6,
+  },
+  chipText: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.sm,
+    color: Colors.textPrimary,
+  },
+
+  // Coach insights
+  coachBanner: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.accent,
+    padding: Spacing.md,
+  },
+  coachLabel: {
+    ...Type.label,
+    color: Colors.accent,
+    marginBottom: 3,
+  },
+  coachText: { ...Type.bodySm, color: Colors.textPrimary },
+
+  // Calibration banners
   calibBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.accentLight,
-    borderRadius: Radii.md,
+    borderRadius: Radii.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: Colors.accent,
   },
@@ -631,67 +858,162 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     backgroundColor: Colors.successLight,
-    borderRadius: Radii.md,
+    borderRadius: Radii.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: Colors.success,
   },
-  calibIcon: { fontSize: FontSize.xl },
-  calibTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.accent },
-  calibDoneTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.success },
-  calibText: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 17, marginTop: 2 },
-  calibDismiss: { fontSize: FontSize.md, color: Colors.textMuted, paddingHorizontal: Spacing.xs },
-  whyCard: {
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+  calibTitle: { ...Type.bodyStrong, color: Colors.accent },
+  calibDoneTitle: { ...Type.bodyStrong, color: Colors.success },
+  calibText: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+
+  // Move banner / drag hint
+  dragHint: {
+    ...Type.bodySm,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
-  whyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  whyLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary },
-  whyChevron: { fontSize: FontSize.xs, color: Colors.primary },
-  whyText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: Spacing.sm },
   moveBanner: {
     backgroundColor: Colors.primary,
-    borderRadius: Radii.md,
+    borderRadius: Radii.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    ...Shadow.card,
+    ...Shadow.glow,
   },
-  moveBannerText: { color: Colors.surface, fontSize: FontSize.sm, fontWeight: FontWeight.semibold, flex: 1 },
-  moveBannerCancel: { color: Colors.primaryMuted, fontSize: FontSize.sm, fontWeight: FontWeight.bold, marginLeft: Spacing.sm },
-  weekLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.extrabold,
+  moveBannerText: { ...Type.bodyStrong, color: Colors.onAccent, flex: 1 },
+  moveBannerCancel: {
+    ...Type.bodyStrong,
+    color: Colors.onAccent,
+    marginLeft: Spacing.sm,
+    textDecorationLine: 'underline',
+  },
+
+  // Timeline
+  timeline: { position: 'relative' },
+  timelineLine: {
+    position: 'absolute',
+    left: 11,
+    top: 16,
+    bottom: 16,
+    width: 1.5,
+    backgroundColor: Colors.border,
+  },
+  timelineRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: 4 },
+  dotCol: { width: 24, alignItems: 'center' },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.borderStrong,
+    borderWidth: 3,
+    borderColor: Colors.bg,
+  },
+  dotActive: { backgroundColor: Colors.primary },
+  dotDone: {
+    width: 22,
+    height: 22,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 2,
+    borderColor: Colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.md,
+  },
+  dayCardDone: { opacity: 0.6 },
+  dayCardRest: { borderStyle: 'dashed', backgroundColor: 'transparent' },
+  dayEyebrow: {
+    fontFamily: Fonts.data,
+    fontSize: 10,
     color: Colors.textMuted,
-    letterSpacing: 1,
     textTransform: 'uppercase',
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.xs,
+    letterSpacing: Tracking.wide,
+    marginBottom: 2,
   },
-  cardSelected: { borderWidth: 2, borderColor: Colors.primary, borderRadius: Radii.lg },
-  cardTarget: { opacity: 0.6 },
-  sendSection: { marginTop: Spacing.md },
+  dayName: { ...Type.subtitle, fontSize: FontSize.md, color: Colors.textPrimary },
+  dayNameMuted: { color: Colors.textSecondary },
+  dayBadges: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  dayBadge: {
+    fontFamily: Fonts.data,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  dayBadgeZone: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  rowStructure: { paddingLeft: 32, marginTop: 2 },
+  cardSelected: { borderWidth: 2, borderColor: Colors.primary },
+  cardTarget: { opacity: 0.55 },
+
+  // Actions
+  actionRow: { flexDirection: 'row', gap: Spacing.sm },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radii.md,
+    paddingVertical: Spacing.md - 2,
+  },
+  actionBtnText: { ...Type.bodyStrong, color: Colors.textPrimary },
+
+  // Send to watch
+  sendSection: { marginTop: 2 },
   sendFeedback: { marginTop: Spacing.sm },
   sendOk: {
-    fontSize: FontSize.sm,
+    ...Type.bodySm,
     color: Colors.success,
-    fontWeight: FontWeight.semibold,
+    fontFamily: Fonts.bodySemiBold,
     textAlign: 'center',
     marginTop: Spacing.sm,
   },
-  advancedLink: { alignItems: 'center', paddingVertical: Spacing.md },
-  advancedLinkText: { fontSize: FontSize.sm, color: Colors.accent, fontWeight: FontWeight.semibold },
-  disclaimerFooter: { fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },
+  disclaimerFooter: {
+    ...Type.bodySm,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+
+  // Empty state
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
-  emptyIcon: { fontSize: 56, marginBottom: Spacing.md },
-  emptyTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
-  emptyText: { fontSize: FontSize.md, color: Colors.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl },
+  emptyIconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyTitle: { ...Type.headline, color: Colors.textPrimary, textAlign: 'center', marginBottom: Spacing.sm },
+  emptyText: {
+    ...Type.body,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+  },
   generateBtn: { width: '100%' },
 });

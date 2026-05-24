@@ -1,16 +1,17 @@
-// FitSync AI — Design System "Performance Dark"
-// Tema escuro de alta performance: fundo quase-preto, dados em destaque,
-// accent neon lima + cyan. Nomes de tokens estáveis (todas as telas dependem
-// destes) — só os VALORES mudam. Tokens novos são aditivos e seguros.
+// FitSync AI — Design System "Kinetic Precision" (Google Stitch)
+// Tema escuro de alta performance: fundo slate-black, dados em destaque,
+// lima neon como cor de ação + azul elétrico como cor de marca/dados.
+// Nomes de tokens estáveis (todas as telas dependem destes) — só os VALORES
+// mudam. Tokens novos são aditivos e seguros.
 
 export const Colors = {
-  // Accent / marca (lima neon) — usado em CTAs e destaques de energia
-  primary: '#C8FF3D',
-  primaryLight: '#D6FF66',
-  primaryMuted: '#1C2A12', // superfície escura tingida de lima (badges/why-card)
-  // Accent secundário (cyan) — destaque de dados/métricas
-  accent: '#38E1D6',
-  accentLight: '#0E2A28',
+  // Cor de ação (lima neon) — CTAs, progresso, estados "ativos"
+  primary: '#C3F400',
+  primaryLight: '#D4FF4D',
+  primaryMuted: '#1E2A07', // superfície escura tingida de lima (badges/why-card)
+  // Cor de marca / dados (azul elétrico) — branding, links, métricas, foco
+  accent: '#3E90FF',
+  accentLight: '#0E1F33',
   // Semânticos (vibrantes sobre dark)
   success: '#3DDC84',
   successLight: '#0E2A1B',
@@ -18,24 +19,24 @@ export const Colors = {
   warningLight: '#2A1F0A',
   danger: '#FF5C5C',
   dangerLight: '#2A1212',
-  // Neutros (base dark)
-  bg: '#0A0E14',
-  surface: '#131A24',
-  surfaceAlt: '#1B232F', // elevado: modais, sheets, estados ativos
-  border: '#232C38',
-  borderStrong: '#33414F',
-  textPrimary: '#E8EDF2',
-  textSecondary: '#9AA7B5',
-  textMuted: '#5C6B7A',
+  // Neutros (base slate-black — escala tonal do Stitch)
+  bg: '#101415',
+  surface: '#1D2022', // surface-container: cards
+  surfaceAlt: '#272A2C', // surface-container-high: elevado, modais, sheets
+  border: '#2F3437',
+  borderStrong: '#414754',
+  textPrimary: '#E0E3E5',
+  textSecondary: '#AEB6BF',
+  textMuted: '#7B8290',
   // Tipos de treino (sinalização por cor)
   workoutEasy: '#3DDC84',
   workoutInterval: '#FF5C5C',
   workoutTempo: '#F5A623',
   workoutLong: '#5B8DEF',
-  workoutRest: '#5C6B7A',
+  workoutRest: '#7B8290',
   workoutCross: '#A98BFF',
-  // Texto sobre superfícies de accent (lima/cyan são claros → texto escuro)
-  onAccent: '#0A0E14',
+  // Texto sobre superfícies de accent (lima/azul claros → texto escuro)
+  onAccent: '#101415',
 } as const;
 
 export const Spacing = {
@@ -102,10 +103,104 @@ export const Shadow = {
     elevation: 8,
   },
   glow: {
-    shadowColor: '#C8FF3D',
+    shadowColor: '#C3F400',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 16,
     elevation: 6,
+  },
+} as const;
+
+// Famílias tipográficas do Stitch "Kinetic Precision". Os valores batem com
+// os nomes das fontes carregadas via expo-font no _layout.tsx raiz. Enquanto
+// as fontes não carregam (ou na web sem fallback), o RN usa a fonte do
+// sistema — seguro. Use `Fonts.data` para números que atualizam em tempo
+// real (monoespaçada evita "pulo" horizontal).
+export const Fonts = {
+  display: 'HankenGrotesk-Bold', // headlines / títulos — geometria técnica
+  displayBlack: 'HankenGrotesk-ExtraBold', // display-lg (hero, uppercase)
+  body: 'Inter-Regular', // texto corrido / instruções
+  bodyMedium: 'Inter-Medium',
+  bodySemiBold: 'Inter-SemiBold',
+  bodyBold: 'Inter-Bold',
+  data: 'JetBrainsMono-Medium', // métricas (pace, FC, splits)
+} as const;
+
+// Escala tipográfica do Stitch "Kinetic Precision". Presets prontos para
+// espalhar em <Text style={Type.headline}> — já trazem família + tamanho +
+// peso + entrelinha + tracking corretos. `fontWeight` fica junto como
+// fallback para quando a fonte custom não carregar.
+export const Type = {
+  // Hero uppercase — títulos de tela (ex.: "RODAGEM LEVE")
+  display: {
+    fontFamily: Fonts.displayBlack,
+    fontSize: FontSize['4xl'],
+    fontWeight: FontWeight.extrabold,
+    lineHeight: 40,
+    letterSpacing: Tracking.tight,
+  },
+  // Título de seção grande
+  headline: {
+    fontFamily: Fonts.display,
+    fontSize: FontSize['2xl'],
+    fontWeight: FontWeight.bold,
+    lineHeight: 30,
+    letterSpacing: Tracking.tight,
+  },
+  // Título de card
+  title: {
+    fontFamily: Fonts.display,
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    lineHeight: 26,
+  },
+  // Subtítulo / título de linha
+  subtitle: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.semibold,
+    lineHeight: 24,
+  },
+  // Texto corrido
+  body: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.regular,
+    lineHeight: 22,
+  },
+  bodyStrong: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    lineHeight: 22,
+  },
+  // Texto secundário menor
+  bodySm: {
+    fontFamily: Fonts.body,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.regular,
+    lineHeight: 19,
+  },
+  // Eyebrow / label uppercase de seção
+  label: {
+    fontFamily: Fonts.bodyBold,
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    letterSpacing: Tracking.wide,
+    textTransform: 'uppercase' as const,
+  },
+  // Métrica monoespaçada (pace, FC, splits)
+  data: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    fontVariant: ['tabular-nums'] as const,
+  },
+  // Métrica grande em destaque
+  dataLg: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize['3xl'],
+    fontWeight: FontWeight.medium,
+    fontVariant: ['tabular-nums'] as const,
   },
 } as const;

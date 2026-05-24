@@ -10,11 +10,13 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, FontWeight, Radii, Spacing, Type } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
+import { StepBar } from '../../components/StepBar';
 
 type GoalMode = 'race' | 'general_progression';
 type RaceDistance = '5k' | '10k' | '21k' | '42k' | '70.3' | 'other';
@@ -36,51 +38,6 @@ const DISTANCE_LABELS: Record<RaceDistance, string> = {
   '70.3': 'Half Iron\n70.3',
   other: 'Outra',
 };
-
-const STEPS = ['Perfil', 'Objetivo', 'Garmin', 'Pronto'];
-
-function StepBar({ current }: { current: number }) {
-  return (
-    <View style={sb.row}>
-      {STEPS.map((label, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <View key={label} style={sb.stepWrap}>
-            <View style={[sb.pill, done && sb.pillDone, active && sb.pillActive]}>
-              {done ? (
-                <Text style={sb.pillTextDone}>✓</Text>
-              ) : (
-                <Text style={[sb.pillNum, active && sb.pillNumActive]}>{i + 1}</Text>
-              )}
-            </View>
-            <Text style={[sb.label, active && sb.labelActive, done && sb.labelDone]}>{label}</Text>
-            {i < STEPS.length - 1 && <View style={[sb.connector, done && sb.connectorDone]} />}
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-const sb = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', marginBottom: Spacing.xl },
-  stepWrap: { alignItems: 'center', position: 'relative', flex: 1 },
-  pill: {
-    width: 32, height: 32, borderRadius: 16,
-    borderWidth: 2, borderColor: Colors.border, backgroundColor: Colors.bg,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 4, zIndex: 1,
-  },
-  pillActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
-  pillDone: { borderColor: Colors.success, backgroundColor: Colors.success },
-  pillNum: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textMuted },
-  pillNumActive: { color: Colors.surface },
-  pillTextDone: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.surface },
-  label: { fontSize: 10, color: Colors.textMuted, fontWeight: FontWeight.medium, textAlign: 'center' },
-  labelActive: { color: Colors.primary, fontWeight: FontWeight.bold },
-  labelDone: { color: Colors.success },
-  connector: { position: 'absolute', top: 15, right: '-50%', left: '50%', height: 2, backgroundColor: Colors.border, zIndex: 0 },
-  connectorDone: { backgroundColor: Colors.success },
-});
 
 function validateDate(raw: string): string | null {
   if (raw.length < 10) return 'Data incompleta';
@@ -145,8 +102,8 @@ export default function GoalScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.heroSection}>
-          <Text style={styles.title}>Seu{'\n'}objetivo</Text>
+        <View style={styles.hero}>
+          <Text style={styles.title}>Sua prova alvo</Text>
           <Text style={styles.subtitle}>Isso define como o plano é construído</Text>
         </View>
 
@@ -154,41 +111,22 @@ export default function GoalScreen() {
 
         {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
 
-        <TouchableOpacity
-          style={[styles.modeCard, mode === 'race' && styles.modeCardActive]}
+        <ModeCard
+          icon="flag"
+          active={mode === 'race'}
+          title="Tenho uma prova alvo"
+          desc="Preparação periodizada para uma data específica"
           onPress={() => setMode('race')}
-          accessibilityRole="radio"
-          accessibilityLabel="Tenho uma prova alvo"
-          accessibilityState={{ selected: mode === 'race' }}
-        >
-          <Text style={styles.modeIcon}>🏁</Text>
-          <View style={styles.modeBody}>
-            <Text style={[styles.modeTitle, mode === 'race' && styles.modeTitleActive]}>
-              Tenho uma prova alvo
-            </Text>
-            <Text style={styles.modeDesc}>Preparação periodizada para uma data específica</Text>
-          </View>
-          {mode === 'race' && <View style={styles.checkDot} />}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.modeCard, mode === 'general_progression' && styles.modeCardActive]}
+        />
+        <ModeCard
+          icon="trending-up"
+          active={mode === 'general_progression'}
+          title="Quero evoluir gradualmente"
+          desc="Sem prova definida — foco em base e progressão"
           onPress={() => setMode('general_progression')}
-          accessibilityRole="radio"
-          accessibilityLabel="Quero evoluir gradualmente"
-          accessibilityState={{ selected: mode === 'general_progression' }}
-        >
-          <Text style={styles.modeIcon}>📈</Text>
-          <View style={styles.modeBody}>
-            <Text style={[styles.modeTitle, mode === 'general_progression' && styles.modeTitleActive]}>
-              Quero evoluir gradualmente
-            </Text>
-            <Text style={styles.modeDesc}>Sem prova definida — foco em base e progressão</Text>
-          </View>
-          {mode === 'general_progression' && <View style={styles.checkDot} />}
-        </TouchableOpacity>
+        />
 
-        {mode === 'race' && (
+        {mode === 'race' ? (
           <>
             <Text style={styles.label}>Distância da prova</Text>
             <View style={styles.distanceGrid}>
@@ -225,7 +163,7 @@ export default function GoalScreen() {
               <Text style={styles.fieldOk}>✓ Data válida</Text>
             ) : null}
           </>
-        )}
+        ) : null}
 
         <Button
           label="Continuar"
@@ -239,62 +177,108 @@ export default function GoalScreen() {
   );
 }
 
+function ModeCard({
+  icon,
+  active,
+  title,
+  desc,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  active: boolean;
+  title: string;
+  desc: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.modeCard, active && styles.modeCardActive]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={title}
+      accessibilityState={{ selected: active }}
+    >
+      <View style={[styles.modeIcon, active && styles.modeIconActive]}>
+        <Ionicons name={icon} size={20} color={active ? Colors.onAccent : Colors.textSecondary} />
+      </View>
+      <View style={styles.modeBody}>
+        <Text style={[styles.modeTitle, active && styles.modeTitleActive]}>{title}</Text>
+        <Text style={styles.modeDesc}>{desc}</Text>
+      </View>
+      {active ? <Ionicons name="checkmark-circle" size={22} color={Colors.primary} /> : null}
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.xxl, paddingBottom: Spacing.xl },
-  heroSection: { marginBottom: Spacing.xl },
-  title: { fontSize: 32, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, lineHeight: 40, marginBottom: Spacing.xs },
-  subtitle: { fontSize: FontSize.md, color: Colors.textMuted, lineHeight: 22 },
+  hero: { marginBottom: Spacing.lg },
+  title: { ...Type.display, color: Colors.textPrimary },
+  subtitle: { ...Type.body, color: Colors.textMuted, marginTop: Spacing.xs },
+
   modeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: Radii.md,
+    borderRadius: Radii.lg,
     borderWidth: 1.5,
     borderColor: Colors.border,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     gap: Spacing.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.surface,
   },
   modeCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
-  modeIcon: { fontSize: 32 },
-  modeBody: { flex: 1 },
-  modeTitle: { fontSize: FontSize.md, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: 2 },
-  modeTitleActive: { color: Colors.primary },
-  modeDesc: { fontSize: FontSize.xs, color: Colors.textMuted, lineHeight: 18 },
-  checkDot: {
-    width: 20,
-    height: 20,
+  modeIcon: {
+    width: 44,
+    height: 44,
     borderRadius: Radii.full,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  label: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.md },
+  modeIconActive: { backgroundColor: Colors.primary },
+  modeBody: { flex: 1 },
+  modeTitle: { ...Type.bodyStrong, color: Colors.textPrimary },
+  modeTitleActive: { color: Colors.primary },
+  modeDesc: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
+
+  label: { ...Type.label, color: Colors.textSecondary, marginBottom: Spacing.sm, marginTop: Spacing.md },
   distanceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   distanceCard: {
-    flex: 1,
-    minWidth: '30%',
+    flexGrow: 1,
+    flexBasis: '30%',
     borderRadius: Radii.md,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: Spacing.sm,
+    minHeight: 56,
     alignItems: 'center',
-    backgroundColor: Colors.bg,
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceAlt,
   },
   distanceCardActive: { backgroundColor: Colors.primaryMuted, borderColor: Colors.primary },
-  distanceText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold, textAlign: 'center', lineHeight: 16 },
+  distanceText: {
+    fontFamily: Fonts.bodySemiBold,
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
   distanceTextActive: { color: Colors.primary },
   input: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderStrong,
     borderRadius: Radii.md,
     padding: Spacing.md,
+    fontFamily: Fonts.data,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.surfaceAlt,
     minHeight: 50,
   },
   inputError: { borderColor: Colors.danger, backgroundColor: Colors.dangerLight },
-  fieldError: { fontSize: FontSize.xs, color: Colors.danger, marginTop: Spacing.xs },
-  fieldOk: { fontSize: FontSize.xs, color: Colors.success, marginTop: Spacing.xs },
+  fieldError: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.danger, marginTop: Spacing.xs },
+  fieldOk: { ...Type.bodySm, fontSize: FontSize.xs, color: Colors.success, marginTop: Spacing.xs },
   btn: { marginTop: Spacing.xl },
 });

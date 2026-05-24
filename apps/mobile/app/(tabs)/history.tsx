@@ -1,11 +1,13 @@
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Colors, FontSize, FontWeight, Radii, Shadow, Spacing } from '../../lib/theme';
+import { Colors, Fonts, FontSize, Radii, Spacing, Tracking, Type } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
+import { TopBar } from '../../components/TopBar';
 
 interface Workout {
   id: string;
@@ -18,6 +20,8 @@ interface Workout {
   type?: string;
 }
 
+const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 const TYPE_COLOR: Record<string, string> = {
   easy: Colors.workoutEasy,
   interval: Colors.workoutInterval,
@@ -28,7 +32,7 @@ const TYPE_COLOR: Record<string, string> = {
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  easy: 'Regenerativo',
+  easy: 'Rodagem',
   interval: 'Intervalado',
   tempo: 'Tempo',
   long: 'Longo',
@@ -36,37 +40,136 @@ const TYPE_LABEL: Record<string, string> = {
   cross: 'Cross',
 };
 
-function WorkoutRow({ workout }: { workout: Workout }) {
-  const typeColor = TYPE_COLOR[workout.type ?? 'easy'] ?? Colors.textMuted;
-  const typeLabel = TYPE_LABEL[workout.type ?? 'easy'] ?? workout.type ?? '—';
-  const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1) : null;
-  const durMin = workout.duration_s > 0 ? Math.floor(workout.duration_s / 60) : null;
+const TYPE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  easy: 'footsteps-outline',
+  interval: 'timer-outline',
+  tempo: 'speedometer-outline',
+  long: 'footsteps-outline',
+  rest: 'bed-outline',
+  cross: 'bicycle-outline',
+};
+
+// "2026-05-15" → "15 Mai"
+function formatDateShort(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return `${parseInt(d, 10)} ${PT_MONTHS[parseInt(m, 10) - 1] ?? ''}`;
+}
+
+// segundos → "1h02" ou "45m"
+function formatDuration(totalS: number): string {
+  const h = Math.floor(totalS / 3600);
+  const m = Math.floor((totalS % 3600) / 60);
+  return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}`;
+}
+
+// pace médio em "M:SS" por km
+function formatPace(distanceM: number, durationS: number): string | null {
+  if (distanceM <= 0 || durationS <= 0) return null;
+  const paceS = Math.round(durationS / (distanceM / 1000));
+  const m = Math.floor(paceS / 60);
+  const s = paceS % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ── Mini-heatmap de frequência da semana corrente ─────────────────────
+function FrequencyStrip({ workouts }: { workouts: Workout[] }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay()); // domingo
+
+  const workoutDates = new Set(workouts.map((w) => w.date));
+  const labels = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+  const bars = labels.map((_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const hasWorkout = workoutDates.has(iso);
+    const isFuture = d.getTime() > today.getTime();
+    const isToday = d.getTime() === today.getTime();
+    return { hasWorkout, isFuture, isToday };
+  });
+
+  return (
+    <View style={styles.freqSection}>
+      <View style={styles.freqHeader}>
+        <Text style={styles.freqTitle}>Frequência</Text>
+        <Text style={styles.freqHint}>Esta semana</Text>
+      </View>
+      <View style={styles.freqBars}>
+        {bars.map((b, i) => (
+          <View
+            key={i}
+            style={[
+              styles.freqBar,
+              b.hasWorkout && styles.freqBarActive,
+              b.isToday && !b.hasWorkout && styles.freqBarToday,
+              b.isFuture && styles.freqBarFuture,
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.freqLabels}>
+        {labels.map((l, i) => (
+          <Text key={i} style={styles.freqLabel}>{l}</Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function WorkoutCard({ workout }: { workout: Workout }) {
+  const type = workout.type ?? 'easy';
+  const tint = TYPE_COLOR[type] ?? Colors.textMuted;
+  const label = TYPE_LABEL[type] ?? type;
+  const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1) : '—';
+  const dur = workout.duration_s > 0 ? formatDuration(workout.duration_s) : '—';
+  const pace = formatPace(workout.distance_m, workout.duration_s);
 
   return (
     <TouchableOpacity
-      style={[styles.row, Shadow.card]}
+      style={styles.card}
       onPress={() => router.push(`/workout/${workout.id}`)}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={`Treino de ${workout.date}, ${typeLabel}`}
+      accessibilityLabel={`Treino de ${formatDateShort(workout.date)}, ${label}`}
     >
-      <View style={[styles.rowAccent, { backgroundColor: typeColor }]} />
-      <View style={styles.rowBody}>
-        <View style={styles.rowTop}>
-          <Text style={styles.rowDate}>{workout.date}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: typeColor + '22' }]}>
-            <Text style={[styles.typeBadgeText, { color: typeColor }]}>{typeLabel}</Text>
+      <View style={styles.cardTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardDate}>{formatDateShort(workout.date)}</Text>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle}>{label}</Text>
+            {workout.rtss != null ? (
+              <Text style={[styles.zoneBadge, { color: tint, borderColor: tint + '44' }]}>
+                {workout.rtss.toFixed(0)} rTSS
+              </Text>
+            ) : null}
           </View>
         </View>
-        <View style={styles.rowStats}>
-          {distKm ? <Text style={styles.stat}>{distKm} km</Text> : null}
-          {durMin ? <Text style={styles.stat}>{durMin} min</Text> : null}
-          {workout.avg_hr ? <Text style={styles.stat}>♥ {workout.avg_hr} bpm</Text> : null}
-          {workout.rtss ? <Text style={styles.stat}>{workout.rtss.toFixed(0)} rTSS</Text> : null}
+        <View style={[styles.typeIcon, { backgroundColor: tint + '1A' }]}>
+          <Ionicons name={TYPE_ICON[type] ?? 'footsteps-outline'} size={20} color={tint} />
         </View>
       </View>
-      <Text style={styles.chevron}>›</Text>
+
+      <View style={styles.cardStats}>
+        <Stat label="Distância" value={distKm} unit="km" />
+        <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
+        <Stat label="Pace" value={pace ?? '—'} unit={pace ? '/km' : ''} />
+      </View>
     </TouchableOpacity>
+  );
+}
+
+function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>
+        {value}
+        {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
+      </Text>
+    </View>
   );
 }
 
@@ -83,13 +186,20 @@ export default function HistoryScreen() {
   });
 
   if (!session) return null;
-  if (isLoading) return <LoadingScreen message="Carregando histórico..." />;
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <TopBar />
+        <LoadingScreen message="Carregando histórico..." />
+      </View>
+    );
+  }
 
   const workouts = data?.workouts ?? [];
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Histórico</Text>
+      <TopBar />
 
       {isError ? (
         <View style={styles.errorWrap}>
@@ -97,7 +207,9 @@ export default function HistoryScreen() {
         </View>
       ) : workouts.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🏃</Text>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="footsteps-outline" size={36} color={Colors.primary} />
+          </View>
           <Text style={styles.emptyTitle}>Nenhum treino ainda</Text>
           <Text style={styles.emptyText}>
             Conecte seu Garmin nas configurações para importar seu histórico.
@@ -107,9 +219,22 @@ export default function HistoryScreen() {
         <FlatList
           data={workouts}
           keyExtractor={(w) => w.id}
-          renderItem={({ item }) => <WorkoutRow workout={item} />}
+          renderItem={({ item }) => <WorkoutCard workout={item} />}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+          ListHeaderComponent={
+            <View>
+              <Text style={styles.screenTitle}>Histórico</Text>
+              <FrequencyStrip workouts={workouts} />
+              <Text style={styles.listLabel}>Treinos</Text>
+            </View>
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              tintColor={Colors.primary}
+            />
+          }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           showsVerticalScrollIndicator={false}
         />
@@ -120,29 +245,121 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  title: { fontSize: FontSize['2xl'], fontWeight: FontWeight.bold, color: Colors.textPrimary, padding: Spacing.md, paddingTop: Spacing.xxl + Spacing.md },
-  list: { padding: Spacing.md, paddingTop: 0, paddingBottom: Spacing.xl },
+  list: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  screenTitle: { ...Type.headline, color: Colors.textPrimary, marginBottom: Spacing.md },
   errorWrap: { padding: Spacing.md },
-  row: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.md,
+
+  // Frequency strip
+  freqSection: { marginBottom: Spacing.lg },
+  freqHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
-    minHeight: 72,
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
   },
-  rowAccent: { width: 4, alignSelf: 'stretch' },
-  rowBody: { flex: 1, padding: Spacing.md },
-  rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
-  rowDate: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
-  typeBadge: { borderRadius: Radii.sm, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
-  typeBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
-  rowStats: { flexDirection: 'row', gap: Spacing.md },
-  stat: { fontSize: FontSize.xs, color: Colors.textMuted },
-  chevron: { fontSize: 20, color: Colors.textMuted, paddingRight: Spacing.sm },
+  freqTitle: { ...Type.subtitle, fontSize: FontSize.md, color: Colors.textPrimary },
+  freqHint: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+  },
+  freqBars: { flexDirection: 'row', gap: 6, height: 40 },
+  freqBar: {
+    flex: 1,
+    borderRadius: Radii.sm,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  freqBarActive: {
+    backgroundColor: Colors.primary,
+    ...({ shadowColor: Colors.primary, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 }),
+  },
+  freqBarToday: { borderWidth: 1.5, borderColor: Colors.accent },
+  freqBarFuture: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+  },
+  freqLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 2 },
+  freqLabel: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: Fonts.data,
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+
+  listLabel: { ...Type.label, color: Colors.textMuted, marginBottom: Spacing.sm },
+
+  // Workout card
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+  },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  cardDate: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+  },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 3 },
+  cardTitle: { ...Type.title, fontSize: FontSize.xl, color: Colors.textPrimary },
+  zoneBadge: {
+    fontFamily: Fonts.data,
+    fontSize: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.full,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  typeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardStats: {
+    flexDirection: 'row',
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  stat: { flex: 1 },
+  statLabel: {
+    fontFamily: Fonts.data,
+    fontSize: 10,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: Tracking.wide,
+    marginBottom: 3,
+  },
+  statValue: {
+    fontFamily: Fonts.data,
+    fontSize: FontSize.lg,
+    color: Colors.textPrimary,
+  },
+  statUnit: { fontSize: FontSize.xs, color: Colors.textMuted },
   sep: { height: Spacing.sm },
+
+  // Empty state
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
-  emptyIcon: { fontSize: 56, marginBottom: Spacing.md },
-  emptyTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
-  emptyText: { fontSize: FontSize.md, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  emptyIconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyTitle: { ...Type.headline, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
+  emptyText: { ...Type.body, color: Colors.textMuted, textAlign: 'center' },
 });
