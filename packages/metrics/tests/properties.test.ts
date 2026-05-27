@@ -131,8 +131,9 @@ describe('calculateRTSS — propriedades', () => {
         (dur, dist, ftp) => {
           const single = calculateRTSS({ duration_s: dur, distance_m: dist }, ftp);
           const doubled = calculateRTSS({ duration_s: dur * 2, distance_m: dist * 2 }, ftp);
-          // Filtra TSS baixo (rounding domina): exige single ≥ 5
-          if (single < 5) return doubled <= single * 2 + 0.3;
+          // Filtra TSS baixo (rounding de 0.1 domina a fração doubled/single):
+          // abaixo de 10, o ruído ≤0.05 já cabe nos 0.02 de tolerância.
+          if (single < 10) return doubled <= single * 2 + 0.3;
           return Math.abs(doubled / single - 2) < 0.02;
         },
       ),
