@@ -1,0 +1,521 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-26T00:00:00.000Z",
+  "title": "Design System: FitSync AI",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Confidence Blue",
+        "canonical": "#4777c2",
+        "tonalRamp": [
+          "#0e1a2b",
+          "#16294a",
+          "#1f3a6a",
+          "#284f8d",
+          "#4777c2",
+          "#7e9fd2",
+          "#b3c6e3",
+          "#e1eaf5"
+        ]
+      },
+      "brand-deep": {
+        "role": "secondary",
+        "displayName": "Analytical Indigo",
+        "canonical": "#2a5ea7",
+        "tonalRamp": [
+          "#0a1729",
+          "#11254a",
+          "#193567",
+          "#214a86",
+          "#2a5ea7",
+          "#5e87c4",
+          "#9bb6dd",
+          "#d4e0ef"
+        ]
+      },
+      "surface-base": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#fbf9f9",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#888686",
+          "#b5b2b2",
+          "#dad7d7",
+          "#eeebeb",
+          "#fbf9f9"
+        ]
+      },
+      "surface-card": {
+        "role": "neutral",
+        "displayName": "Lab White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#888686",
+          "#b5b2b2",
+          "#dad7d7",
+          "#f0eeee",
+          "#ffffff"
+        ]
+      },
+      "surface-alt": {
+        "role": "neutral",
+        "displayName": "Quiet Stone",
+        "canonical": "#f5f3f3",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#878585",
+          "#b3b0b0",
+          "#d6d3d3",
+          "#e9e7e7",
+          "#f5f3f3"
+        ]
+      },
+      "border-soft": {
+        "role": "neutral",
+        "displayName": "Hairline Mist",
+        "canonical": "#e3e2e2",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#878585",
+          "#b3b0b0",
+          "#cfcccc",
+          "#dcd9d9",
+          "#e3e2e2"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Ledger Line",
+        "canonical": "#c6c6c6",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#7a7a7a",
+          "#9c9c9c",
+          "#b3b3b3",
+          "#c0c0c0",
+          "#c6c6c6"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Graphite Ink",
+        "canonical": "#1b1c1c",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#141515",
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#878585",
+          "#b3b0b0",
+          "#e3e2e2"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Annotation Gray",
+        "canonical": "#474747",
+        "tonalRamp": [
+          "#0e0e0e",
+          "#1b1c1c",
+          "#2d2d2d",
+          "#474747",
+          "#666666",
+          "#8a8a8a",
+          "#b5b5b5",
+          "#dcdcdc"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Footnote Gray",
+        "canonical": "#777777",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#2d2d2d",
+          "#474747",
+          "#5d5d5d",
+          "#777777",
+          "#9a9a9a",
+          "#bdbdbd",
+          "#dedede"
+        ]
+      },
+      "on-accent": {
+        "role": "neutral",
+        "displayName": "On-Accent White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#3a3838",
+          "#5d5b5b",
+          "#888686",
+          "#b5b2b2",
+          "#dad7d7",
+          "#f0eeee",
+          "#ffffff"
+        ]
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Verified Green",
+        "canonical": "#2e7d32",
+        "tonalRamp": [
+          "#0e2710",
+          "#163b1a",
+          "#1f5424",
+          "#266a2b",
+          "#2e7d32",
+          "#5fa063",
+          "#9bc69f",
+          "#e6f4ea"
+        ]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "Caution Amber",
+        "canonical": "#ed6c02",
+        "tonalRamp": [
+          "#3a1a00",
+          "#572700",
+          "#7d3800",
+          "#a64a01",
+          "#ed6c02",
+          "#f49653",
+          "#f9bf96",
+          "#fef3e6"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Alert Red",
+        "canonical": "#ba1a1a",
+        "tonalRamp": [
+          "#2f0707",
+          "#4a0c0c",
+          "#6b1212",
+          "#931616",
+          "#ba1a1a",
+          "#cf5757",
+          "#e09898",
+          "#fde8e8"
+        ]
+      },
+      "workout-easy": {
+        "role": "signal",
+        "displayName": "Easy Green",
+        "canonical": "#2e7d32",
+        "tonalRamp": [
+          "#0e2710",
+          "#163b1a",
+          "#1f5424",
+          "#266a2b",
+          "#2e7d32",
+          "#5fa063",
+          "#9bc69f",
+          "#e6f4ea"
+        ]
+      },
+      "workout-interval": {
+        "role": "signal",
+        "displayName": "Interval Red",
+        "canonical": "#c62828",
+        "tonalRamp": [
+          "#310a0a",
+          "#4b0f0f",
+          "#6d1717",
+          "#971f1f",
+          "#c62828",
+          "#d56262",
+          "#e29c9c",
+          "#f6dadc"
+        ]
+      },
+      "workout-tempo": {
+        "role": "signal",
+        "displayName": "Tempo Orange",
+        "canonical": "#ed6c02",
+        "tonalRamp": [
+          "#3a1a00",
+          "#572700",
+          "#7d3800",
+          "#a64a01",
+          "#ed6c02",
+          "#f49653",
+          "#f9bf96",
+          "#fef3e6"
+        ]
+      },
+      "workout-long": {
+        "role": "signal",
+        "displayName": "Long Run Indigo",
+        "canonical": "#2a5ea7",
+        "tonalRamp": [
+          "#0a1729",
+          "#11254a",
+          "#193567",
+          "#214a86",
+          "#2a5ea7",
+          "#5e87c4",
+          "#9bb6dd",
+          "#d4e0ef"
+        ]
+      },
+      "workout-rest": {
+        "role": "signal",
+        "displayName": "Rest Gray",
+        "canonical": "#777777",
+        "tonalRamp": [
+          "#1b1c1c",
+          "#2d2d2d",
+          "#474747",
+          "#5d5d5d",
+          "#777777",
+          "#9a9a9a",
+          "#bdbdbd",
+          "#dedede"
+        ]
+      },
+      "workout-cross": {
+        "role": "signal",
+        "displayName": "Cross-Train Mauve",
+        "canonical": "#6f5674",
+        "tonalRamp": [
+          "#1c1620",
+          "#2c2230",
+          "#3f3245",
+          "#544257",
+          "#6f5674",
+          "#9382a0",
+          "#b7a8bf",
+          "#e0d6e3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Nome de tela principal, herói raro. ≤1 por tela."
+      },
+      "headline": { "displayName": "Headline", "purpose": "Título de seção forte. Hanken Bold." },
+      "title": { "displayName": "Title", "purpose": "Subtítulo, card title. Hanken Bold." },
+      "subtitle": {
+        "displayName": "Subtitle",
+        "purpose": "Destaque dentro de card. Inter SemiBold."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Parágrafo, explicação didática. Inter Regular. Max ~65ch."
+      },
+      "body-sm": { "displayName": "Body Sm", "purpose": "Texto secundário, caption, metadata." },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Rótulo de campo, header. Uppercase, Inter Bold, tracking 1."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Número inline, lap time. JetBrains Mono tabular."
+      },
+      "data-lg": {
+        "displayName": "Data Lg",
+        "purpose": "KPI principal de card. Mono tabular, 28px."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 1px 4px rgba(15, 23, 42, 0.05)",
+        "purpose": "Superfícies em repouso. Quase imperceptível — sinaliza camada acima da página."
+      },
+      {
+        "name": "elevated",
+        "value": "0 8px 20px rgba(15, 23, 42, 0.12)",
+        "purpose": "Modais, bottom sheets, popovers. Elementos forçados pra frente do contexto."
+      },
+      {
+        "name": "glow",
+        "value": "0 4px 12px rgba(71, 119, 194, 0.18)",
+        "purpose": "Halo azul. Reservado pra elementos ativos de ação (primary em repouso, input em focus)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Curva padrão pra transições de estado. Sem bounce, sem elastic."
+      },
+      {
+        "name": "press-feedback",
+        "value": "activeOpacity: 0.85 (TouchableOpacity)",
+        "purpose": "Resposta tátil mínima ao toque. Sem transform scale, sem haptic decorativo."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "375px" },
+      { "name": "md", "value": "414px" },
+      { "name": "lg", "value": "768px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "CTA único da tela. Pill azul com glow sutil, label uppercase Hanken extrabold.",
+      "html": "<button class=\"ds-btn-primary\">SINCRONIZAR GARMIN</button>",
+      "css": ".ds-btn-primary { background: #4777c2; color: #ffffff; padding: 16px 24px; min-height: 52px; border: none; border-radius: 9999px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 800; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; box-shadow: 0 4px 12px rgba(71, 119, 194, 0.18); cursor: pointer; transition: background 0.2s cubic-bezier(0.25, 1, 0.5, 1), transform 0.15s; } .ds-btn-primary:hover { background: #3a66ad; } .ds-btn-primary:active { transform: scale(0.985); opacity: 0.92; } .ds-btn-primary:focus-visible { outline: 2px solid #2a5ea7; outline-offset: 3px; } .ds-btn-primary:disabled { background: #f5f3f3; color: #777777; box-shadow: none; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ação alternativa. Pill com stroke 1.5px, sem fundo, label preto.",
+      "html": "<button class=\"ds-btn-secondary\">DESCARTAR</button>",
+      "css": ".ds-btn-secondary { background: transparent; color: #1b1c1c; padding: 14.5px 24px; min-height: 52px; border: 1.5px solid #c6c6c6; border-radius: 9999px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 800; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: border-color 0.2s, color 0.2s; } .ds-btn-secondary:hover { border-color: #1b1c1c; } .ds-btn-secondary:focus-visible { outline: 2px solid #4777c2; outline-offset: 3px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Ação terciária dentro de cards densos. Só texto azul.",
+      "html": "<button class=\"ds-btn-ghost\">VER DETALHES</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #4777c2; padding: 16px 24px; min-height: 52px; border: none; border-radius: 9999px; font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: color 0.2s; } .ds-btn-ghost:hover { color: #2a5ea7; } .ds-btn-ghost:focus-visible { outline: 2px solid #4777c2; outline-offset: 3px; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo editável com label uppercase acima e tom Quiet Stone como sinal de superfície editável.",
+      "html": "<label class=\"ds-input-wrap\"><span class=\"ds-input-label\">EMAIL</span><input class=\"ds-input\" type=\"email\" placeholder=\"voce@exemplo.com\" /></label>",
+      "css": ".ds-input-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; } .ds-input-label { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #777777; } .ds-input { background: #f5f3f3; color: #1b1c1c; padding: 14px 16px; min-height: 50px; border: 1px solid #c6c6c6; border-radius: 12px; font-family: 'Inter', system-ui, sans-serif; font-size: 15px; font-weight: 400; outline: none; transition: border-color 0.2s, box-shadow 0.2s; } .ds-input::placeholder { color: #777777; } .ds-input:focus-visible { border-color: #4777c2; box-shadow: 0 4px 12px rgba(71, 119, 194, 0.18); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Container neutro. Branco puro, borda hairline, radius 12, padding 16. Sombra ambient sutil.",
+      "html": "<article class=\"ds-card\"><h3 class=\"ds-card-title\">Treino de hoje</h3><p class=\"ds-card-body\">Long run 90 min em Z2. Foco em manter FC abaixo de 152.</p></article>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #e3e2e2; border-radius: 12px; padding: 16px; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05); } .ds-card-title { font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 700; font-size: 20px; line-height: 26px; color: #1b1c1c; margin: 0 0 8px 0; } .ds-card-body { font-family: 'Inter', system-ui, sans-serif; font-weight: 400; font-size: 15px; line-height: 22px; color: #474747; margin: 0; }"
+    },
+    {
+      "name": "Workout Type Chip",
+      "kind": "chip",
+      "refersTo": "chip-workout",
+      "description": "Pill sinalizando tipo de treino. Cor + ícone + label sempre juntos (regra de daltonismo).",
+      "html": "<span class=\"ds-chip-workout ds-chip-interval\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20V4M5 11l7-7 7 7\"/></svg>INTERVALADO</span>",
+      "css": ".ds-chip-workout { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; font-family: 'Inter', system-ui, sans-serif; font-weight: 700; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; } .ds-chip-interval { background: rgba(198, 40, 40, 0.12); color: #c62828; }"
+    },
+    {
+      "name": "KPI Block",
+      "kind": "custom",
+      "refersTo": "kpi-block",
+      "description": "Bloco recorrente em screens de métrica. Label uppercase, valor em mono grande, unidade pequena, opcional footnote de incerteza.",
+      "html": "<div class=\"ds-kpi\"><div class=\"ds-kpi-label\">ACWR 7D</div><div class=\"ds-kpi-row\"><span class=\"ds-kpi-value\">1.18</span><span class=\"ds-kpi-unit\">razão</span></div><div class=\"ds-kpi-foot\">estimativa baseada em 4 dias</div></div>",
+      "css": ".ds-kpi { display: flex; flex-direction: column; gap: 4px; } .ds-kpi-label { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #777777; } .ds-kpi-row { display: flex; align-items: baseline; gap: 8px; } .ds-kpi-value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 28px; font-weight: 500; line-height: 32px; color: #1b1c1c; font-variant-numeric: tabular-nums; } .ds-kpi-unit { font-family: 'Inter', system-ui, sans-serif; font-size: 13px; color: #777777; } .ds-kpi-foot { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; color: #777777; font-style: italic; }"
+    },
+    {
+      "name": "Bottom Tab Nav",
+      "kind": "nav",
+      "refersTo": "tab-nav",
+      "description": "Tab bar inferior. Ícone outline + label sempre visíveis. Cor distingue ativo/inativo (sem barra inferior decorativa).",
+      "html": "<nav class=\"ds-tabnav\"><a class=\"ds-tab ds-tab--active\" href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"#4777c2\" stroke=\"#4777c2\" stroke-width=\"1.5\"><path d=\"M4 4h16v6H4zM4 14h7v6H4zM13 14h7v6h-7z\"/></svg><span>Plano</span></a><a class=\"ds-tab\" href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#777777\" stroke-width=\"1.5\" stroke-linecap=\"round\"><path d=\"M3 6h18M3 12h18M3 18h18\"/></svg><span>Histórico</span></a><a class=\"ds-tab\" href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#777777\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"8\" r=\"5\"/><path d=\"M8.21 13.89L7 22l5-3 5 3-1.21-8.11\"/></svg><span>Conquistas</span></a><a class=\"ds-tab\" href=\"#\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#777777\" stroke-width=\"1.5\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .67.39 1.27 1 1.51H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"/></svg><span>Ajustes</span></a></nav>",
+      "css": ".ds-tabnav { display: flex; background: #fbf9f9; border-top: 1px solid #e3e2e2; padding: 6px 0 14px 0; } .ds-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; text-decoration: none; font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 500; color: #777777; } .ds-tab--active { color: #4777c2; font-weight: 700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Lab Notebook",
+    "overview": "O FitSync AI é o caderno de fisiologia do atleta. Não é um app fitness com aspirações estéticas — é uma página de papel branco onde a IA escreve, em tinta azul de análise, o que viu nos dados do Garmin e o que prescreve pra próxima semana. O atleta lê, anota mentalmente, confirma. Depois fecha o caderno e vai treinar no relógio. A estética é deliberadamente solar: branco off-white dominante, azul de confiança usado com parcimônia, tipografia que faz o trabalho pesado de hierarquia. O sistema rejeita explicitamente SaaS fitness genérico, wellness/mindfulness e dark gamer/crypto.",
+    "keyCharacteristics": [
+      "Light-only, branco off-white com tint quente quase imperceptível",
+      "Tipografia carrega a hierarquia; cor é sinal, não decoração",
+      "Dados em mono tabular (JetBrains) sempre que o número merece ser comparado",
+      "Densidade média-alta: aproveita a tela mobile, sem otimizações pra leitura em movimento",
+      "3 níveis de elevação com propósito; nada de empilhar sombras",
+      "Dois temas (interstellar canônico, interspaceBlue alternativo) via useTheme()"
+    ],
+    "rules": [
+      {
+        "name": "The One Voice Rule",
+        "body": "Confidence Blue carrega ≤10% de qualquer tela. Se duas coisas estão em primary, uma está errada.",
+        "section": "colors"
+      },
+      {
+        "name": "The Color-Is-Not-The-Label Rule",
+        "body": "Toda categoria por cor (tipo de treino, zona, status) também aparece com ícone e label. Daltônico entende a tela sem ver cor.",
+        "section": "colors"
+      },
+      {
+        "name": "The No-Pure-Black-Or-White Rule",
+        "body": "#000 e #fff são proibidos. Todo neutro carrega tint quente discreto.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Todo número comparável usa JetBrains Mono com tabular-nums. Inter pra prosa, Mono pra dado.",
+        "section": "typography"
+      },
+      {
+        "name": "The Uppercase-Tracking Rule",
+        "body": "Texto em maiúscula sempre carrega letterSpacing 1. Maiúscula sem tracking é grito.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Display-Per-Card Rule",
+        "body": "Display 36px aparece no máximo uma vez por tela. Em card, teto é Title 20px.",
+        "section": "typography"
+      },
+      {
+        "name": "The Three-Levels Rule",
+        "body": "Profundidade existe em exatamente três degraus: card, elevated, glow. Não inventar mais.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Functional Glow Rule",
+        "body": "Sombra colorida (glow) é sempre funcional. Glow decorativo é traço crypto e está proibido.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Restrained Shadow Rule",
+        "body": "A sombra deve sumir quando não estiver ajudando. Não é a heroína da tela.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usar useTheme() em todo componente que toque cor, sombra ou preset tipográfico.",
+      "Do combinar cor + ícone + label sempre que sinalizar tipo de treino, zona ou status.",
+      "Do usar fontVariant ['tabular-nums'] em todo número comparável.",
+      "Do confiar na tipografia pra criar hierarquia (Headline Hanken 700 + Body Inter 400 > cor).",
+      "Do documentar incerteza na UI quando os dados são frouxos ('estimativa baseada em 4 dias').",
+      "Do usar pill (rounded.full) só pra botões e chips. Card é md (12px), modal é lg (16px).",
+      "Do reabrir esta seção quando houver um segundo consumidor de UI (app web ou desktop) — hoje todo componente vive em apps/mobile/components."
+    ],
+    "donts": [
+      "Don't usar border-left/border-right >1px como acento colorido em cards/list items/callouts.",
+      "Don't usar gradient text (background-clip: text + gradient) em nenhuma headline.",
+      "Don't usar #000 ou #fff puro.",
+      "Don't repetir hero-metric template (número gigante + label minúsculo + gradient atrás). Use o KPI Block.",
+      "Don't desenhar (tabs)/plan.tsx ou history.tsx como grid de cards idênticos com ícone+heading+texto — anti-pattern 'Fitness SaaS genérico'.",
+      "Don't abrir modal pra confirmar ajuste pequeno. Inline > modal, exceto ações destrutivas.",
+      "Don't usar gradientes pastel suaves, ilustrações fofas ou copy motivacional ('Bora correr! 🔥') — lane 'Wellness/mindfulness' proibido.",
+      "Don't usar glow neon, glassmorphism ou dark mode com acentos saturados — lane 'Crypto/dark gamer' banido.",
+      "Don't empilhar sombras. Três níveis, cada um com propósito.",
+      "Don't colocar Display (36px) duas vezes na mesma tela.",
+      "Don't usar maiúsculas sem letterSpacing.",
+      "Don't opacar botão pra sinalizar disabled. Use o token disabled explícito.",
+      "Don't otimizar leitura pra 'atleta correndo olhando o celular'. O treino é no relógio."
+    ]
+  }
+}
