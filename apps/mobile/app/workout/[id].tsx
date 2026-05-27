@@ -310,6 +310,11 @@ export default function WorkoutDetailScreen() {
                   label={w.rtss != null ? 'Carga (rTSS)' : 'VO₂ máx'}
                 />
               </View>
+              {w.rtss != null ? (
+                <Text style={styles.rtssFootnote}>
+                  rTSS mede o peso total deste treino na sua semana de carga.
+                </Text>
+              ) : null}
             </>
           ) : null}
         </View>
@@ -573,6 +578,13 @@ const createStyles = (theme: Theme) =>
     gridValue: { fontFamily: Fonts.data, fontSize: FontSize.md, color: theme.colors.textPrimary },
     gridLabel: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, marginTop: 1 },
     gridSep: { height: 1, backgroundColor: theme.colors.border },
+    rtssFootnote: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      lineHeight: 17,
+      paddingTop: Spacing.sm,
+    },
 
     // Generic card
     card: {
@@ -644,16 +656,10 @@ const createStyles = (theme: Theme) =>
 
     // Coach card
     coachCard: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.accentLight,
       borderRadius: Radii.lg,
-      borderLeftWidth: 4,
-      borderLeftColor: theme.colors.accent,
-      borderTopWidth: 1,
-      borderRightWidth: 1,
-      borderBottomWidth: 1,
-      borderTopColor: theme.colors.border,
-      borderRightColor: theme.colors.border,
-      borderBottomColor: theme.colors.border,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
       padding: Spacing.md,
     },
     coachHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },

@@ -15,17 +15,17 @@ export default function DisclaimerScreen() {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const cards: { icon: keyof typeof Ionicons.glyphMap; tint: string; title: string; body: React.ReactNode }[] = [
+  const topics: { icon: keyof typeof Ionicons.glyphMap; eyebrow: string; title: string; body: React.ReactNode }[] = [
     {
-      icon: 'fitness',
-      tint: theme.colors.primary,
+      icon: 'fitness-outline',
+      eyebrow: 'Produto',
       title: 'O que o FitSync faz',
-      body: 'Gera planos de corrida personalizados com IA, baseados nos seus dados do Garmin e métricas de carga de treino (rTSS, ACWR, HRV).',
+      body: 'Gera planos de corrida personalizados com IA, baseados nos seus dados do Garmin e em métricas de carga: rTSS (peso de cada treino), ACWR (balanço carga/risco), HRV (recuperação).',
     },
     {
-      icon: 'warning',
-      tint: theme.colors.warning,
-      title: 'O que o FitSync não faz',
+      icon: 'warning-outline',
+      eyebrow: 'Limites',
+      title: 'O que ele não substitui',
       body: (
         <>
           O FitSync AI <Text style={{ fontFamily: 'Inter-Bold' }}>não substitui</Text> acompanhamento médico,
@@ -35,16 +35,16 @@ export default function DisclaimerScreen() {
       ),
     },
     {
-      icon: 'lock-closed',
-      tint: theme.colors.accent,
+      icon: 'lock-closed-outline',
+      eyebrow: 'Privacidade',
       title: 'Seus dados (LGPD)',
       body: 'Coletamos seus dados de treino do Garmin, perfil esportivo e métricas fisiológicas para gerar planos personalizados. Seus dados ficam armazenados em servidores no Brasil. Você pode exportar ou excluir seus dados a qualquer momento nas configurações.',
     },
     {
-      icon: 'sparkles',
-      tint: theme.colors.primary,
-      title: 'IA generativa',
-      body: 'Os planos são gerados pelo Claude (Anthropic). Aplicamos guardrails automáticos de segurança (carga máxima, progressão) mas sempre revise o plano antes de executar.',
+      icon: 'sparkles-outline',
+      eyebrow: 'Inteligência',
+      title: 'Como a IA gera o plano',
+      body: 'Os planos são gerados pelo Claude (Anthropic). Aplicamos guardrails automáticos de segurança (carga máxima, progressão), mas sempre revise antes de executar.',
     },
   ];
 
@@ -71,15 +71,17 @@ export default function DisclaimerScreen() {
       <Text style={styles.title}>Leia com atenção</Text>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {cards.map((card) => (
-          <View key={card.title} style={styles.card}>
-            <View style={styles.cardHead}>
-              <View style={[styles.cardIcon, { backgroundColor: card.tint + '1F' }]}>
-                <Ionicons name={card.icon} size={18} color={card.tint} />
-              </View>
-              <Text style={styles.cardTitle}>{card.title}</Text>
+        {topics.map((topic, i) => (
+          <View
+            key={topic.title}
+            style={[styles.topic, i > 0 ? styles.topicDivided : null]}
+          >
+            <View style={styles.topicEyebrowRow}>
+              <Ionicons name={topic.icon} size={15} color={theme.colors.primary} />
+              <Text style={styles.topicEyebrow}>{topic.eyebrow}</Text>
             </View>
-            <Text style={styles.cardText}>{card.body}</Text>
+            <Text style={styles.topicTitle}>{topic.title}</Text>
+            <Text style={styles.topicBody}>{topic.body}</Text>
           </View>
         ))}
       </ScrollView>
@@ -108,23 +110,34 @@ const createStyles = (theme: Theme) =>
     eyebrow: { ...theme.type.label, color: theme.colors.primary },
     title: { ...theme.type.headline, color: theme.colors.textPrimary, marginBottom: Spacing.md },
     scroll: { flex: 1 },
-    scrollContent: { gap: Spacing.sm, paddingBottom: Spacing.md },
-    card: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: Radii.lg,
-      padding: Spacing.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
+    scrollContent: { paddingBottom: Spacing.md },
+    topic: {
+      paddingVertical: Spacing.lg,
+      gap: Spacing.xs,
     },
-    cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-    cardIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: Radii.full,
+    topicDivided: {
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    topicEyebrowRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      gap: 6,
+      marginBottom: 2,
     },
-    cardTitle: { ...theme.type.subtitle, fontSize: theme.type.body.fontSize, color: theme.colors.textPrimary },
-    cardText: { ...theme.type.bodySm, color: theme.colors.textSecondary, lineHeight: 21 },
+    topicEyebrow: {
+      ...theme.type.label,
+      color: theme.colors.primary,
+    },
+    topicTitle: {
+      ...theme.type.title,
+      color: theme.colors.textPrimary,
+      marginBottom: 2,
+    },
+    topicBody: {
+      ...theme.type.body,
+      color: theme.colors.textSecondary,
+      lineHeight: 22,
+    },
     btn: { marginTop: Spacing.md },
   });

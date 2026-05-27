@@ -145,7 +145,6 @@ export default function ConquistasScreen() {
           <>
             {/* ── Streak hero ── */}
             <View style={styles.streakCard}>
-              <View style={styles.streakGlow} />
               <View style={styles.streakIcon}>
                 <Ionicons name="flame" size={44} color={theme.colors.primary} />
               </View>
@@ -201,15 +200,6 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
       overflow: 'hidden',
       ...theme.shadow.glow,
-    },
-    streakGlow: {
-      position: 'absolute',
-      top: -60,
-      width: 200,
-      height: 200,
-      borderRadius: Radii.full,
-      backgroundColor: theme.colors.primaryMuted,
-      opacity: 0.5,
     },
     streakIcon: {
       width: 84,

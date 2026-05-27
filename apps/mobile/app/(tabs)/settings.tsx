@@ -267,7 +267,6 @@ export default function SettingsScreen() {
 
         {/* ── Perfil ── */}
         <View style={styles.profileCard}>
-          <View style={styles.profileGlow} />
           <View style={styles.profileTop}>
             <View style={styles.profileAvatar}>
               <Ionicons name="person" size={32} color={theme.colors.textSecondary} />
@@ -311,7 +310,7 @@ export default function SettingsScreen() {
             icon="sparkles"
             iconColor={theme.colors.primary}
             title="Modo Avançado"
-            subtitle="Métricas técnicas visíveis (ACWR, CTL, TSB)"
+            subtitle="Mostra ACWR (balanço carga/risco), CTL (forma de fundo) e TSB (frescor) nas telas de treino."
             right={
               <Switch
                 value={advancedMode}
@@ -522,15 +521,6 @@ const createStyles = (theme: Theme) =>
       padding: Spacing.lg,
       gap: Spacing.md,
       overflow: 'hidden',
-    },
-    profileGlow: {
-      position: 'absolute',
-      top: -40,
-      right: -40,
-      width: 120,
-      height: 120,
-      borderRadius: Radii.full,
-      backgroundColor: theme.colors.primaryMuted,
     },
     profileTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
     profileAvatar: {

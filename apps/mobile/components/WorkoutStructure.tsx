@@ -150,9 +150,14 @@ export function WorkoutStructure({
           ) : null}
 
           {typeof data.rtss_estimado === 'number' ? (
-            <View style={styles.loadChip}>
-              <Text style={styles.loadChipText}>
-                Carga estimada · {Math.round(data.rtss_estimado)} rTSS
+            <View style={styles.loadGroup}>
+              <View style={styles.loadChip}>
+                <Text style={styles.loadChipText}>
+                  Carga estimada · {Math.round(data.rtss_estimado)} rTSS
+                </Text>
+              </View>
+              <Text style={styles.loadHint}>
+                rTSS mede o peso total deste treino na sua semana de carga.
               </Text>
             </View>
           ) : null}
@@ -260,6 +265,7 @@ const createStyles = (theme: Theme) =>
       fontWeight: FontWeight.bold,
       color: theme.colors.primary,
     },
+    loadGroup: { gap: Spacing.xs },
     loadChip: {
       alignSelf: 'flex-start',
       backgroundColor: theme.colors.accentLight,
@@ -273,6 +279,12 @@ const createStyles = (theme: Theme) =>
       fontWeight: FontWeight.semibold,
       color: theme.colors.accent,
       fontVariant: ['tabular-nums'],
+    },
+    loadHint: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      lineHeight: 17,
     },
     notesBox: {
       borderTopWidth: 1,

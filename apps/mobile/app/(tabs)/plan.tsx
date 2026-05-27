@@ -10,21 +10,28 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import type { WorkoutStatus, WorkoutType } from '@fitsync/ui';
 import { useAuthStore } from '../../lib/store';
+
+type WorkoutType = 'easy' | 'interval' | 'tempo' | 'long' | 'rest' | 'cross';
+type WorkoutStatus = 'done' | 'today' | 'future' | 'rest';
 import { useApi } from '../../lib/api';
 import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Button } from '../../components/Button';
-import { ErrorCard } from '../../components/ErrorCard';
 import { TopBar } from '../../components/TopBar';
 import {
   WorkoutStructure,
   type WorkoutStructureData,
 } from '../../components/WorkoutStructure';
+import { CoachInsights } from '../../components/plan/CoachInsights';
+import { MetricChip } from '../../components/plan/MetricChip';
+import { CalibrationBanner } from '../../components/plan/CalibrationBanner';
+import { CalibrationDoneNotice } from '../../components/plan/CalibrationDoneNotice';
+import { WeeklyGoalRing } from '../../components/plan/WeeklyGoalRing';
+import { EmptyPlan } from '../../components/plan/EmptyPlan';
+import { SendToWatch } from '../../components/plan/SendToWatch';
 
 // Indexado por Date.getDay() (0 = domingo … 6 = sábado).
 const PT_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -245,232 +252,6 @@ export default function PlanScreen() {
     }
   }
 
-  function WeeklyGoalRing({ done, total }: { done: number; total: number }) {
-    const progress = total > 0 ? Math.min(done / total, 1) : 0;
-    const SIZE = 56;
-    const STROKE = 5;
-    const R = (SIZE - STROKE) / 2;
-    const C = 2 * Math.PI * R;
-
-    return (
-      <View style={styles.goalCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.goalTitle}>Meta da Semana</Text>
-          <Text style={styles.goalSub}>
-            {done} de {total} treino{total === 1 ? '' : 's'} concluído{done === 1 ? '' : 's'}
-          </Text>
-        </View>
-        <View style={{ width: SIZE, height: SIZE }}>
-          <Svg width={SIZE} height={SIZE}>
-            <Circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={R}
-              stroke={theme.colors.surfaceAlt}
-              strokeWidth={STROKE}
-              fill="none"
-            />
-            <Circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={R}
-              stroke={theme.colors.primary}
-              strokeWidth={STROKE}
-              fill="none"
-              strokeDasharray={C}
-              strokeDashoffset={C * (1 - progress)}
-              strokeLinecap="round"
-              transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-            />
-          </Svg>
-          <View style={styles.goalPctWrap}>
-            <Text style={styles.goalPct}>{Math.round(progress * 100)}%</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  function CoachInsights({ text }: { text: string }) {
-    return (
-      <View style={styles.coachBanner}>
-        <Ionicons name="sparkles" size={20} color={theme.colors.accent} style={{ marginTop: 1 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.coachLabel}>Coach Insights</Text>
-          <Text style={styles.coachText}>{text}</Text>
-        </View>
-      </View>
-    );
-  }
-
-  function MetricChip({ icon, value, tint }: { icon: keyof typeof Ionicons.glyphMap; value: string; tint?: string }) {
-    return (
-      <View style={[styles.chip, tint ? { borderColor: tint + '55' } : null]}>
-        <Ionicons name={icon} size={15} color={tint ?? theme.colors.textMuted} />
-        <Text style={[styles.chipText, tint ? { color: tint } : null]}>{value}</Text>
-      </View>
-    );
-  }
-
-  function CalibrationBanner() {
-    return (
-      <View style={styles.calibBanner} accessibilityRole="alert">
-        <Ionicons name="flask" size={20} color={theme.colors.accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.calibTitle}>Modo calibração</Text>
-          <Text style={styles.calibText}>
-            Estamos aprendendo seu corpo. Daqui ~2 semanas o plano fica mais agressivo.
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  function CalibrationDoneNotice({ onDismiss }: { onDismiss: () => void }) {
-    return (
-      <TouchableOpacity
-        style={styles.calibDone}
-        onPress={onDismiss}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel="Calibração concluída. Toque para dispensar."
-      >
-        <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.calibDoneTitle}>Calibração concluída</Text>
-          <Text style={styles.calibText}>
-            Já conhecemos seu condicionamento — seu plano agora progride normalmente.
-          </Text>
-        </View>
-        <Ionicons name="close" size={18} color={theme.colors.textMuted} />
-      </TouchableOpacity>
-    );
-  }
-
-  function EmptyPlan({ athleteId, onPlanReady }: { athleteId: string; onPlanReady: () => void }) {
-    const { post, get } = useApi();
-    const [generating, setGenerating] = useState(false);
-    const [jobId, setJobId] = useState<string | null>(null);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    useEffect(() => {
-      return () => {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      };
-    }, []);
-
-    async function generate() {
-      setGenerating(true);
-      try {
-        const res = await post<{ job_id?: string; plan?: unknown }>('/plan/generate', { athlete_id: athleteId });
-        if (res?.job_id) {
-          setJobId(res.job_id);
-          pollJob(res.job_id);
-        } else {
-          onPlanReady();
-        }
-      } catch {
-        setGenerating(false);
-      }
-    }
-
-    function pollJob(id: string) {
-      let attempts = 0;
-      intervalRef.current = setInterval(async () => {
-        attempts++;
-        try {
-          const body = await get<{ status: string }>(`/jobs/${id}`);
-          if (body.status === 'done') {
-            clearInterval(intervalRef.current!);
-            onPlanReady();
-          } else if (body.status === 'failed' || attempts > 60) {
-            clearInterval(intervalRef.current!);
-            setGenerating(false);
-            setJobId(null);
-          }
-        } catch { /* continua tentando */ }
-      }, 5000);
-    }
-
-    if (generating) {
-      return (
-        <LoadingScreen
-          message={jobId ? 'Processando seu plano...' : 'Gerando seu plano com IA...'}
-          subMessage="Isso pode levar até 1 minuto"
-        />
-      );
-    }
-
-    return (
-      <View style={styles.emptyWrap}>
-        <View style={styles.emptyIconCircle}>
-          <Ionicons name="calendar-outline" size={36} color={theme.colors.primary} />
-        </View>
-        <Text style={styles.emptyTitle}>Nenhum plano ativo</Text>
-        <Text style={styles.emptyText}>
-          Gere seu primeiro plano semanal personalizado com base no seu perfil e histórico.
-        </Text>
-        <Button
-          label="Gerar meu plano"
-          onPress={generate}
-          style={styles.generateBtn}
-          icon={<Ionicons name="sparkles" size={18} color={theme.colors.onAccent} />}
-          accessibilityLabel="Gerar plano de treino com IA"
-        />
-      </View>
-    );
-  }
-
-  function SendToWatch({ athleteId }: { athleteId: string }) {
-    const { post } = useApi();
-    const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-    const [message, setMessage] = useState<string | null>(null);
-
-    async function send() {
-      setStatus('sending');
-      setMessage(null);
-      try {
-        const res = await post<{ ok: boolean; sent: number }>('/plan/send-to-garmin', {
-          athlete_id: athleteId,
-          week_number: 1,
-        });
-        setStatus('sent');
-        setMessage(`${res.sent} treino${res.sent === 1 ? '' : 's'} enviado${res.sent === 1 ? '' : 's'} pro relógio.`);
-      } catch (e: unknown) {
-        setStatus('error');
-        setMessage(e instanceof Error ? e.message : 'Não conseguimos enviar pro relógio.');
-      }
-    }
-
-    return (
-      <View style={styles.sendSection}>
-        <Button
-          label={status === 'sent' ? 'Enviado' : 'Enviar semana pro relógio'}
-          onPress={send}
-          variant="secondary"
-          loading={status === 'sending'}
-          disabled={status === 'sending' || status === 'sent'}
-          icon={
-            <Ionicons
-              name={status === 'sent' ? 'checkmark' : 'watch-outline'}
-              size={18}
-              color={theme.colors.textPrimary}
-            />
-          }
-          accessibilityLabel="Enviar treinos da semana para o relógio Garmin"
-        />
-        {status === 'error' && message ? (
-          <View style={styles.sendFeedback}>
-            <ErrorCard message={message} />
-          </View>
-        ) : null}
-        {status === 'sent' && message ? (
-          <Text style={styles.sendOk}>{message}</Text>
-        ) : null}
-      </View>
-    );
-  }
-
   if (!session) return null;
   if (isLoading) {
     return (
@@ -680,7 +461,7 @@ export default function PlanScreen() {
                         <View style={styles.dayBadges}>
                           <Text style={styles.dayBadge}>{item.duration_min}m</Text>
                           {zl ? (
-                            <Text style={[styles.dayBadge, styles.dayBadgeZone, { color: tint, borderColor: tint + '55' }]}>
+                            <Text style={[styles.dayBadge, styles.dayBadgeZone, { color: tint, borderColor: `${tint}55` }]}>
                               {zl}
                             </Text>
                           ) : null}
@@ -748,26 +529,6 @@ const createStyles = (theme: Theme) =>
     container: { flex: 1 },
     content: { padding: Spacing.md, paddingBottom: Spacing.xxl, gap: Spacing.md },
 
-    // Weekly goal
-    goalCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.colors.surface,
-      borderRadius: Radii.lg,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      padding: Spacing.md,
-    },
-    goalTitle: { ...theme.type.title, color: theme.colors.textPrimary },
-    goalSub: { ...theme.type.bodySm, color: theme.colors.textMuted, marginTop: 2 },
-    goalPctWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-    goalPct: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.xs,
-      fontWeight: FontWeight.bold,
-      color: theme.colors.primary,
-    },
-
     // Hero card
     heroCard: {
       backgroundColor: theme.colors.primaryMuted,
@@ -802,64 +563,6 @@ const createStyles = (theme: Theme) =>
     },
     heroTitle: { ...theme.type.display, color: theme.colors.textPrimary },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-    chip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: Radii.md,
-      paddingHorizontal: Spacing.sm + 2,
-      paddingVertical: 6,
-    },
-    chipText: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.sm,
-      color: theme.colors.textPrimary,
-    },
-
-    // Coach insights
-    coachBanner: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
-      backgroundColor: theme.colors.surface,
-      borderRadius: Radii.lg,
-      borderLeftWidth: 4,
-      borderLeftColor: theme.colors.accent,
-      padding: Spacing.md,
-    },
-    coachLabel: {
-      ...theme.type.label,
-      color: theme.colors.accent,
-      marginBottom: 3,
-    },
-    coachText: { ...theme.type.bodySm, color: theme.colors.textPrimary },
-
-    // Calibration banners
-    calibBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      backgroundColor: theme.colors.accentLight,
-      borderRadius: Radii.lg,
-      padding: Spacing.md,
-      borderLeftWidth: 4,
-      borderLeftColor: theme.colors.accent,
-    },
-    calibDone: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      backgroundColor: theme.colors.successLight,
-      borderRadius: Radii.lg,
-      padding: Spacing.md,
-      borderLeftWidth: 4,
-      borderLeftColor: theme.colors.success,
-    },
-    calibTitle: { ...theme.type.bodyStrong, color: theme.colors.accent },
-    calibDoneTitle: { ...theme.type.bodyStrong, color: theme.colors.success },
-    calibText: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textSecondary, marginTop: 2 },
 
     // Move banner / drag hint
     dragHint: {
@@ -975,16 +678,6 @@ const createStyles = (theme: Theme) =>
     },
     actionBtnText: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
 
-    // Send to watch
-    sendSection: { marginTop: 2 },
-    sendFeedback: { marginTop: Spacing.sm },
-    sendOk: {
-      ...theme.type.bodySm,
-      color: theme.colors.success,
-      fontFamily: Fonts.bodySemiBold,
-      textAlign: 'center',
-      marginTop: Spacing.sm,
-    },
     disclaimerFooter: {
       ...theme.type.bodySm,
       fontSize: FontSize.xs,
@@ -992,24 +685,4 @@ const createStyles = (theme: Theme) =>
       textAlign: 'center',
       marginTop: Spacing.sm,
     },
-
-    // Empty state
-    emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
-    emptyIconCircle: {
-      width: 88,
-      height: 88,
-      borderRadius: Radii.full,
-      backgroundColor: theme.colors.primaryMuted,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: Spacing.lg,
-    },
-    emptyTitle: { ...theme.type.headline, color: theme.colors.textPrimary, textAlign: 'center', marginBottom: Spacing.sm },
-    emptyText: {
-      ...theme.type.body,
-      color: theme.colors.textMuted,
-      textAlign: 'center',
-      marginBottom: Spacing.xl,
-    },
-    generateBtn: { width: '100%' },
   });

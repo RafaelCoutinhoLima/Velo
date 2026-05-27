@@ -9,12 +9,6 @@
       "@shared/*": [
         "../../packages/shared/src/*"
       ],
-      "@fitsync/ui": [
-        "../../packages/ui/src/index.ts"
-      ],
-      "@fitsync/ui/*": [
-        "../../packages/ui/src/*"
-      ],
       "react-native": [
         "./node_modules/react-native"
       ],

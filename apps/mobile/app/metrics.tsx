@@ -192,7 +192,7 @@ export default function MetricsScreen() {
                 color={acwrColor(data.current.acwr)}
                 statusColor={acwrColor(data.current.acwr)}
                 statusText={acwrStatus(data.current.acwr)}
-                description="Rácio de carga aguda/crônica. Ideal entre 0,8–1,3. Acima de 1,3 = risco elevado de lesão."
+                description="Carga dos últimos 7 dias dividida pelos últimos 28. Entre 0,8 e 1,3 você treina seguro; acima disso o risco de lesão sobe rápido."
               />
               <MetricBox
                 label="CTL"
@@ -201,7 +201,7 @@ export default function MetricsScreen() {
                 color={theme.colors.accent}
                 statusColor={theme.colors.accent}
                 statusText="Fitness de base"
-                description="Carga crônica (fitness de base). Sobe com treino consistente ao longo de semanas."
+                description="Sua forma de fundo, média de 42 dias. Sobe devagar com treino consistente; cai quando você destreina."
               />
               <MetricBox
                 label="TSB"
@@ -209,7 +209,7 @@ export default function MetricsScreen() {
                 color={data.current.tsb >= 0 ? theme.colors.success : theme.colors.warning}
                 statusColor={data.current.tsb >= 0 ? theme.colors.success : theme.colors.warning}
                 statusText={data.current.tsb >= 0 ? 'Recuperado' : 'Fadiga leve'}
-                description="Balanço de treino (forma). Positivo = mais descansado e fresco; negativo = fadiga acumulada."
+                description="Quanto descansado você está hoje (CTL menos ATL). Positivo significa pronto pra forçar; muito negativo, atenção à fadiga."
               />
               <MetricBox
                 label="ATL"
@@ -218,7 +218,7 @@ export default function MetricsScreen() {
                 color={theme.colors.workoutCross}
                 statusColor={theme.colors.workoutCross}
                 statusText="Carga aguda"
-                description="Carga aguda (fadiga recente dos últimos 7 dias). Sobe rapidamente com volume intenso."
+                description="Carga dos últimos 7 dias. Sobe rápido com semanas intensas e puxa o ACWR junto."
               />
             </View>
 
