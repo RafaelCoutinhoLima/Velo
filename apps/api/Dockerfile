@@ -10,7 +10,6 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/mobile/package.json ./apps/mobile/
 COPY packages/metrics/package.json ./packages/metrics/
 COPY packages/shared/package.json ./packages/shared/
-COPY packages/ui/package.json ./packages/ui/
 COPY patches/ ./patches/
 
 RUN bun install
