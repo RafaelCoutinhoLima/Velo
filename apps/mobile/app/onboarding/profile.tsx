@@ -22,6 +22,17 @@ import { StepBar } from '../../components/StepBar';
 type Frequency = '2x' | '3x' | '4x' | '5x+';
 type Sex = 'M' | 'F';
 
+const DAYS_OF_WEEK = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'] as const;
+const DAYS_LABELS: Record<string, string> = {
+  seg: 'Seg',
+  ter: 'Ter',
+  qua: 'Qua',
+  qui: 'Qui',
+  sex: 'Sex',
+  sáb: 'Sáb',
+  dom: 'Dom',
+};
+
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1939 }, (_, i) => CURRENT_YEAR - 14 - i);
 const ITEM_W = 72;
@@ -44,10 +55,23 @@ export default function ProfileScreen() {
   const [weightKg, setWeightKg] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
   const [frequency, setFrequency] = useState<Frequency | null>(null);
+  const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isValid = birthYear !== null && weightKg.length > 0 && sex !== null && frequency !== null;
+  const isValid =
+    birthYear !== null &&
+    weightKg.length > 0 &&
+    sex !== null &&
+    frequency !== null &&
+    availableDays.length >= 2;
+
+  function toggleDay(day: string) {
+    setError(null);
+    setAvailableDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    );
+  }
 
   async function next() {
     if (!isValid || !session?.athlete_id) return;
@@ -66,6 +90,7 @@ export default function ProfileScreen() {
         sex,
         weekly_frequency: frequency,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        available_days: availableDays,
       });
       router.push('/onboarding/goal');
     } catch (e: unknown) {
@@ -242,6 +267,37 @@ export default function ProfileScreen() {
           />
         </SectionCard>
 
+        <SectionCard>
+          <SectionTitle>Quais dias você treina?</SectionTitle>
+          <Text style={[styles.optSub, { marginBottom: Spacing.md }]}>
+            Selecione pelo menos 2 dias — os treinos serão planejados nesses dias.
+          </Text>
+          <View style={styles.daysGrid}>
+            {DAYS_OF_WEEK.map((day) => {
+              const active = availableDays.includes(day);
+              return (
+                <TouchableOpacity
+                  key={day}
+                  style={[styles.dayChip, active && styles.dayChipActive]}
+                  onPress={() => toggleDay(day)}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={DAYS_LABELS[day]}
+                  accessibilityState={{ checked: active }}
+                >
+                  <Text style={[styles.dayChipText, active && styles.dayChipTextActive]}>
+                    {DAYS_LABELS[day]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {availableDays.length > 0 && availableDays.length < 2 ? (
+            <Text style={[styles.optSub, { color: theme.colors.textMuted, marginTop: Spacing.xs }]}>
+              Selecione pelo menos mais um dia
+            </Text>
+          ) : null}
+        </SectionCard>
+
         <Button
           label="Continuar"
           onPress={next}
@@ -341,5 +397,32 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+
+    daysGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.xs,
+    },
+    dayChip: {
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: Radii.full,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+    dayChipActive: {
+      backgroundColor: theme.colors.primaryMuted,
+      borderColor: theme.colors.primary,
+    },
+    dayChipText: {
+      fontFamily: Fonts.display,
+      fontSize: FontSize.sm,
+      fontWeight: FontWeight.extrabold,
+      color: theme.colors.textSecondary,
+    },
+    dayChipTextActive: {
+      color: theme.colors.primary,
     },
   });

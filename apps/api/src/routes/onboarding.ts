@@ -22,7 +22,8 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
     .post(
       '/profile',
       async ({ body }) => {
-        const { athlete_id, birth_year, weight_kg, sex, weekly_frequency, timezone } = body;
+        const { athlete_id, birth_year, weight_kg, sex, weekly_frequency, timezone, available_days } =
+          body;
 
         const { error } = await db.from('athletes').upsert(
           {
@@ -36,6 +37,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
             timezone,
             goal_mode: 'general_progression',
             calibration_mode: true,
+            ...(available_days ? { available_days } : {}),
           },
           { onConflict: 'user_id' },
         );
@@ -86,6 +88,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
           sex: t.Union([t.Literal('M'), t.Literal('F'), t.Literal('other')]),
           weekly_frequency: t.String(),
           timezone: t.String(),
+          available_days: t.Optional(t.Array(t.String())),
         }),
       },
     )
@@ -154,10 +157,11 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
     .patch(
       '/profile',
       async ({ body }) => {
-        const { athlete_id, weekly_frequency, timezone } = body;
+        const { athlete_id, weekly_frequency, timezone, available_days } = body;
         const updates: Record<string, unknown> = {};
         if (weekly_frequency) updates.weekly_frequency = weekly_frequency;
         if (timezone) updates.timezone = timezone;
+        if (available_days) updates.available_days = available_days;
         if (Object.keys(updates).length === 0) return { ok: true };
         const { error } = await db.from('athletes').update(updates).eq('user_id', athlete_id);
         if (error) throw new Error(`Falha ao atualizar perfil: ${error.message}`);
@@ -168,6 +172,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
           athlete_id: t.String(),
           weekly_frequency: t.Optional(t.String()),
           timezone: t.Optional(t.String()),
+          available_days: t.Optional(t.Array(t.String())),
         }),
       },
     )
