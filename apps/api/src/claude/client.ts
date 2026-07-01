@@ -1,10 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ZodError } from 'zod';
 import { supabase } from '../db/client';
 import { logger } from '../lib/logger';
 import { buildBriefing } from './briefing';
 import { applyGuardrails } from './guardrails';
+import { extractJsonWithFallback } from './parseResponse';
 import { FEEDBACK_PROMPT_V1 } from './prompts/feedback_v1';
-import { PLAN_PROMPT_V3, PLAN_PROMPT_VERSION } from './prompts/plan_v3';
+import { PLAN_PROMPT_V4, PLAN_PROMPT_VERSION } from './prompts/plan_v4';
 import {
   type FeedbackInput,
   type FeedbackOutput,
@@ -16,9 +18,10 @@ import {
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const CLAUDE_HARD_CAP = 30;
-// Cost per token (Sonnet 4.6): $3/MTok input, $15/MTok output
-const COST_INPUT_PER_TOKEN = 3 / 1_000_000;
-const COST_OUTPUT_PER_TOKEN = 15 / 1_000_000;
+// Custo por token via env (default Sonnet 4.6: $3/MTok input, $15/MTok output).
+// Extraído para env porque o preço muda ao migrar de modelo — ver .env.example.
+const COST_INPUT_PER_TOKEN = Number(process.env.CLAUDE_COST_INPUT_PER_MTOK ?? 3) / 1_000_000;
+const COST_OUTPUT_PER_TOKEN = Number(process.env.CLAUDE_COST_OUTPUT_PER_MTOK ?? 15) / 1_000_000;
 
 export interface PlanInput {
   athleteId: string;
@@ -27,6 +30,7 @@ export interface PlanInput {
   metrics: Record<string, unknown> | null;
   metricsHistory: Record<string, unknown>[];
   calibrationMode: boolean;
+  firstWorkoutDate?: string;
 }
 
 export interface PlanResult {
@@ -35,6 +39,7 @@ export interface PlanResult {
   costUsd: number;
   inputJson: Record<string, unknown>;
   promptVersion: string;
+  usedFallback: boolean;
 }
 
 export async function generatePlan(input: PlanInput): Promise<PlanResult> {
@@ -49,15 +54,14 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 8192,
-        system: PLAN_PROMPT_V3,
+        system: PLAN_PROMPT_V4,
         messages: [{ role: 'user', content: JSON.stringify(briefing, null, 2) }],
       });
 
       const rawText = response.content[0].type === 'text' ? response.content[0].text : '';
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Nenhum JSON encontrado na resposta do Claude');
+      const jsonStr = extractJsonWithFallback(rawText);
 
-      const parsed = PlanResponseSchema.parse(JSON.parse(jsonMatch[0]));
+      const parsed = PlanResponseSchema.parse(JSON.parse(jsonStr));
 
       const ctx = {
         atl: Number(input.metrics?.atl ?? 0),
@@ -86,18 +90,33 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
         costUsd: Math.round(costUsd * 1_000_000) / 1_000_000,
         inputJson: briefing,
         promptVersion: PLAN_PROMPT_VERSION,
+        usedFallback: false,
       };
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
-      logger.warn(
-        { attempt, athleteId: input.athleteId, error: lastError },
-        'Tentativa de geração falhou',
-      );
+      // ZodError: logar os issues (campo exato que falhou), não só a mensagem genérica.
+      if (err instanceof ZodError) {
+        logger.warn(
+          { attempt, athleteId: input.athleteId, issues: err.issues },
+          'Tentativa de geração falhou — schema Zod rejeitou a resposta do Claude',
+        );
+      } else {
+        logger.warn(
+          { attempt, athleteId: input.athleteId, error: lastError },
+          'Tentativa de geração falhou',
+        );
+      }
       if (attempt === 3) break;
     }
   }
 
-  logger.error({ athleteId: input.athleteId }, 'Usando fallback determinístico após 3 falhas');
+  logger.error(
+    { athleteId: input.athleteId, lastError },
+    'Usando fallback determinístico após 3 falhas',
+  );
+  // Torna o evento consultável via SQL (não há Sentry na Fase 1). Reaproveita a tabela
+  // guardrail_violations existente — não cria tabela nova (CLAUDE.md §5.5).
+  logFallbackViolation(input.athleteId);
   const fallback = buildFallbackPlan(input);
   return {
     plan: fallback,
@@ -105,6 +124,7 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
     costUsd: 0,
     inputJson: buildBriefing(input),
     promptVersion: `${PLAN_PROMPT_VERSION}_fallback`,
+    usedFallback: true,
   };
 }
 
@@ -121,10 +141,9 @@ export async function generateFeedback(feedbackInput: FeedbackInput): Promise<Fe
       });
 
       const rawText = response.content[0].type === 'text' ? response.content[0].text : '';
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Nenhum JSON na resposta de feedback');
+      const jsonStr = extractJsonWithFallback(rawText);
 
-      return FeedbackOutputSchema.parse(JSON.parse(jsonMatch[0]));
+      return FeedbackOutputSchema.parse(JSON.parse(jsonStr));
     } catch (err) {
       logger.warn({ attempt, error: String(err) }, 'Tentativa de geração de feedback falhou');
       if (attempt === 2) throw err;
@@ -214,4 +233,15 @@ async function assertUnderCap(athleteId: string): Promise<void> {
 async function incrementUsage(athleteId: string): Promise<void> {
   const month = `${new Date().toISOString().slice(0, 7)}-01`;
   await supabase.rpc('increment_claude_usage', { p_athlete_id: athleteId, p_month: month });
+}
+
+// Registra o fallback determinístico em guardrail_violations (fire-and-forget) para o
+// evento ficar consultável via SQL. value = tentativas consumidas (3), threshold = 0.
+function logFallbackViolation(athleteId: string): void {
+  supabase
+    .from('guardrail_violations')
+    .insert({ athlete_id: athleteId, rule: 'plan_generation_fallback', value: 3, threshold: 0 })
+    .then(({ error }) => {
+      if (error) logger.error({ error }, 'Falha ao logar violação de fallback de geração');
+    });
 }

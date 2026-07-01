@@ -54,7 +54,6 @@ function determineFase(calibrationMode: boolean, weeksToRace: number | null): st
   return 'base';
 }
 
-// Tendência CTL: compara CTL mais antigo disponível vs mais recente
 function computeTendenciaCTL(history: Record<string, unknown>[]): {
   label: 'subindo' | 'estavel' | 'caindo' | 'desconhecida';
   delta_pct: number | null;
@@ -76,12 +75,10 @@ function computeTendenciaCTL(history: Record<string, unknown>[]): {
   return { label, delta_pct: deltaPct };
 }
 
-// VO2max estimado via Uth et al.: VO2max ≈ 15 × (FCmax / FCrepouso)
 function estimateVO2max(fcMax: number, fcRest: number): number {
   return Math.round(15 * (fcMax / fcRest) * 10) / 10;
 }
 
-// Prontidão: baseada em RPE recente e tendência de FC
 function computeProntidao(workouts: Record<string, unknown>[]): {
   status: 'descansado' | 'normal' | 'fatigado' | 'desconhecida';
   nota: string;
@@ -105,7 +102,6 @@ function computeProntidao(workouts: Record<string, unknown>[]): {
   const rpeRecent = avgRpe(recent7);
   const rpePrev = avgRpe(prev7);
 
-  // HR efficiency: avg_hr / pace — subindo significa maior FC para mesmo pace (fadiga)
   const hrEff = (ws: Record<string, unknown>[]) => {
     const valid = ws
       .filter((w) => Number(w.avg_hr ?? 0) > 100 && Number(w.distance_m ?? 0) > 500)
@@ -119,7 +115,6 @@ function computeProntidao(workouts: Record<string, unknown>[]): {
   const effRecent = hrEff(recent7);
   const effPrev = hrEff(prev7);
 
-  // Sinais de fadiga: RPE subindo ou eficiência piorando (HR/pace subindo)
   const rpeFatigado = rpeRecent !== null && rpePrev !== null && rpeRecent > rpePrev + 1.5;
   const effFatigado = effRecent !== null && effPrev !== null && effRecent > effPrev * 1.05;
   const rpeDescansado = rpeRecent !== null && rpePrev !== null && rpeRecent < rpePrev - 1;
@@ -127,7 +122,7 @@ function computeProntidao(workouts: Record<string, unknown>[]): {
   if (rpeFatigado || effFatigado) {
     return {
       status: 'fatigado',
-      nota: `RPE médio recente ${rpeRecent?.toFixed(1) ?? '?'} vs ${rpePrev?.toFixed(1) ?? '?'} anterior`,
+      nota: `RPE médio recente ${rpeRecent?.toFixed(1) ?? '?'} vs ${rpePrev?.toFixed(1) ?? '?'} anterior. Eficiência aeróbica degradando.`,
     };
   }
   if (rpeDescansado || recent7.length === 0) {
@@ -135,8 +130,8 @@ function computeProntidao(workouts: Record<string, unknown>[]): {
       status: 'descansado',
       nota:
         recent7.length === 0
-          ? 'Sem treinos recentes'
-          : `RPE médio recente ${rpeRecent?.toFixed(1) ?? '?'}`,
+          ? 'Sem treinos nos últimos 7 dias — atleta descansado'
+          : `RPE médio recente ${rpeRecent?.toFixed(1) ?? '?'} — abaixo da semana anterior`,
     };
   }
   if (rpeRecent === null && rpePrev === null) {
@@ -144,8 +139,78 @@ function computeProntidao(workouts: Record<string, unknown>[]): {
   }
   return {
     status: 'normal',
-    nota: `RPE médio recente ${rpeRecent?.toFixed(1) ?? '?'}`,
+    nota: `RPE médio recente ${rpeRecent?.toFixed(1) ?? '?'} — dentro do esperado`,
   };
+}
+
+// Inferência de dias disponíveis quando atleta não configurou os dias específicos.
+// Padrão baseado nos dias mais comuns de treino por frequência.
+function inferDiasFromFrequency(freq: string): string[] {
+  const n = Number(freq.replace(/\D/g, '')) || 3;
+  if (n <= 2) return ['ter', 'qui'];
+  if (n === 3) return ['seg', 'qua', 'sex'];
+  if (n === 4) return ['seg', 'ter', 'qui', 'sab'];
+  if (n === 5) return ['seg', 'ter', 'qua', 'qui', 'sab'];
+  return ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+}
+
+// Melhor pace por faixa de distância — âncora de performance para prescrição de paces.
+function computeMelhoresPaces(workouts: Record<string, unknown>[]) {
+  const runs = workouts.filter(
+    (w) =>
+      (w.sport ?? 'run') === 'run' &&
+      Number(w.distance_m ?? 0) > 0 &&
+      Number(w.duration_s ?? 0) > 0,
+  );
+
+  const bestPace = (minDist: number, maxDist: number): string | null => {
+    const candidates = runs
+      .filter((w) => {
+        const d = Number(w.distance_m);
+        return d >= minDist && d <= maxDist;
+      })
+      .map((w) => Number(w.duration_s) / (Number(w.distance_m) / 1000));
+    if (candidates.length === 0) return null;
+    return formatPace(Math.round(Math.min(...candidates)));
+  };
+
+  return {
+    melhor_pace_5km: bestPace(4000, 6000),
+    melhor_pace_10km: bestPace(8500, 12000),
+    melhor_pace_21km: bestPace(18000, 24000),
+  };
+}
+
+// Treinos individuais das últimas 4 semanas para o Claude detectar padrões.
+function buildTreinosIndividuais(workouts: Record<string, unknown>[]) {
+  const now = Date.now();
+  return workouts
+    .filter((w) => {
+      const age_d = (now - new Date(String(w.date ?? '')).getTime()) / 86400000;
+      return age_d <= 28;
+    })
+    .map((w) => {
+      const sport = String(w.sport ?? 'run');
+      const durationMin = Math.round(Number(w.duration_s ?? 0) / 60);
+      const distKm =
+        sport === 'run' && Number(w.distance_m) > 0
+          ? Math.round((Number(w.distance_m) / 1000) * 10) / 10
+          : undefined;
+      const paceS =
+        sport === 'run' && Number(w.distance_m) > 0 && Number(w.duration_s) > 0
+          ? Math.round(Number(w.duration_s) / (Number(w.distance_m) / 1000))
+          : undefined;
+      return {
+        data: w.date,
+        esporte: sport,
+        duracao_min: durationMin,
+        ...(distKm !== undefined ? { distancia_km: distKm } : {}),
+        ...(paceS !== undefined ? { pace_medio: formatPace(paceS) } : {}),
+        fc_media: w.avg_hr ? Number(w.avg_hr) : null,
+        rpe: w.rpe ? Number(w.rpe) : null,
+        rtss: w.rtss ? Math.round(Number(w.rtss)) : null,
+      };
+    });
 }
 
 export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<string, unknown> {
@@ -196,12 +261,10 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
     pace_max_fmt: formatPace(zonaPaces[i].pace_max_s_km),
   }));
 
-  // Resumo últimas 4 semanas. `volume_km` conta SÓ corrida (km de natação/bike
-  // não somam com km de corrida); a carga (rtss_total) conta TODOS os esportes,
-  // porque fadiga é sistêmica — o coach precisa enxergar o volume total mesmo
-  // prescrevendo só corrida.
   const workouts = input.recentWorkouts as Array<Record<string, unknown>>;
   const isRun = (w: Record<string, unknown>) => (w.sport ?? 'run') === 'run';
+
+  // Volumes semanais — corrida separada de cross-training (fadiga é sistêmica)
   const weeklyVolumes: number[] = [0, 0, 0, 0];
   const weeklyRtss: number[] = [0, 0, 0, 0];
   const now = Date.now();
@@ -214,9 +277,7 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
     }
   }
 
-  // Cross-training (não-corrida) das últimas 4 semanas, por esporte — o LLM usa
-  // isso pra NÃO prescrever volume demais quando o atleta já carrega fadiga de
-  // bike/natação/força.
+  // Cross-training por esporte (o coach precisa descontar fadiga sistêmica)
   const crossBySport = new Map<string, { sessoes: number; carga: number; minutos: number }>();
   for (const w of workouts) {
     if (isRun(w)) continue;
@@ -235,6 +296,7 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
     carga_total: Math.round(v.carga),
     minutos_total: v.minutos,
   }));
+
   const ultimas4Semanas = weeklyVolumes
     .map((km, i) => ({
       semana: i === 0 ? 'atual' : `ha_${i}_semana${i > 1 ? 's' : ''}`,
@@ -253,13 +315,8 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
   const acwr = ctl > 0 ? atl / ctl : null;
   const tsb = ctl - atl;
 
-  // Tendência CTL 14 dias — calculada do histórico
   const tendencia = computeTendenciaCTL(history);
-
-  // VO2max estimado via Uth et al.
   const vo2max = estimateVO2max(fcMax, fcRest);
-
-  // Prontidão baseada em RPE e eficiência aeróbica
   const prontidao = computeProntidao(workouts);
 
   // Fase e restrições
@@ -270,11 +327,42 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
   }
   const fase = determineFase(input.calibrationMode, weeksToRace);
 
-  const restricoes: Record<string, unknown> = {};
-  if (acwr !== null && acwr > 1.1) {
-    const safeKm = ctl > 0 ? Math.round((ctl * 1.3 * 7) / 5) : null;
-    if (safeKm) restricoes.max_km_semana = safeKm;
-  }
+  // Restrições completas — todos os campos do generation_spec §3.1
+  const volumeAtualKm = weeklyVolumes[0] ?? 0;
+  const volumePrevKm = weeklyVolumes[1] ?? 0;
+  const baseVolumeKm = Math.max(volumeAtualKm, volumePrevKm, ctl * 0.7);
+  const freqNum = Math.max(2, Number(String(profile.weekly_frequency ?? '3x').replace(/\D/g, '')) || 3);
+  const treinos_quality_max = input.calibrationMode ? 0 : fase === 'peak' || fase === 'build' ? 2 : 1;
+  const restricoes: Record<string, unknown> = {
+    volume_max_km: Math.round(baseVolumeKm * 1.10),
+    volume_max_min: Math.round(baseVolumeKm * 1.10 * 6.5),
+    acwr_max_aceitavel: input.calibrationMode ? 1.1 : 1.3,
+    treinos_quality_max,
+    dias_descanso_min: freqNum >= 5 ? 2 : 1,
+  };
+
+  // anos_correndo: estimado do histórico real (melhor do que hardcoded 1)
+  const anosCorrenndo = input.firstWorkoutDate
+    ? Math.max(
+        0.5,
+        Math.round(
+          ((now - new Date(input.firstWorkoutDate).getTime()) / (365.25 * 86400000)) * 10,
+        ) / 10,
+      )
+    : 1;
+
+  // Dias disponíveis: perfil explícito > inferência por frequência
+  const storedDays = profile.available_days as string[] | null | undefined;
+  const diasDisponiveis =
+    storedDays && storedDays.length > 0
+      ? storedDays
+      : inferDiasFromFrequency(String(profile.weekly_frequency ?? '3x'));
+
+  // Melhor performance histórica derivada dos workouts
+  const melhoresPaces = computeMelhoresPaces(workouts);
+
+  // Treinos individuais das últimas 4 semanas
+  const treinosIndividuais = buildTreinosIndividuais(workouts);
 
   const briefing: Record<string, unknown> = {
     perfil_atleta: {
@@ -287,7 +375,7 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
       vo2max_estimado: vo2max,
       threshold_pace_s_km: thresholdPaceSkm,
       threshold_pace_fmt: formatPace(thresholdPaceSkm),
-      anos_correndo: 1,
+      anos_correndo: anosCorrenndo,
       objetivo_prova_km: profile.race_distance_km ?? null,
       lesoes_passadas: [],
     },
@@ -298,14 +386,18 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
       semanas_ate_prova: weeksToRace,
     },
     preferencias: {
-      dias_disponiveis: profile.weekly_frequency ?? '3-5',
+      dias_disponiveis: diasDisponiveis,
+      frequencia_semanal: freqNum,
       timezone: profile.timezone ?? 'America/Recife',
+      dias_configurados_manualmente: !!(storedDays && storedDays.length > 0),
     },
     zonas_calibradas: zonasCal,
+    // Treinos individuais: padrões visíveis por sessão (pace, FC, RPE, tipo)
+    treinos_individuais: treinosIndividuais,
     ultimas_4_semanas: ultimas4Semanas,
-    // Treinos não-corrida que contribuem pra fadiga total (US do volume real).
-    // Vazio = atleta só corre. Coach deve descontar essa carga ao prescrever.
     cross_training_recente: crossTrainingRecente,
+    // Âncoras de performance derivadas do histórico real
+    referencias_performance: melhoresPaces,
     carga_atual: {
       atl: Math.round(atl * 10) / 10,
       ctl: Math.round(ctl * 10) / 10,

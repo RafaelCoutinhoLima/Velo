@@ -379,7 +379,7 @@ function karvonenZonesMap(fcMax: number, fcRest: number) {
 }
 
 async function buildPlan(internalId: string, athlete: Record<string, unknown>, db: Db) {
-  const [workoutsResult, metricsHistoryResult] = await Promise.all([
+  const [workoutsResult, metricsHistoryResult, firstWorkoutResult] = await Promise.all([
     db
       .from('workouts')
       .select(
@@ -387,13 +387,20 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
       )
       .eq('athlete_id', internalId)
       .order('date', { ascending: false })
-      .limit(30),
+      .limit(60),
     db
       .from('metrics_daily')
       .select('date, atl, ctl, tsb, acwr')
       .eq('athlete_id', internalId)
       .order('date', { ascending: false })
       .limit(14),
+    db
+      .from('workouts')
+      .select('date')
+      .eq('athlete_id', internalId)
+      .order('date', { ascending: true })
+      .limit(1)
+      .single(),
   ]);
 
   const metricsHistory = ((metricsHistoryResult.data ?? []) as Record<string, unknown>[]).reverse();
@@ -412,6 +419,9 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
     athleteRow: athlete as { calibration_mode?: boolean; created_at?: string },
   });
 
+  const firstWorkoutDate =
+    (firstWorkoutResult.data as { date?: string } | null)?.date ?? undefined;
+
   const result = await generatePlan({
     athleteId: internalId,
     profile: athlete,
@@ -419,6 +429,7 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
     metrics: latestMetrics,
     metricsHistory,
     calibrationMode,
+    firstWorkoutDate,
   });
 
   const { data: savedPlan, error: saveErr } = await db
