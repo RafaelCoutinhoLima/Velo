@@ -29,8 +29,10 @@ apps/mobile/.expo/
 npm-debug.log*
 bun-debug.log*
 
-# Docs (não necessário no container)
-docs/
+# Docs — só a base científica entra na imagem (injetada no system prompt do Claude,
+# lida em runtime por apps/api/src/claude/principios.ts). O resto de docs/ fica de fora.
+docs/*
+!docs/principios_treino.md
 
 # Editor / OS
 .DS_Store
