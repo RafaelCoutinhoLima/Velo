@@ -13,10 +13,22 @@ export const WarmCoolSchema = z.object({
 export const PartePrincipalSchema = z.object({
   descricao: z.string().min(1).max(500),
   zona_alvo: ZoneLabelSchema,
-  fc_alvo_bpm: z.object({
-    min: z.number().int().min(60).max(230),
-    max: z.number().int().min(60).max(230),
-  }),
+  // Claude às vezes devolve FC decimal (ex.: 165.5) ou omite o campo em sessões fáceis.
+  // Aceita decimal (arredonda) e é opcional, para não cair no fallback à toa.
+  fc_alvo_bpm: z
+    .object({
+      min: z
+        .number()
+        .min(60)
+        .max(230)
+        .transform((n) => Math.round(n)),
+      max: z
+        .number()
+        .min(60)
+        .max(230)
+        .transform((n) => Math.round(n)),
+    })
+    .optional(),
   pace_alvo: z.string().max(24).optional(),
   repeticoes: z.number().int().min(1).max(30).optional(),
   duracao_repeticao_min: z.number().min(0).max(120).optional(),

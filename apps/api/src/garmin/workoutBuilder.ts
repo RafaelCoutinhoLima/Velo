@@ -39,7 +39,7 @@ interface WarmCool {
 
 interface PartePrincipal {
   zona_alvo: string;
-  fc_alvo_bpm: { min: number; max: number };
+  fc_alvo_bpm?: { min: number; max: number };
   repeticoes?: number;
   duracao_repeticao_min?: number;
   recuperacao_min?: number;
@@ -112,7 +112,10 @@ function buildStructuredSteps(day: PlanDay, zonesMap: ZoneRange[]): Record<strin
     );
   }
 
-  const { min: hrLow, max: hrHigh } = pp.fc_alvo_bpm;
+  // fc_alvo_bpm é opcional no schema: sem ela, os steps ficam sem alvo de FC
+  // (execStep trata hrLow/hrHigh undefined como TARGET_NONE).
+  const hrLow = pp.fc_alvo_bpm?.min;
+  const hrHigh = pp.fc_alvo_bpm?.max;
 
   if (pp.repeticoes && pp.repeticoes > 1 && pp.duracao_repeticao_min) {
     const work = execStep(1, 'interval', Math.round(pp.duracao_repeticao_min * 60), hrLow, hrHigh);

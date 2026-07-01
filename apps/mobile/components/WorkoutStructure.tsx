@@ -15,7 +15,7 @@ export interface WarmCool {
 export interface PartePrincipal {
   descricao: string;
   zona_alvo: ZoneLabel;
-  fc_alvo_bpm: { min: number; max: number };
+  fc_alvo_bpm?: { min: number; max: number };
   pace_alvo?: string;
   repeticoes?: number;
   duracao_repeticao_min?: number;
@@ -102,9 +102,11 @@ function MainRow({
         ) : null}
         <View style={styles.rowMeta}>
           <ZoneChip zona={block.zona_alvo} styles={styles} />
-          <Text style={styles.rowPace}>
-            {block.fc_alvo_bpm.min}–{block.fc_alvo_bpm.max} bpm
-          </Text>
+          {block.fc_alvo_bpm ? (
+            <Text style={styles.rowPace}>
+              {block.fc_alvo_bpm.min}–{block.fc_alvo_bpm.max} bpm
+            </Text>
+          ) : null}
           {block.pace_alvo ? <Text style={styles.rowPace}>{block.pace_alvo}</Text> : null}
         </View>
       </View>
