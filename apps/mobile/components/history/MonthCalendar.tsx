@@ -86,25 +86,40 @@ export function MonthCalendar({ workouts, monthOffset, onChangeMonth }: MonthCal
           </Text>
         ))}
       </View>
+      {/* Heatmap de consistência (tela 18): quadrado raio 9 com fundo soft da
+          cor do treino feito; cinza = dia passado sem treino; texto apagado =
+          futuro; hoje com borda accent. */}
       <View style={styles.grid}>
         {cells.map((c, i) => {
           if (!c) return <View key={`e${i}`} style={styles.cell} />;
           const sports = byDate.get(c.iso);
+          const first = sports ? [...sports][0] : null;
+          const tint = first ? sportColor(theme, first) : null;
           const isToday = c.iso === today;
+          const isFuture = c.iso > today;
           return (
             <View key={c.iso} style={styles.cell}>
-              <View style={[styles.dayCircle, isToday && styles.dayToday]}>
-                <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{c.day}</Text>
-              </View>
-              <View style={styles.dots}>
-                {sports
-                  ? [...sports].slice(0, 3).map((sp) => (
-                      <View
-                        key={sp}
-                        style={[styles.dot, { backgroundColor: sportColor(theme, sp) }]}
-                      />
-                    ))
-                  : null}
+              <View
+                style={[
+                  styles.daySquare,
+                  tint
+                    ? { backgroundColor: `${tint}26` }
+                    : !isFuture
+                      ? { backgroundColor: theme.colors.surfaceAlt }
+                      : null,
+                  isToday && styles.dayToday,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dayNum,
+                    tint ? { color: tint, fontFamily: Fonts.dataSemiBold } : null,
+                    isFuture ? styles.dayNumFuture : null,
+                    isToday && !tint ? { color: theme.colors.primary } : null,
+                  ]}
+                >
+                  {c.day}
+                </Text>
               </View>
             </View>
           );
@@ -160,25 +175,27 @@ const createStyles = (theme: Theme) =>
       fontSize: 11,
       color: theme.colors.textMuted,
     },
-    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 5 },
     cell: {
       width: `${100 / 7}%`,
-      aspectRatio: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 3,
-    },
-    dayCircle: {
-      width: 32,
-      height: 32,
-      borderRadius: Radii.full,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    dayToday: { backgroundColor: theme.colors.primary },
-    dayNum: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textSecondary },
-    dayNumToday: { color: theme.colors.onAccent, fontFamily: Fonts.bodyBold },
-    dots: { flexDirection: 'row', gap: 2, height: 5 },
+    daySquare: {
+      width: 38,
+      height: 38,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dayToday: { borderWidth: 1.5, borderColor: theme.colors.primary },
+    dayNum: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.sm,
+      color: theme.colors.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
+    dayNumFuture: { color: theme.colors.textMuted, opacity: 0.6 },
     dot: { width: 5, height: 5, borderRadius: Radii.full },
 
     summaryCard: {

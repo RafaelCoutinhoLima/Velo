@@ -8,8 +8,8 @@ interface WeeklyGoalRingProps {
   total: number;
 }
 
-const SIZE = 56;
-const STROKE = 5;
+const SIZE = 78;
+const STROKE = 9;
 const R = (SIZE - STROKE) / 2;
 const C = 2 * Math.PI * R;
 
@@ -21,9 +21,9 @@ export function WeeklyGoalRing({ done, total }: WeeklyGoalRingProps) {
   return (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.title}>Meta da Semana</Text>
+        <Text style={styles.title}>Semana em andamento</Text>
         <Text style={styles.sub}>
-          {done} de {total} treino{total === 1 ? '' : 's'} concluído{done === 1 ? '' : 's'}
+          {done} de {total} treino{total === 1 ? '' : 's'} feito{done === 1 ? '' : 's'}
         </Text>
       </View>
       <View style={{ width: SIZE, height: SIZE }}>

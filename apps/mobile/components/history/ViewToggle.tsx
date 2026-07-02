@@ -29,7 +29,7 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
             <Ionicons
               name={v === 'list' ? 'list-outline' : 'calendar-outline'}
               size={16}
-              color={active ? theme.colors.onAccent : theme.colors.textSecondary}
+              color={active ? theme.colors.primary : theme.colors.textSecondary}
             />
             <Text style={[styles.text, active && styles.textActive]}>
               {v === 'list' ? 'Lista' : 'Calendário'}
@@ -46,7 +46,7 @@ const createStyles = (theme: Theme) =>
     toggle: {
       flexDirection: 'row',
       backgroundColor: theme.colors.surfaceAlt,
-      borderRadius: Radii.md,
+      borderRadius: Radii.full,
       padding: 3,
       marginBottom: Spacing.md,
     },
@@ -57,9 +57,16 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'center',
       gap: 6,
       paddingVertical: Spacing.sm,
-      borderRadius: Radii.sm,
+      borderRadius: Radii.full,
     },
-    btnActive: { backgroundColor: theme.colors.primary },
+    btnActive: {
+      backgroundColor: theme.colors.surface,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 3,
+      shadowOffset: { width: 0, height: 1 },
+      elevation: 2,
+    },
     text: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: theme.colors.textSecondary },
-    textActive: { color: theme.colors.onAccent },
+    textActive: { color: theme.colors.primary },
   });

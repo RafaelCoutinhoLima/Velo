@@ -99,20 +99,28 @@ export default function MetricsScreen() {
       );
     }
 
+    // 14 barras (buckets de ~3 dias) com gradiente de tom claro→accent,
+    // conforme o gráfico da tela 10.
     const lastN = history.slice(-42);
-    const maxCTL = Math.max(...lastN.map((h) => h.ctl ?? 0), 1);
+    const BUCKETS = 14;
+    const size = Math.max(1, Math.ceil(lastN.length / BUCKETS));
+    const buckets: number[] = [];
+    for (let i = 0; i < lastN.length; i += size) {
+      const chunk = lastN.slice(i, i + size);
+      buckets.push(chunk.reduce((s, p) => s + (p.ctl ?? 0), 0) / chunk.length);
+    }
+    const maxCTL = Math.max(...buckets, 1);
 
     return (
       <View style={styles.chartBox}>
         <Text style={styles.chartTitle}>Carga (CTL) — últimas 6 semanas</Text>
         <View style={styles.bars}>
-          {lastN.map((point, i) => {
-            const height = Math.max(4, ((point.ctl ?? 0) / maxCTL) * 80);
-            const isWeekEnd = (i + 1) % 7 === 0;
+          {buckets.map((ctl, i) => {
+            const height = Math.max(4, (ctl / maxCTL) * 80);
+            const opacity = 0.3 + 0.7 * (i / Math.max(buckets.length - 1, 1));
             return (
-              <View key={point.date} style={styles.barWrapper}>
-                <View style={[styles.bar, { height }]} />
-                {isWeekEnd ? <View style={styles.weekDivider} /> : null}
+              <View key={i} style={styles.barWrapper}>
+                <View style={[styles.bar, { height, opacity }]} />
               </View>
             );
           })}
@@ -223,6 +231,32 @@ export default function MetricsScreen() {
             </View>
 
             <LoadChart history={data.history} />
+
+            {/* Card insight (tela 10): variação do CTL nas 6 semanas. */}
+            {data.history.length >= 14 ? (
+              (() => {
+                const window = data.history.slice(-42);
+                const delta = Math.round(
+                  (window[window.length - 1]?.ctl ?? 0) - (window[0]?.ctl ?? 0),
+                );
+                if (delta === 0) return null;
+                const up = delta > 0;
+                return (
+                  <View style={styles.insightCard}>
+                    <Ionicons
+                      name={up ? 'trending-up' : 'trending-down'}
+                      size={18}
+                      color={theme.colors.primary}
+                    />
+                    <Text style={styles.insightText}>
+                      Sua forma de base {up ? 'subiu' : 'caiu'}{' '}
+                      <Text style={styles.insightStrong}>{Math.abs(delta)} pontos</Text> nas
+                      últimas 6 semanas.
+                    </Text>
+                  </View>
+                );
+              })()
+            ) : null}
           </>
         )}
       </ScrollView>
@@ -327,6 +361,23 @@ const createStyles = (theme: Theme) =>
     weekDivider: { position: 'absolute', right: -1, top: 0, bottom: 0, width: 1, backgroundColor: theme.colors.border },
     chartLegend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
     legendText: { fontFamily: Fonts.data, fontSize: FontSize.xs, color: theme.colors.textMuted },
+
+    insightCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm + 2,
+      backgroundColor: theme.colors.primaryMuted,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}4D`,
+      borderRadius: Radii.lg,
+      padding: Spacing.md,
+    },
+    insightText: {
+      ...theme.type.bodySm,
+      color: theme.colors.textPrimary,
+      flex: 1,
+    },
+    insightStrong: { fontFamily: Fonts.bodySemiBold },
 
     // Empty
     noData: { ...theme.type.body, color: theme.colors.textMuted, textAlign: 'center' },

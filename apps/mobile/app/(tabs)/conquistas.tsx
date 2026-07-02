@@ -117,7 +117,7 @@ export default function ConquistasScreen() {
         </View>
         <Text style={[styles.badgeLabel, !unlocked && { color: theme.colors.textMuted }]}>{m.label}</Text>
         {unlocked ? (
-          <Text style={styles.badgeDone}>Desbloqueada</Text>
+          <Text style={styles.badgeDone}>Feito</Text>
         ) : (
           <View style={styles.badgeBarTrack}>
             <View style={[styles.badgeBarFill, { width: `${pct * 100}%` }]} />
@@ -199,27 +199,30 @@ const createStyles = (theme: Theme) =>
       padding: Spacing.lg,
       alignItems: 'center',
       overflow: 'hidden',
-      ...theme.shadow.glow,
+      ...theme.shadow.elevated,
     },
     streakIcon: {
-      width: 84,
-      height: 84,
+      width: 80,
+      height: 80,
       borderRadius: Radii.full,
       backgroundColor: theme.colors.primaryMuted,
-      borderWidth: 2,
-      borderColor: theme.colors.primaryLight,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: Spacing.sm,
     },
     streakNumber: {
       fontFamily: Fonts.displayBlack,
-      fontSize: 72,
-      lineHeight: 78,
+      fontSize: 64,
+      lineHeight: 70,
       fontWeight: FontWeight.extrabold,
       color: theme.colors.primary,
     },
-    streakLabel: { ...theme.type.subtitle, fontSize: FontSize.md, color: theme.colors.textPrimary, textAlign: 'center' },
+    streakLabel: {
+      fontFamily: Fonts.bodyMedium,
+      fontSize: 15,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+    },
 
     // Stats
     statRow: { flexDirection: 'row', gap: Spacing.sm },
@@ -280,11 +283,16 @@ const createStyles = (theme: Theme) =>
       textAlign: 'center',
     },
     badgeDone: {
-      fontFamily: Fonts.data,
-      fontSize: 9,
+      fontFamily: Fonts.dataBold,
+      fontSize: 8,
       color: theme.colors.primary,
       textTransform: 'uppercase',
       letterSpacing: Tracking.wide,
+      backgroundColor: theme.colors.primaryMuted,
+      borderRadius: Radii.full,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      overflow: 'hidden',
     },
     badgeBarTrack: {
       width: '100%',

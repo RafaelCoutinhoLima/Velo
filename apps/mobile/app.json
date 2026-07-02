@@ -1,19 +1,29 @@
 {
   "expo": {
-    "name": "FitSync AI",
+    "name": "Velo",
     "slug": "fitsync-ai",
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "fitsync",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#f8fafc",
+    "backgroundColor": "#f5f8fd",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f5f8fd"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.fitsync.mobile",
       "usesAppleSignIn": true
     },
     "android": {
-      "package": "app.fitsync.mobile"
+      "package": "app.fitsync.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2a5ea7"
+      }
     },
     "plugins": [
       "expo-router",
@@ -21,7 +31,7 @@
       [
         "expo-notifications",
         {
-          "color": "#1e40af"
+          "color": "#2a5ea7"
         }
       ],
       "expo-font"

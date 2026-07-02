@@ -13,5 +13,14 @@
 //   const styles = useMemo(() => createStyles(theme), [theme]);
 
 export { Spacing, Radii, FontSize, FontWeight, Tracking, Fonts } from './theme.tokens';
-export { ThemeProvider, useTheme } from './themes';
-export type { Theme, ThemeColors, ThemeName, ThemeShadow, ThemeType } from './themes';
+export { ThemeProvider, useTheme, ACCENTS } from './themes';
+export type {
+  AccentName,
+  Theme,
+  ThemeColors,
+  ThemeName,
+  ThemeShadow,
+  ThemeType,
+  ZoneCode,
+  ZonePalette,
+} from './themes';

@@ -6,8 +6,9 @@ import {
 import { router } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
-import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
+import { Fonts, FontSize, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ErrorCard } from '../../components/ErrorCard';
@@ -112,13 +113,26 @@ export default function LoginScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Hero ── */}
+        {/* ── Hero (tela 01): símbolo » + wordmark Velo + ponto accent ── */}
         <View style={styles.hero}>
           <View style={styles.logoBadge}>
-            <Ionicons name="flash" size={38} color={theme.colors.onAccent} />
+            <Svg width={44} height={44} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M4 7l7 5-7 5M12 7l7 5-7 5"
+                stroke={theme.colors.onAccent}
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
           </View>
-          <Text style={styles.title}>FitSync AI</Text>
-          <Text style={styles.subtitle}>Seu plano de corrida com IA adaptativa</Text>
+          <View style={styles.wordmarkRow}>
+            <Text style={styles.title}>Velo</Text>
+            <View style={styles.wordmarkDot} />
+          </View>
+          <Text style={styles.subtitle}>
+            Seu treinador de corrida com IA. Treinos que se adaptam a você.
+          </Text>
         </View>
 
         {error ? (
@@ -194,8 +208,20 @@ export default function LoginScreen() {
           </View>
         )}
 
+        {/* Prova social (tela 01) */}
+        <View style={styles.socialProof}>
+          <View style={styles.avatarStack}>
+            <View style={[styles.proofAvatar, { backgroundColor: '#c7d9f5' }]} />
+            <View style={[styles.proofAvatar, styles.proofAvatarOverlap, { backgroundColor: '#a9c4ef' }]} />
+            <View style={[styles.proofAvatar, styles.proofAvatarOverlap, { backgroundColor: '#7fa8e8' }]} />
+          </View>
+          <Text style={styles.socialProofText}>
+            Mais de 2.000 corredores treinando com a Velo
+          </Text>
+        </View>
+
         <Text style={styles.disclaimer}>
-          FitSync não substitui acompanhamento médico ou profissional.
+          A Velo não substitui acompanhamento médico ou profissional.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -213,26 +239,35 @@ const createStyles = (theme: Theme) =>
     },
     hero: { alignItems: 'center', marginBottom: Spacing.xl },
     logoBadge: {
-      width: 80,
-      height: 80,
-      borderRadius: Radii.xl,
+      width: 82,
+      height: 82,
+      borderRadius: 22,
       backgroundColor: theme.colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: Spacing.md,
+      marginBottom: Spacing.md + 4,
+      ...theme.shadow.glow,
     },
+    wordmarkRow: { flexDirection: 'row', alignItems: 'baseline' },
     title: {
       fontFamily: Fonts.displayBlack,
-      fontSize: FontSize['4xl'],
-      fontWeight: FontWeight.extrabold,
+      fontSize: 46,
       color: theme.colors.textPrimary,
-      letterSpacing: Tracking.tight,
+      letterSpacing: -1.5,
+    },
+    wordmarkDot: {
+      width: 9,
+      height: 9,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.primary,
+      marginLeft: 6,
     },
     subtitle: {
       ...theme.type.body,
-      color: theme.colors.textMuted,
-      marginTop: Spacing.xs,
+      color: theme.colors.textSecondary,
+      marginTop: Spacing.sm,
       textAlign: 'center',
+      maxWidth: 280,
     },
     errorWrap: { marginBottom: Spacing.md },
     socialBtn: { marginBottom: Spacing.sm },
@@ -254,6 +289,27 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.colors.border,
       padding: Spacing.md,
       marginBottom: Spacing.md,
+    },
+    socialProof: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      marginTop: Spacing.md,
+    },
+    avatarStack: { flexDirection: 'row' },
+    proofAvatar: {
+      width: 22,
+      height: 22,
+      borderRadius: Radii.full,
+      borderWidth: 2,
+      borderColor: theme.colors.bg,
+    },
+    proofAvatarOverlap: { marginLeft: -8 },
+    socialProofText: {
+      fontFamily: Fonts.bodyMedium,
+      fontSize: FontSize.xs,
+      color: theme.colors.textSecondary,
     },
     disclaimer: {
       ...theme.type.bodySm,

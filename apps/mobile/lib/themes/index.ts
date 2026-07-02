@@ -1,4 +1,14 @@
 export { ThemeProvider, useTheme } from './context';
-export { interstellar } from './interstellar';
-export { interspaceBlue } from './interspaceBlue';
-export type { Theme, ThemeColors, ThemeName, ThemeShadow, ThemeType } from './types';
+export { veloLight, veloType } from './veloLight';
+export { veloDark } from './veloDark';
+export { ACCENTS, applyAccent } from './accents';
+export type { AccentName } from './accents';
+export type {
+  Theme,
+  ThemeColors,
+  ThemeName,
+  ThemeShadow,
+  ThemeType,
+  ZoneCode,
+  ZonePalette,
+} from './types';

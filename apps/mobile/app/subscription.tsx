@@ -2,31 +2,41 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../lib/theme';
 
 type Plan = 'annual' | 'monthly';
 
+// Tela 27 — 4 benefícios do handoff.
 const BENEFITS: { icon: keyof typeof Ionicons.glyphMap; title: string; desc: string }[] = [
   {
-    icon: 'sparkles',
-    title: 'Planos adaptativos via IA',
-    desc: 'Treinos que evoluem em tempo real com base no seu desempenho diário.',
+    icon: 'refresh',
+    title: 'Plano que se refaz sozinho',
+    desc: 'Cada sync do relógio recalibra sua semana com base na carga real.',
+  },
+  {
+    icon: 'chatbubbles',
+    title: 'Chat ilimitado com o treinador',
+    desc: 'Pergunte, negocie treinos e entenda cada decisão do plano.',
   },
   {
     icon: 'analytics',
     title: 'Métricas avançadas',
-    desc: 'Análise profunda de zonas de FC, VO₂ máx, carga e recuperação.',
+    desc: 'ACWR, CTL, TSB e decoupling explicados em português claro.',
   },
   {
-    icon: 'chatbubbles',
-    title: 'Feedback ilimitado',
-    desc: 'Orientações personalizadas geradas pela IA para manter sua motivação.',
+    icon: 'watch',
+    title: 'Treinos direto no relógio',
+    desc: 'Estruturados no Garmin — é só apertar start no aquecimento.',
   },
 ];
 
-const PLANS: Record<Plan, { label: string; price: string; period: string; note?: string }> = {
-  annual: { label: 'Anual', price: 'R$ 399,00', period: '/ano', note: '33% OFF' },
-  monthly: { label: 'Mensal', price: 'R$ 49,90', period: '/mês' },
+const PLANS: Record<
+  Plan,
+  { label: string; price: string; period: string; note?: string; sub?: string }
+> = {
+  annual: { label: 'Anual', price: 'R$ 20,90', period: '/mês', note: '−40%', sub: 'R$ 249/ano' },
+  monthly: { label: 'Mensal', price: 'R$ 34,90', period: '/mês' },
 };
 
 export default function SubscriptionScreen() {
@@ -48,15 +58,26 @@ export default function SubscriptionScreen() {
         >
           <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.headerLabel}>FitSync Pro</Text>
+        <Text style={styles.headerLabel}>Velo Pro</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <Text style={styles.title}>Evolua com inteligência</Text>
+          <View style={styles.logoBadge}>
+            <Svg width={38} height={38} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M4 7l7 5-7 5M12 7l7 5-7 5"
+                stroke={theme.colors.onAccent}
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </View>
+          <Text style={styles.title}>Velo Pro</Text>
           <Text style={styles.subtitle}>
-            Desbloqueie seu potencial máximo com o treinador de IA definitivo.
+            Um treinador que custa menos que um tênis por ano.
           </Text>
         </View>
 
@@ -65,7 +86,7 @@ export default function SubscriptionScreen() {
           {BENEFITS.map((b) => (
             <View key={b.title} style={styles.benefitRow}>
               <View style={styles.benefitIcon}>
-                <Ionicons name={b.icon} size={20} color={theme.colors.accent} />
+                <Ionicons name={b.icon} size={18} color={theme.colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.benefitTitle}>{b.title}</Text>
@@ -103,6 +124,7 @@ export default function SubscriptionScreen() {
               <View style={styles.planPriceRow}>
                 <Text style={[styles.planPrice, active && { color: theme.colors.primary }]}>{plan.price}</Text>
                 <Text style={styles.planPeriod}>{plan.period}</Text>
+                {plan.sub ? <Text style={styles.planSub}>· {plan.sub}</Text> : null}
               </View>
             </TouchableOpacity>
           );
@@ -114,11 +136,13 @@ export default function SubscriptionScreen() {
         <TouchableOpacity
           style={styles.ctaBtn}
           accessibilityRole="button"
-          accessibilityLabel="Assinar FitSync Pro"
+          accessibilityLabel="Assinar Velo Pro"
         >
-          <Text style={styles.ctaText}>Assinar {PLANS[selected].label}</Text>
+          <Text style={styles.ctaText}>Começar 14 dias grátis</Text>
         </TouchableOpacity>
-        <Text style={styles.footerNote}>Pagamentos integrados em breve · cancele quando quiser</Text>
+        <Text style={styles.footerNote}>
+          Cancela quando quiser. Sem cobrança no período de teste.
+        </Text>
       </View>
     </View>
   );
@@ -164,7 +188,17 @@ const createStyles = (theme: Theme) =>
     content: { padding: Spacing.lg, paddingBottom: 160, gap: Spacing.md },
 
     hero: { alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-    title: { ...theme.type.headline, color: theme.colors.textPrimary, textAlign: 'center' },
+    logoBadge: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.xs,
+      ...theme.shadow.glow,
+    },
+    title: { ...theme.type.display, color: theme.colors.textPrimary, textAlign: 'center' },
     subtitle: { ...theme.type.body, color: theme.colors.textSecondary, textAlign: 'center' },
 
     // Benefits
@@ -178,10 +212,10 @@ const createStyles = (theme: Theme) =>
     },
     benefitRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
     benefitIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: Radii.full,
-      backgroundColor: theme.colors.accentLight,
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      backgroundColor: theme.colors.primaryMuted,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -202,7 +236,7 @@ const createStyles = (theme: Theme) =>
       position: 'absolute',
       top: 0,
       right: 0,
-      backgroundColor: theme.colors.primary,
+      backgroundColor: theme.colors.success,
       paddingHorizontal: Spacing.sm,
       paddingVertical: 3,
       borderBottomLeftRadius: Radii.md,
@@ -233,6 +267,12 @@ const createStyles = (theme: Theme) =>
       color: theme.colors.textPrimary,
     },
     planPeriod: { ...theme.type.bodySm, color: theme.colors.textMuted },
+    planSub: {
+      fontFamily: Fonts.data,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      fontVariant: ['tabular-nums'],
+    },
 
     // Footer CTA
     footer: {

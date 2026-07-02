@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { chunkedSecureStorage } from './secureStorage';
 import type { ThemeName } from './themes/types';
+import type { AccentName } from './themes/accents';
 
 interface AthleteProfile {
   id: string;
@@ -95,14 +96,18 @@ export const useUIStore = create<UIState>()((set) => ({
 // chave é distinta (`fitsync-prefs`), então não colide com sessão.
 interface PrefsState {
   themeName: ThemeName;
+  accentName: AccentName;
   setThemeName: (name: ThemeName) => void;
+  setAccentName: (name: AccentName) => void;
 }
 
 export const usePrefsStore = create<PrefsState>()(
   persist(
     (set) => ({
-      themeName: 'interstellar',
+      themeName: 'veloLight',
+      accentName: 'azul',
       setThemeName: (name) => set({ themeName: name }),
+      setAccentName: (name) => set({ accentName: name }),
     }),
     {
       name: 'fitsync-prefs',

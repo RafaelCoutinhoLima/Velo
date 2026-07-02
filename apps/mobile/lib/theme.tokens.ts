@@ -56,4 +56,6 @@ export const Fonts = {
   bodySemiBold: 'Inter-SemiBold',
   bodyBold: 'Inter-Bold',
   data: 'JetBrainsMono-Medium',
+  dataSemiBold: 'JetBrainsMono-SemiBold',
+  dataBold: 'JetBrainsMono-Bold',
 } as const;

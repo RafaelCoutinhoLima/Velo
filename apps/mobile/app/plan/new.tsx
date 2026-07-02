@@ -1,14 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
+import { Fonts, FontSize, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
-import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
+
+// Tela 15 — checklist transparente do raciocínio da geração. Os rótulos
+// espelham as etapas reais do pipeline (/plan/generate): ler histórico,
+// calcular carga, distribuir intensidade, posicionar longo/recuperação.
+const GENERATION_STEPS = [
+  'Li seus últimos treinos sincronizados',
+  'Calculei sua carga e ACWR',
+  'Distribuindo intensidade 80/20…',
+  'Posicionando o longo e a recuperação',
+];
 
 // "Pedir Novo Plano" — dispara a regeneração do plano semanal pela IA.
 // Reaproveita o endpoint /plan/generate + polling de job.
@@ -22,13 +39,32 @@ export default function NewPlanScreen() {
   const [generating, setGenerating] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stepRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (stepRef.current) clearInterval(stepRef.current);
     };
   }, []);
+
+  // Avança o checklist em ritmo constante enquanto o job roda; o último
+  // passo só completa quando o backend confirma (finish/erro param tudo).
+  useEffect(() => {
+    if (!generating) {
+      if (stepRef.current) clearInterval(stepRef.current);
+      setStep(0);
+      return;
+    }
+    stepRef.current = setInterval(() => {
+      setStep((s) => Math.min(s + 1, GENERATION_STEPS.length - 1));
+    }, 4000);
+    return () => {
+      if (stepRef.current) clearInterval(stepRef.current);
+    };
+  }, [generating]);
 
   function finish() {
     qc.invalidateQueries({ queryKey: ['plan'] });
@@ -76,10 +112,45 @@ export default function NewPlanScreen() {
 
   if (generating) {
     return (
-      <LoadingScreen
-        message={jobId ? 'Processando seu novo plano...' : 'Gerando seu plano com IA...'}
-        subMessage="Isso pode levar até 1 minuto"
-      />
+      <View style={[styles.container, styles.genScreen]}>
+        <View style={styles.genLogo}>
+          <Svg width={34} height={34} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M4 7l7 5-7 5M12 7l7 5-7 5"
+              stroke={theme.colors.onAccent}
+              strokeWidth={2.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        </View>
+        <Text style={styles.genTitle}>Montando sua semana</Text>
+
+        <View style={styles.genChecklist}>
+          {GENERATION_STEPS.map((label, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <View key={label} style={[styles.genStep, !done && !active && { opacity: 0.5 }]}>
+                {done ? (
+                  <View style={styles.genStepDone}>
+                    <Ionicons name="checkmark" size={13} color={theme.colors.onAccent} />
+                  </View>
+                ) : active ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <View style={styles.genStepFuture} />
+                )}
+                <Text style={[styles.genStepText, done && styles.genStepTextDone]}>{label}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <Text style={styles.genFootnote}>
+          {jobId ? 'Costuma levar poucos segundos.' : 'Preparando a geração…'}
+        </Text>
+      </View>
     );
   }
 
@@ -179,4 +250,54 @@ const createStyles = (theme: Theme) =>
     },
     infoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     infoText: { ...theme.type.bodySm, color: theme.colors.textPrimary, flex: 1 },
+
+    // Estado de geração (tela 15)
+    genScreen: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: Spacing.xl,
+      gap: Spacing.lg,
+    },
+    genLogo: {
+      width: 72,
+      height: 72,
+      borderRadius: 20,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...theme.shadow.glow,
+    },
+    genTitle: { ...theme.type.headline, color: theme.colors.textPrimary, textAlign: 'center' },
+    genChecklist: {
+      alignSelf: 'stretch',
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: Radii.lg,
+      padding: Spacing.md,
+      gap: Spacing.md,
+    },
+    genStep: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm + 2, minHeight: 22 },
+    genStepDone: {
+      width: 20,
+      height: 20,
+      borderRadius: Radii.full,
+      backgroundColor: theme.colors.success,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    genStepFuture: {
+      width: 20,
+      height: 20,
+      borderRadius: Radii.full,
+      borderWidth: 1.5,
+      borderColor: theme.colors.borderStrong,
+    },
+    genStepText: { ...theme.type.bodySm, fontSize: FontSize.sm, color: theme.colors.textPrimary, flex: 1 },
+    genStepTextDone: { color: theme.colors.textSecondary },
+    genFootnote: {
+      fontFamily: Fonts.body,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+    },
   });

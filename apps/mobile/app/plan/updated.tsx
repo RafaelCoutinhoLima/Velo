@@ -18,10 +18,10 @@ export default function PlanUpdatedScreen() {
         <View style={styles.iconCircle}>
           <Ionicons name="checkmark" size={52} color={theme.colors.onAccent} />
         </View>
-        <Text style={styles.title}>Plano atualizado!</Text>
+        <Text style={styles.title}>Plano atualizado</Text>
         <Text style={styles.text}>
-          Sua semana de treinos foi recriada pela IA com base nos seus dados mais recentes.
-          Confira o que mudou e bons treinos.
+          Recriamos sua semana com base nos seus dados mais recentes. O objetivo continua o
+          mesmo — o caminho até ele ficou mais preciso.
         </Text>
       </View>
 

@@ -13,7 +13,11 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
+import {
+  JetBrainsMono_500Medium,
+  JetBrainsMono_600SemiBold,
+  JetBrainsMono_700Bold,
+} from '@expo-google-fonts/jetbrains-mono';
 import { queryClient, persister } from '../lib/queryClient';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../lib/store';
@@ -34,6 +38,8 @@ export default function RootLayout() {
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
     'JetBrainsMono-Medium': JetBrainsMono_500Medium,
+    'JetBrainsMono-SemiBold': JetBrainsMono_600SemiBold,
+    'JetBrainsMono-Bold': JetBrainsMono_700Bold,
   });
 
   useEffect(() => {

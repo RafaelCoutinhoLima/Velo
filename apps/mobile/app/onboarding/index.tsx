@@ -19,7 +19,7 @@ export default function DisclaimerScreen() {
     {
       icon: 'fitness-outline',
       eyebrow: 'Produto',
-      title: 'O que o FitSync faz',
+      title: 'O que a Velo faz',
       body: 'Gera planos de corrida personalizados com IA, baseados nos seus dados do Garmin e em métricas de carga: rTSS (peso de cada treino), ACWR (balanço carga/risco), HRV (recuperação).',
     },
     {
@@ -28,7 +28,7 @@ export default function DisclaimerScreen() {
       title: 'O que ele não substitui',
       body: (
         <>
-          O FitSync AI <Text style={{ fontFamily: 'Inter-Bold' }}>não substitui</Text> acompanhamento médico,
+          A Velo <Text style={{ fontFamily: 'Inter-Bold' }}>não substitui</Text> acompanhamento médico,
           fisioterapêutico ou de treinador profissional. Em caso de dor, lesão ou desconforto,
           consulte um profissional de saúde.
         </>

@@ -9,9 +9,9 @@ export function CoachInsights({ text }: { text: string }) {
 
   return (
     <View style={styles.banner}>
-      <Ionicons name="sparkles" size={20} color={theme.colors.accent} style={{ marginTop: 1 }} />
+      <Ionicons name="star" size={18} color={theme.colors.primary} style={{ marginTop: 1 }} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.label}>Coach Insights</Text>
+        <Text style={styles.label}>Leitura da semana</Text>
         <Text style={styles.text}>{text}</Text>
       </View>
     </View>
@@ -23,12 +23,12 @@ const createStyles = (theme: Theme) =>
     banner: {
       flexDirection: 'row',
       gap: Spacing.sm,
-      backgroundColor: theme.colors.accentLight,
+      backgroundColor: theme.colors.surface,
       borderRadius: Radii.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
       padding: Spacing.md,
     },
-    label: { ...theme.type.label, color: theme.colors.accent, marginBottom: 3 },
+    label: { ...theme.type.label, color: theme.colors.primary, marginBottom: 3 },
     text: { ...theme.type.bodySm, color: theme.colors.textPrimary },
   });

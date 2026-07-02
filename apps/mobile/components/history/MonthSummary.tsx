@@ -1,17 +1,9 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import {
-  Fonts,
-  FontSize,
-  Radii,
-  Spacing,
-  Tracking,
-  useTheme,
-  type Theme,
-} from '../../lib/theme';
-import { PT_MONTHS, sportOf, type Workout } from './types';
+import { Fonts, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
+import { PT_MONTHS_FULL, sportOf, type Workout } from './types';
 
+// Resumo do mês (tela 08): card de 4 colunas mono — km · treinos · horas · carga.
 export function MonthSummary({ workouts }: { workouts: Workout[] }) {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -24,59 +16,26 @@ export function MonthSummary({ workouts }: { workouts: Workout[] }) {
     monthWorkouts.filter((w) => sportOf(w) === 'run').reduce((s, w) => s + w.distance_m, 0) /
     1000;
   const sessions = monthWorkouts.length;
-  const hours = Math.floor(totalSec / 3600);
-  const mins = Math.floor((totalSec % 3600) / 60);
+  const hours = totalSec / 3600;
+  const load = monthWorkouts.reduce((s, w) => s + (w.rtss ?? 0), 0);
 
-  // Volume semanal (horas) das últimas 4 semanas — barras
-  const weekHours = [0, 0, 0, 0];
-  const nowMs = now.getTime();
-  for (const w of workouts) {
-    const ageD = (nowMs - new Date(`${w.date}T12:00:00`).getTime()) / 86_400_000;
-    const wk = Math.floor(ageD / 7);
-    if (wk >= 0 && wk < 4) weekHours[wk] += w.duration_s / 3600;
-  }
-  const maxWeek = Math.max(...weekHours, 0.1);
-  const bars = weekHours
-    .map((h, i) => ({ label: `S${4 - i}`, h, pct: h / maxWeek }))
-    .reverse();
+  const cells: { value: string; label: string }[] = [
+    { value: runKm >= 100 ? `${Math.round(runKm)}` : runKm.toFixed(1), label: 'km' },
+    { value: `${sessions}`, label: sessions === 1 ? 'treino' : 'treinos' },
+    { value: hours >= 10 ? `${Math.round(hours)}h` : `${hours.toFixed(1)}h`, label: 'tempo' },
+    { value: `${Math.round(load)}`, label: 'rTSS' },
+  ];
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.chartCard}>
-        <View style={styles.chartHead}>
-          <Text style={styles.chartLabel}>Volume semanal (horas)</Text>
-          <Text style={styles.monthBadge}>{PT_MONTHS[now.getMonth()]}</Text>
-        </View>
-        <View style={styles.barsRow}>
-          {bars.map((b) => (
-            <View key={b.label} style={styles.barCol}>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: `${Math.max(4, b.pct * 100)}%` }]} />
-              </View>
-              <Text style={styles.barLabel}>{b.label}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.statRow}>
-        <View style={[styles.statCard, { backgroundColor: theme.colors.primaryMuted }]}>
-          <Ionicons name="time-outline" size={20} color={theme.colors.primary} />
-          <Text style={styles.statValue}>
-            {hours}h{hours > 0 ? String(mins).padStart(2, '0') : `${mins}m`}
-          </Text>
-          <Text style={styles.statLabel}>Tempo ativo</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: theme.colors.accentLight }]}>
-          <Ionicons name="footsteps-outline" size={20} color={theme.colors.accent} />
-          <Text style={styles.statValue}>{runKm.toFixed(1)} km</Text>
-          <Text style={styles.statLabel}>Corrida no mês</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: theme.colors.surfaceAlt }]}>
-          <Ionicons name="flame-outline" size={20} color={theme.colors.workoutTempo} />
-          <Text style={styles.statValue}>{sessions}</Text>
-          <Text style={styles.statLabel}>Sessões</Text>
-        </View>
+    <View style={styles.card}>
+      <Text style={styles.monthLabel}>{PT_MONTHS_FULL[now.getMonth()]}</Text>
+      <View style={styles.row}>
+        {cells.map((c, i) => (
+          <View key={c.label} style={[styles.cell, i > 0 && styles.cellDivider]}>
+            <Text style={styles.value}>{c.value}</Text>
+            <Text style={styles.label}>{c.label}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -84,45 +43,37 @@ export function MonthSummary({ workouts }: { workouts: Workout[] }) {
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
-    wrap: { gap: Spacing.md, marginBottom: Spacing.lg },
-    chartCard: {
+    card: {
       backgroundColor: theme.colors.surface,
       borderRadius: Radii.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      padding: Spacing.md,
+      paddingVertical: Spacing.md,
+      marginBottom: Spacing.lg,
     },
-    chartHead: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: Spacing.md,
-    },
-    chartLabel: {
+    monthLabel: {
       fontFamily: Fonts.bodyBold,
-      fontSize: FontSize.xs,
-      color: theme.colors.textSecondary,
+      fontSize: 11,
+      letterSpacing: 1,
       textTransform: 'uppercase',
-      letterSpacing: Tracking.wide,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: Spacing.sm,
     },
-    monthBadge: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.xs,
-      color: theme.colors.primary,
-      backgroundColor: theme.colors.primaryMuted,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 2,
-      borderRadius: Radii.full,
-      overflow: 'hidden',
+    row: { flexDirection: 'row' },
+    cell: { flex: 1, alignItems: 'center', gap: 2 },
+    cellDivider: { borderLeftWidth: 1, borderLeftColor: theme.colors.divider },
+    value: {
+      fontFamily: Fonts.dataBold,
+      fontSize: 20,
+      color: theme.colors.textPrimary,
+      fontVariant: ['tabular-nums'],
     },
-    barsRow: { flexDirection: 'row', height: 90, gap: Spacing.sm, alignItems: 'flex-end' },
-    barCol: { flex: 1, alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' },
-    barTrack: { width: '70%', flex: 1, justifyContent: 'flex-end' },
-    barFill: { width: '100%', backgroundColor: theme.colors.primary, borderRadius: Radii.sm },
-    barLabel: { fontFamily: Fonts.data, fontSize: 10, color: theme.colors.textMuted },
-
-    statRow: { flexDirection: 'row', gap: Spacing.sm },
-    statCard: { flex: 1, borderRadius: Radii.lg, padding: Spacing.md, gap: 4 },
-    statValue: { ...theme.type.title, fontSize: FontSize.xl, color: theme.colors.textPrimary },
-    statLabel: { fontFamily: Fonts.body, fontSize: FontSize.xs, color: theme.colors.textSecondary },
+    label: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: 9,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      color: theme.colors.textMuted,
+    },
   });

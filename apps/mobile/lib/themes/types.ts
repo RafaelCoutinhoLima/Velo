@@ -1,10 +1,19 @@
-// Contrato de tema do FitSync AI. Toda tela/componente que precise de cores,
+// Contrato de tema do Velo. Toda tela/componente que precise de cores,
 // sombras ou presets tipográficos consome via `useTheme()` — os tokens neutros
 // (Spacing, Radii, FontSize, FontWeight, Tracking, Fonts) seguem como exports
 // estáticos em `lib/theme.ts`, pois não mudam entre identidades visuais.
 import type { TextStyle, ViewStyle } from 'react-native';
 
-export type ThemeName = 'interstellar' | 'interspaceBlue';
+export type ThemeName = 'veloLight' | 'veloDark';
+
+// Zonas de treino (modelo de 5 zonas) — cor é linguagem central do app.
+// Regra de acessibilidade: cor nunca é o único rótulo (sempre código + nome).
+export type ZoneCode = 'Z1' | 'Z2' | 'Z3' | 'Z4' | 'Z5';
+
+export interface ZonePalette {
+  color: string; // cor cheia (barras, pontos, badges)
+  soft: string; // fundo tingido (chips de data, rep work, calendário)
+}
 
 export interface ThemeColors {
   // Ação principal (botões, links, foco)
@@ -17,19 +26,31 @@ export interface ThemeColors {
   // Semânticos
   success: string;
   successLight: string;
+  successBorder: string;
   warning: string;
   warningLight: string;
+  warningBorder: string;
   danger: string;
   dangerLight: string;
+  info: string;
+  infoLight: string;
+  purple: string; // ATL / cross-training
+  purpleLight: string;
+  gold: string; // badge "Recorde pessoal"
   // Neutros / superfícies
   bg: string;
   surface: string;
   surfaceAlt: string;
+  surfaceElevated: string; // no escuro, elevação = superfície mais clara
+  chip: string;
   border: string;
   borderStrong: string;
+  divider: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
+  // Zonas de treino Z1–Z5
+  zones: Record<ZoneCode, ZonePalette>;
   // Sinalização por cor para tipos de treino
   workoutEasy: string;
   workoutInterval: string;

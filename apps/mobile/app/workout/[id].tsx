@@ -221,11 +221,16 @@ export default function WorkoutDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero ── tipo do treino vira ponto colorido + label sutil acima do título */}
+        {/* ── Hero ── badge "✓ Concluído" (tela 17) + data; tipo vira ponto colorido */}
         <View style={styles.hero}>
           <View style={styles.heroPills}>
-            <Text style={styles.datePill}>{weekday(w.date)}</Text>
-            <Text style={styles.datePillMuted}>{formatDate(w.date)}</Text>
+            <View style={styles.donePill}>
+              <Ionicons name="checkmark" size={12} color={theme.colors.success} />
+              <Text style={styles.donePillText}>Concluído</Text>
+            </View>
+            <Text style={styles.datePillMuted}>
+              {weekday(w.date)} · {formatDate(w.date)}
+            </Text>
           </View>
           <View style={styles.heroTypeRow}>
             <View style={[styles.heroTypeDot, { backgroundColor: typeConfig.color }]} />
@@ -371,7 +376,12 @@ export default function WorkoutDetailScreen() {
                     key={n}
                     style={[
                       styles.rpeBtn,
-                      rpe === n && { backgroundColor: rpeColor(n), borderColor: rpeColor(n) },
+                      rpe === n && {
+                        backgroundColor: rpeColor(n),
+                        borderColor: rpeColor(n),
+                        ...theme.shadow.glow,
+                        shadowColor: rpeColor(n),
+                      },
                     ]}
                     onPress={() => saveRpe(n)}
                     accessibilityRole="button"
@@ -384,6 +394,13 @@ export default function WorkoutDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              <View style={styles.rpeExtremes}>
+                <Text style={styles.rpeExtremeText}>muito fácil</Text>
+                <Text style={styles.rpeExtremeText}>máximo</Text>
+              </View>
+              <Text style={styles.rpeMicrocopy}>
+                Seu RPE calibra a carga dos próximos treinos.
+              </Text>
             </>
           )}
 
@@ -463,18 +480,24 @@ const createStyles = (theme: Theme) =>
 
     // Hero
     hero: { gap: Spacing.sm },
-    heroPills: { flexDirection: 'row', gap: Spacing.sm },
-    datePill: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.xs,
-      color: theme.colors.onAccent,
-      backgroundColor: theme.colors.primary,
+    heroPills: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    donePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: theme.colors.successLight,
+      borderWidth: 1,
+      borderColor: theme.colors.successBorder,
       paddingHorizontal: Spacing.sm + 2,
-      paddingVertical: 5,
-      borderRadius: Radii.sm,
+      paddingVertical: 4,
+      borderRadius: Radii.full,
+    },
+    donePillText: {
+      fontFamily: Fonts.dataBold,
+      fontSize: FontSize.xs,
+      color: theme.colors.success,
       textTransform: 'uppercase',
       letterSpacing: Tracking.wide,
-      overflow: 'hidden',
     },
     datePillMuted: {
       fontFamily: Fonts.data,
@@ -639,19 +662,44 @@ const createStyles = (theme: Theme) =>
       fontSize: FontSize.sm,
       color: theme.colors.accent,
     },
+    // Escala RPE (tela 31): grade de 10 células, raio 9, selecionada com
+    // cor cheia + sombra da própria cor.
     rpeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
     rpeBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: Radii.full,
+      flexGrow: 1,
+      flexBasis: '17%',
+      aspectRatio: 0.82,
+      maxHeight: 52,
+      borderRadius: 9,
       borderWidth: 1.5,
       borderColor: theme.colors.border,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.colors.surfaceAlt,
+      backgroundColor: theme.colors.surface,
     },
-    rpeBtnText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textMuted },
+    rpeBtnText: {
+      fontFamily: Fonts.dataSemiBold,
+      fontSize: FontSize.md,
+      color: theme.colors.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
     rpeBtnTextActive: { color: theme.colors.onAccent },
+    rpeExtremes: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 6,
+    },
+    rpeExtremeText: {
+      fontFamily: Fonts.bodyMedium,
+      fontSize: 10,
+      color: theme.colors.textMuted,
+    },
+    rpeMicrocopy: {
+      ...theme.type.bodySm,
+      fontSize: FontSize.xs,
+      color: theme.colors.textMuted,
+      marginTop: Spacing.sm,
+    },
     rpeStatus: { ...theme.type.bodySm, fontSize: FontSize.xs, color: theme.colors.textMuted, marginTop: Spacing.sm },
 
     // Coach card

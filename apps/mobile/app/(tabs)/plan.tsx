@@ -21,10 +21,13 @@ import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Button } from '../../components/Button';
 import { TopBar } from '../../components/TopBar';
+import { type WorkoutStructureData } from '../../components/WorkoutStructure';
 import {
-  WorkoutStructure,
-  type WorkoutStructureData,
-} from '../../components/WorkoutStructure';
+  WorkoutProfile,
+  ZONE_NAMES,
+  segmentsFromStructure,
+} from '../../components/WorkoutProfile';
+import type { ZoneCode } from '../../lib/theme';
 import { CoachInsights } from '../../components/plan/CoachInsights';
 import { MetricChip } from '../../components/plan/MetricChip';
 import { CalibrationBanner } from '../../components/plan/CalibrationBanner';
@@ -120,6 +123,17 @@ function zoneLabel(zones: number[]): string | null {
   return min === max ? `Z${min}` : `Z${min}-Z${max}`;
 }
 
+// Zona dominante do treino — usada no kicker do hero (ponto + nome da zona).
+// Prioriza a zona-alvo da parte principal; senão, a mais alta do dia.
+function mainZone(w: WorkoutDay): ZoneCode | null {
+  if (w.parte_principal?.zona_alvo) return w.parte_principal.zona_alvo;
+  if (w.zones && w.zones.length > 0) {
+    const z = Math.min(Math.max(Math.max(...w.zones), 1), 5);
+    return `Z${z}` as ZoneCode;
+  }
+  return null;
+}
+
 function usePlan(athleteId: string) {
   const { get } = useApi();
   return useQuery({
@@ -145,7 +159,6 @@ function useMoveMutation(planId: string) {
 
 export default function PlanScreen() {
   const session = useAuthStore((s) => s.session);
-  const advancedMode = useAuthStore((s) => s.advancedMode);
   const lastSeenCalibrationMode = useAuthStore((s) => s.lastSeenCalibrationMode);
   const setLastSeenCalibrationMode = useAuthStore((s) => s.setLastSeenCalibrationMode);
   const { theme } = useTheme();
@@ -182,7 +195,6 @@ export default function PlanScreen() {
 
   const [days, setDays] = useState<WorkoutDay[]>([]);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [pendingMove, setPendingMove] = useState<{ from: number; to: number; warning: string } | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -242,13 +254,13 @@ export default function PlanScreen() {
       .finally(() => setPendingMove(null));
   }
 
-  function handleDayPress(dayNumber: number) {
+  function handleDayPress(dayNumber: number, type: WorkoutType) {
     if (selectedDay !== null && selectedDay !== dayNumber) {
       handleMoveTo(dayNumber);
     } else if (selectedDay === dayNumber) {
       setSelectedDay(null);
-    } else {
-      setExpandedDay((prev) => (prev === dayNumber ? null : dayNumber));
+    } else if (type !== 'rest') {
+      router.push(`/plan/workout/${dayNumber}` as never);
     }
   }
 
@@ -334,6 +346,20 @@ export default function PlanScreen() {
                 </Text>
               </View>
 
+              {(() => {
+                const zone = mainZone(todayWorkout);
+                if (!zone || todayWorkout.type === 'rest') return null;
+                const zoneColor = theme.colors.zones[zone].color;
+                return (
+                  <View style={styles.heroZoneRow}>
+                    <View style={[styles.heroZoneDot, { backgroundColor: zoneColor }]} />
+                    <Text style={[styles.heroZoneLabel, { color: zoneColor }]}>
+                      {ZONE_NAMES[zone]}
+                    </Text>
+                  </View>
+                );
+              })()}
+
               <Text style={styles.heroTitle}>{TYPE_LABELS[todayWorkout.type]}</Text>
 
               <View style={styles.chipRow}>
@@ -356,27 +382,19 @@ export default function PlanScreen() {
               </View>
 
               {todayWorkout.type !== 'rest' ? (
+                <WorkoutProfile segments={segmentsFromStructure(todayWorkout)} variant="mini" />
+              ) : null}
+
+              {todayWorkout.type !== 'rest' ? (
                 <Button
-                  label={expandedDay === todayWorkout.day ? 'Recolher treino' : 'Começar Treino'}
-                  onPress={() =>
-                    setExpandedDay((p) => (p === todayWorkout.day ? null : todayWorkout.day))
-                  }
-                  icon={
-                    <Ionicons
-                      name={expandedDay === todayWorkout.day ? 'chevron-up' : 'play'}
-                      size={20}
-                      color={theme.colors.onAccent}
-                    />
-                  }
-                  accessibilityLabel="Ver estrutura do treino de hoje"
+                  label="Ver treino de hoje"
+                  onPress={() => router.push(`/plan/workout/${todayWorkout.day}` as never)}
+                  icon={<Ionicons name="play" size={20} color={theme.colors.onAccent} />}
+                  accessibilityLabel="Ver detalhe do treino de hoje"
                 />
               ) : null}
             </TouchableOpacity>
           </Animated.View>
-        ) : null}
-
-        {todayWorkout && expandedDay === todayWorkout.day ? (
-          <WorkoutStructure data={todayWorkout} advancedMode={advancedMode} />
         ) : null}
 
         {plan.why_text ? <CoachInsights text={plan.why_text} /> : null}
@@ -406,7 +424,6 @@ export default function PlanScreen() {
               const status = computeStatus(plan.week_start, item.day, item.type);
               const isSelected = selectedDay === item.day;
               const isTarget = selectedDay !== null && selectedDay !== item.day;
-              const isExpanded = expandedDay === item.day;
               const isDone = status === 'done';
               const tint = TYPE_COLORS[item.type];
               const zl = zoneLabel(item.zones);
@@ -425,14 +442,14 @@ export default function PlanScreen() {
                           <Ionicons name="checkmark" size={12} color={theme.colors.onAccent} />
                         </View>
                       ) : (
-                        <View style={[styles.dot, isExpanded && styles.dotActive]} />
+                        <View style={styles.dot} />
                       )}
                     </View>
                     <TouchableOpacity
                       activeOpacity={0.85}
                       delayLongPress={400}
                       onLongPress={() => handleLongPress(item.day)}
-                      onPress={() => handleDayPress(item.day)}
+                      onPress={() => handleDayPress(item.day, item.type)}
                       style={[
                         styles.dayCard,
                         isDone && styles.dayCardDone,
@@ -469,11 +486,6 @@ export default function PlanScreen() {
                       ) : null}
                     </TouchableOpacity>
                   </Animated.View>
-                  {isExpanded && item.type !== 'rest' ? (
-                    <View style={styles.rowStructure}>
-                      <WorkoutStructure data={item} advancedMode={advancedMode} />
-                    </View>
-                  ) : null}
                 </View>
               );
             })}
@@ -489,7 +501,7 @@ export default function PlanScreen() {
             accessibilityLabel="Ver métricas e detalhes"
           >
             <Ionicons name="analytics-outline" size={18} color={theme.colors.textPrimary} />
-            <Text style={styles.actionBtnText}>Detalhes</Text>
+            <Text style={styles.actionBtnText}>Métricas</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
@@ -505,7 +517,7 @@ export default function PlanScreen() {
         <SendToWatch athleteId={session.athlete_id} />
 
         <Text style={styles.disclaimerFooter}>
-          FitSync não substitui acompanhamento médico ou profissional.
+          A Velo não substitui acompanhamento médico ou profissional.
         </Text>
       </ScrollView>
 
@@ -537,7 +549,7 @@ const createStyles = (theme: Theme) =>
       borderRadius: Radii.xl,
       padding: Spacing.lg,
       gap: Spacing.md,
-      ...theme.shadow.glow,
+      ...theme.shadow.elevated,
     },
     heroEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     heroPill: {
@@ -560,6 +572,14 @@ const createStyles = (theme: Theme) =>
       color: theme.colors.primary,
       textTransform: 'uppercase',
       letterSpacing: Tracking.wide,
+    },
+    heroZoneRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    heroZoneDot: { width: 8, height: 8, borderRadius: Radii.full },
+    heroZoneLabel: {
+      fontFamily: Fonts.dataSemiBold,
+      fontSize: 11,
+      textTransform: 'uppercase',
+      letterSpacing: 1.2,
     },
     heroTitle: { ...theme.type.display, color: theme.colors.textPrimary },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
@@ -608,7 +628,6 @@ const createStyles = (theme: Theme) =>
       borderWidth: 3,
       borderColor: theme.colors.bg,
     },
-    dotActive: { backgroundColor: theme.colors.primary },
     dotDone: {
       width: 22,
       height: 22,
@@ -658,7 +677,6 @@ const createStyles = (theme: Theme) =>
       backgroundColor: 'transparent',
       borderWidth: 1,
     },
-    rowStructure: { paddingLeft: 32, marginTop: 2 },
     cardSelected: { borderWidth: 2, borderColor: theme.colors.primary },
     cardTarget: { opacity: 0.55 },
 

@@ -212,8 +212,8 @@ export default function ProfileScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <Text style={styles.title}>Perfil esportivo</Text>
-          <Text style={styles.subtitle}>Para calibrar seus treinos com precisão</Text>
+          <Text style={styles.title}>Sobre você</Text>
+          <Text style={styles.subtitle}>Usamos isso pra calibrar zonas e volume seguro.</Text>
         </View>
 
         <StepBar current={0} />

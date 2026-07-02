@@ -1,9 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Fonts, FontSize, Tracking, useTheme } from '../../lib/theme';
+import { Fonts, useTheme } from '../../lib/theme';
 
-// Bottom bar: 4 abas, ícone linear + label uppercase, primary do tema na
-// aba ativa. Cores se atualizam ao trocar identidade visual.
+// Bottom bar: 4 abas (Hoje · Histórico · Conquistas · Ajustes), ícone linear
+// + rótulo 10px, accent na aba ativa — anatomia da tab bar do handoff.
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
 const ICONS: Record<string, { on: IoniconName; off: IoniconName }> = {
@@ -32,27 +32,25 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: theme.colors.bg },
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
+          borderTopColor: theme.colors.divider,
           borderTopWidth: 1,
           height: 68,
           paddingTop: 8,
           paddingBottom: 12,
         },
         tabBarLabelStyle: {
-          fontFamily: Fonts.bodyBold,
-          fontSize: FontSize.xs,
-          letterSpacing: Tracking.wide,
-          textTransform: 'uppercase',
+          fontFamily: Fonts.bodySemiBold,
+          fontSize: 10,
         },
       }}
     >
-      <Tabs.Screen name="plan" options={{ title: 'Plano', tabBarIcon: tabIcon('plan') }} />
+      <Tabs.Screen name="plan" options={{ title: 'Hoje', tabBarIcon: tabIcon('plan') }} />
       <Tabs.Screen name="history" options={{ title: 'Histórico', tabBarIcon: tabIcon('history') }} />
       <Tabs.Screen
         name="conquistas"
         options={{ title: 'Conquistas', tabBarIcon: tabIcon('conquistas') }}
       />
-      <Tabs.Screen name="settings" options={{ title: 'Config', tabBarIcon: tabIcon('settings') }} />
+      <Tabs.Screen name="settings" options={{ title: 'Ajustes', tabBarIcon: tabIcon('settings') }} />
     </Tabs>
   );
 }

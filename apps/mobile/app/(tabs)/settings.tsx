@@ -18,6 +18,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
 import {
+  ACCENTS,
   Fonts,
   FontSize,
   Radii,
@@ -45,7 +46,15 @@ export default function SettingsScreen() {
   const session = useAuthStore((s) => s.session);
   const { post, postLong } = useApi();
   const qc = useQueryClient();
-  const { theme, themeName, setThemeName, available } = useTheme();
+  const {
+    theme,
+    themeName,
+    setThemeName,
+    available,
+    accentName,
+    setAccentName,
+    availableAccents,
+  } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [showGarminModal, setShowGarminModal] = useState(false);
@@ -139,7 +148,7 @@ export default function SettingsScreen() {
                     styles.themeSwatch,
                     {
                       backgroundColor:
-                        opt.name === 'interstellar' ? '#4777c2' : '#2a5ea7',
+                        opt.name === 'veloDark' ? '#5b95f7' : '#2a5ea7',
                     },
                   ]}
                 />
@@ -148,7 +157,7 @@ export default function SettingsScreen() {
                     styles.themeSwatch,
                     {
                       backgroundColor:
-                        opt.name === 'interstellar' ? '#fbf9f9' : '#f5f8fd',
+                        opt.name === 'veloDark' ? '#101113' : '#f5f8fd',
                       borderWidth: 1,
                       borderColor: theme.colors.border,
                     },
@@ -163,6 +172,39 @@ export default function SettingsScreen() {
                   <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
                 </View>
               ) : null}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  }
+
+  // Seletor de cor de ação (tela 11): Azul / Verde / Laranja.
+  function AccentSelector() {
+    const isDark = themeName === 'veloDark';
+    return (
+      <View style={styles.accentRow}>
+        {availableAccents.map((opt) => {
+          const isActive = opt.name === accentName;
+          const hex = isDark ? ACCENTS[opt.name].dark : ACCENTS[opt.name].light;
+          return (
+            <TouchableOpacity
+              key={opt.name}
+              onPress={() => setAccentName(opt.name)}
+              style={[styles.accentOption, isActive && { borderColor: hex }]}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar cor ${opt.displayName}`}
+              accessibilityState={{ selected: isActive }}
+            >
+              <View style={[styles.accentSwatch, { backgroundColor: hex }]}>
+                {isActive ? (
+                  <Ionicons name="checkmark" size={14} color={theme.colors.onAccent} />
+                ) : null}
+              </View>
+              <Text style={[styles.accentName, isActive && { color: hex }]}>
+                {opt.displayName}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -272,7 +314,7 @@ export default function SettingsScreen() {
               <Ionicons name="person" size={32} color={theme.colors.textSecondary} />
             </View>
             <View>
-              <Text style={styles.profileName}>Atleta FitSync</Text>
+              <Text style={styles.profileName}>Atleta Velo</Text>
               <Text style={styles.profileMeta}>Perfil esportivo</Text>
             </View>
           </View>
@@ -298,8 +340,10 @@ export default function SettingsScreen() {
         <View style={styles.groupCard}>
           <View style={styles.themeCardInner}>
             <Text style={styles.themeHeader}>Identidade visual</Text>
-            <Text style={styles.themeSub}>Escolha como o FitSync se apresenta.</Text>
+            <Text style={styles.themeSub}>Escolha como a Velo se apresenta.</Text>
             <ThemeSelector />
+            <Text style={[styles.themeSub, { marginTop: Spacing.md }]}>Cor de destaque</Text>
+            <AccentSelector />
           </View>
         </View>
 
@@ -394,7 +438,7 @@ export default function SettingsScreen() {
             iconColor={theme.colors.onAccent}
             iconBg={theme.colors.primary}
             title="Assinatura"
-            subtitle="Gerencie seu plano FitSync AI"
+            subtitle="Gerencie seu plano Velo Pro"
             onPress={() => router.push('/subscription' as never)}
             right={<Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />}
             divider
@@ -406,7 +450,7 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={styles.footer}>FitSync AI · versão 0.1.0</Text>
+        <Text style={styles.footer}>Velo · versão 0.1.0</Text>
       </ScrollView>
 
       {/* ── MODAL GARMIN ── */}
@@ -609,6 +653,31 @@ const createStyles = (theme: Theme) =>
     },
     themeNameActive: { color: theme.colors.primary },
     themeCheck: { position: 'absolute', top: Spacing.xs, right: Spacing.xs },
+
+    accentRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+    accentOption: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border,
+      borderRadius: Radii.md,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.sm + 2,
+    },
+    accentSwatch: {
+      width: 22,
+      height: 22,
+      borderRadius: Radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    accentName: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: FontSize.sm,
+      color: theme.colors.textSecondary,
+    },
 
     // Rows
     row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },

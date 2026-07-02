@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
-import { Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
+import { Fonts, Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
@@ -110,9 +110,30 @@ export default function GarminScreen() {
     );
   }
 
+  function BenefitRow({
+    icon,
+    text,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    text: string;
+  }) {
+    return (
+      <View style={styles.benefitRow}>
+        <View style={styles.benefitIcon}>
+          <Ionicons name={icon} size={19} color={theme.colors.success} />
+        </View>
+        <Text style={styles.benefitText}>{text}</Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.watchCard}>
+          <Ionicons name="watch-outline" size={52} color={theme.colors.primary} />
+        </View>
+
         <View style={styles.hero}>
           <Text style={styles.title}>Conecte seu Garmin</Text>
           <Text style={styles.subtitle}>
@@ -121,6 +142,22 @@ export default function GarminScreen() {
         </View>
 
         <StepBar current={2} />
+
+        {/* 3 cards-benefício (tela 03) */}
+        <View style={styles.benefits}>
+          <BenefitRow
+            icon="cloud-download-outline"
+            text="Importa seus últimos 90 dias de treino automaticamente"
+          />
+          <BenefitRow
+            icon="pulse-outline"
+            text="Calibra suas zonas com sua FC e pace reais"
+          />
+          <BenefitRow
+            icon="refresh-outline"
+            text="O plano se ajusta a cada sincronização"
+          />
+        </View>
 
         {error ? <View style={{ marginBottom: Spacing.md }}><ErrorCard message={error} /></View> : null}
 
@@ -177,7 +214,7 @@ export default function GarminScreen() {
           accessibilityRole="button"
           accessibilityLabel="Pular conexão do Garmin"
         >
-          <Text style={styles.skipText}>Pular por agora</Text>
+          <Text style={styles.skipText}>Pular por enquanto</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -191,6 +228,42 @@ const createStyles = (theme: Theme) =>
     hero: { marginBottom: Spacing.lg },
     title: { ...theme.type.display, color: theme.colors.textPrimary },
     subtitle: { ...theme.type.body, color: theme.colors.textMuted, marginTop: Spacing.xs },
+    watchCard: {
+      width: 96,
+      height: 96,
+      borderRadius: Radii.xl,
+      backgroundColor: theme.colors.primaryMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      marginBottom: Spacing.lg,
+    },
+    benefits: { gap: Spacing.sm, marginBottom: Spacing.md },
+    benefitRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm + 2,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: Radii.lg,
+      padding: Spacing.sm + 2,
+    },
+    benefitIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: theme.colors.successLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    benefitText: {
+      fontFamily: Fonts.body,
+      fontSize: 13.5,
+      lineHeight: 19,
+      color: theme.colors.textPrimary,
+      flex: 1,
+    },
     trustCard: {
       flexDirection: 'row',
       gap: Spacing.sm,

@@ -1,12 +1,10 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Fonts, FontSize, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
-import { Stat } from './Stat';
+import { Radii, Spacing, Fonts, useTheme, type Theme } from '../../lib/theme';
 import {
+  PT_MONTHS,
   SPORT_META,
-  formatDateShort,
   formatDuration,
   formatPace,
   sportColor,
@@ -14,16 +12,28 @@ import {
   type Workout,
 } from './types';
 
+// Card de treino do histórico (tela 08): quadrado de data 44px com fundo
+// soft da cor do esporte, nome com ponto colorido, linha mono de métricas
+// e carga (rTSS) à direita.
 export function WorkoutCard({ workout }: { workout: Workout }) {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const sport = sportOf(workout);
   const meta = SPORT_META[sport];
   const tint = sportColor(theme, sport);
-  const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1) : '—';
-  const dur = workout.duration_s > 0 ? formatDuration(workout.duration_s) : '—';
+
+  const [, m, d] = workout.date.split('-');
+  const distKm = workout.distance_m > 0 ? (workout.distance_m / 1000).toFixed(1).replace('.', ',') : null;
   const pace = formatPace(workout.distance_m, workout.duration_s);
-  const isTimeOnly = sport === 'strength' || sport === 'other';
+  const dur = workout.duration_s > 0 ? formatDuration(workout.duration_s) : null;
+
+  const metaLine = [
+    distKm ? `${distKm} km` : dur ? `${dur} min` : null,
+    pace ? `${pace.replace(':', "'")}"/km` : null,
+    workout.avg_hr ? `${workout.avg_hr} bpm` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <TouchableOpacity
@@ -31,41 +41,31 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
       onPress={() => router.push(`/workout/${workout.id}`)}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={`Treino de ${formatDateShort(workout.date)}, ${meta.label}`}
+      accessibilityLabel={`Treino de ${parseInt(d, 10)} de ${PT_MONTHS[parseInt(m, 10) - 1]}, ${meta.label}`}
     >
-      <View style={styles.cardTop}>
-        <View style={[styles.typeIcon, { backgroundColor: `${tint}1A` }]}>
-          <Ionicons name={meta.icon} size={22} color={tint} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle}>{meta.label}</Text>
-          <Text style={styles.cardDate}>{formatDateShort(workout.date)}</Text>
-        </View>
-        {workout.rtss != null ? (
-          <Text style={[styles.loadBadge, { color: tint, borderColor: `${tint}44` }]}>
-            Carga {workout.rtss.toFixed(0)}
-          </Text>
-        ) : null}
+      <View style={[styles.dateSquare, { backgroundColor: `${tint}1A` }]}>
+        <Text style={[styles.dateDay, { color: tint }]}>{parseInt(d, 10)}</Text>
+        <Text style={[styles.dateMonth, { color: tint }]}>
+          {PT_MONTHS[parseInt(m, 10) - 1]?.toUpperCase()}
+        </Text>
       </View>
 
-      <View style={styles.cardStats}>
-        {isTimeOnly ? (
-          <>
-            <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
-            <Stat
-              label="FC média"
-              value={workout.avg_hr ? `${workout.avg_hr}` : '—'}
-              unit={workout.avg_hr ? 'bpm' : ''}
-            />
-          </>
-        ) : (
-          <>
-            <Stat label="Distância" value={distKm} unit="km" />
-            <Stat label="Tempo" value={dur} unit={workout.duration_s >= 3600 ? '' : 'm'} />
-            <Stat label="Pace" value={pace ?? '—'} unit={pace ? '/km' : ''} />
-          </>
-        )}
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={styles.nameRow}>
+          <View style={[styles.typeDot, { backgroundColor: tint }]} />
+          <Text style={styles.name} numberOfLines={1}>
+            {meta.label}
+          </Text>
+        </View>
+        {metaLine ? <Text style={styles.metaLine}>{metaLine}</Text> : null}
       </View>
+
+      {workout.rtss != null ? (
+        <View style={styles.load}>
+          <Text style={styles.loadValue}>{workout.rtss.toFixed(0)}</Text>
+          <Text style={styles.loadLabel}>rTSS</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -73,43 +73,55 @@ export function WorkoutCard({ workout }: { workout: Workout }) {
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
       backgroundColor: theme.colors.surface,
       borderRadius: Radii.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      padding: Spacing.md,
+      padding: Spacing.md - 2,
     },
-    cardTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-    cardTitle: { ...theme.type.bodyStrong, color: theme.colors.textPrimary },
-    cardDate: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.xs,
-      color: theme.colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: Tracking.wide,
-      marginTop: 1,
-    },
-    loadBadge: {
-      fontFamily: Fonts.data,
-      fontSize: FontSize.xs,
-      borderWidth: 1,
-      borderRadius: Radii.full,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 2,
-      overflow: 'hidden',
-    },
-    typeIcon: {
+    dateSquare: {
       width: 44,
       height: 44,
-      borderRadius: Radii.full,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    cardStats: {
-      flexDirection: 'row',
-      marginTop: Spacing.md,
-      paddingTop: Spacing.md,
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
+    dateDay: {
+      fontFamily: Fonts.dataBold,
+      fontSize: 16,
+      lineHeight: 18,
+      fontVariant: ['tabular-nums'],
+    },
+    dateMonth: { fontFamily: Fonts.dataSemiBold, fontSize: 9, letterSpacing: 0.5 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    typeDot: { width: 7, height: 7, borderRadius: Radii.full },
+    name: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: 14,
+      color: theme.colors.textPrimary,
+      flexShrink: 1,
+    },
+    metaLine: {
+      fontFamily: Fonts.data,
+      fontSize: 11.5,
+      color: theme.colors.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
+    load: { alignItems: 'center', gap: 1, paddingRight: 2 },
+    loadValue: {
+      fontFamily: Fonts.dataBold,
+      fontSize: 13,
+      color: theme.colors.textPrimary,
+      fontVariant: ['tabular-nums'],
+    },
+    loadLabel: {
+      fontFamily: Fonts.bodySemiBold,
+      fontSize: 9,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      color: theme.colors.textMuted,
     },
   });

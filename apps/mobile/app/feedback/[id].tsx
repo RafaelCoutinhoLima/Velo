@@ -80,13 +80,15 @@ export default function FeedbackScreen() {
           </>
         ) : feedback ? (
           <>
-            {/* ── Hero comemorativo ── */}
+            {/* ── Hero comemorativo: círculo check verde (tela 06) ── */}
             <View style={styles.hero}>
-              <View style={styles.emojiCircle}>
-                <Text style={styles.emoji}>{feedback.emoji_resumo || '🎯'}</Text>
+              <View style={styles.checkCircle}>
+                <Ionicons name="checkmark" size={46} color={theme.colors.success} />
               </View>
               <Text style={styles.eyebrow}>Feedback do treinador</Text>
-              <Text style={styles.heroTitle}>Treino analisado</Text>
+              <Text style={styles.heroTitle}>
+                {feedback.emoji_resumo ? `Treino analisado ${feedback.emoji_resumo}` : 'Treino analisado'}
+              </Text>
             </View>
 
             {/* ── Texto principal ── */}
@@ -155,18 +157,17 @@ const createStyles = (theme: Theme) =>
     content: { padding: Spacing.lg, gap: Spacing.md },
 
     hero: { alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm },
-    emojiCircle: {
+    checkCircle: {
       width: 96,
       height: 96,
       borderRadius: Radii.full,
-      backgroundColor: theme.colors.primaryMuted,
+      backgroundColor: theme.colors.successLight,
       borderWidth: 2,
-      borderColor: theme.colors.primaryLight,
+      borderColor: theme.colors.successBorder,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: Spacing.sm,
     },
-    emoji: { fontSize: 44 },
     eyebrow: {
       fontFamily: Fonts.data,
       fontSize: FontSize.xs,
@@ -185,9 +186,9 @@ const createStyles = (theme: Theme) =>
     },
     mainText: {
       fontFamily: Fonts.body,
-      fontSize: FontSize.lg,
+      fontSize: 15.5,
       color: theme.colors.textPrimary,
-      lineHeight: 26,
+      lineHeight: 24,
     },
 
     insightCard: {
@@ -197,8 +198,8 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       padding: Spacing.md,
     },
-    positiveCard: { backgroundColor: theme.colors.surface, borderColor: theme.colors.successLight },
-    suggestionCard: { backgroundColor: theme.colors.surface, borderColor: theme.colors.warningLight },
+    positiveCard: { backgroundColor: theme.colors.surface, borderColor: theme.colors.successBorder },
+    suggestionCard: { backgroundColor: theme.colors.surface, borderColor: theme.colors.warningBorder },
     insightIcon: {
       width: 40,
       height: 40,
