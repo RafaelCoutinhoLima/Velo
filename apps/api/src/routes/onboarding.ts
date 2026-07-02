@@ -22,8 +22,15 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
     .post(
       '/profile',
       async ({ body }) => {
-        const { athlete_id, birth_year, weight_kg, sex, weekly_frequency, timezone, available_days } =
-          body;
+        const {
+          athlete_id,
+          birth_year,
+          weight_kg,
+          sex,
+          weekly_frequency,
+          timezone,
+          available_days,
+        } = body;
 
         const { error } = await db.from('athletes').upsert(
           {

@@ -331,11 +331,18 @@ export function buildBriefing(input: PlanInput, errorAnterior?: string): Record<
   const volumeAtualKm = weeklyVolumes[0] ?? 0;
   const volumePrevKm = weeklyVolumes[1] ?? 0;
   const baseVolumeKm = Math.max(volumeAtualKm, volumePrevKm, ctl * 0.7);
-  const freqNum = Math.max(2, Number(String(profile.weekly_frequency ?? '3x').replace(/\D/g, '')) || 3);
-  const treinos_quality_max = input.calibrationMode ? 0 : fase === 'peak' || fase === 'build' ? 2 : 1;
+  const freqNum = Math.max(
+    2,
+    Number(String(profile.weekly_frequency ?? '3x').replace(/\D/g, '')) || 3,
+  );
+  const treinos_quality_max = input.calibrationMode
+    ? 0
+    : fase === 'peak' || fase === 'build'
+      ? 2
+      : 1;
   const restricoes: Record<string, unknown> = {
-    volume_max_km: Math.round(baseVolumeKm * 1.10),
-    volume_max_min: Math.round(baseVolumeKm * 1.10 * 6.5),
+    volume_max_km: Math.round(baseVolumeKm * 1.1),
+    volume_max_min: Math.round(baseVolumeKm * 1.1 * 6.5),
     acwr_max_aceitavel: input.calibrationMode ? 1.1 : 1.3,
     treinos_quality_max,
     dias_descanso_min: freqNum >= 5 ? 2 : 1,

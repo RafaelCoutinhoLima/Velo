@@ -419,8 +419,7 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
     athleteRow: athlete as { calibration_mode?: boolean; created_at?: string },
   });
 
-  const firstWorkoutDate =
-    (firstWorkoutResult.data as { date?: string } | null)?.date ?? undefined;
+  const firstWorkoutDate = (firstWorkoutResult.data as { date?: string } | null)?.date ?? undefined;
 
   const result = await generatePlan({
     athleteId: internalId,

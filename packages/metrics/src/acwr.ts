@@ -8,7 +8,9 @@ import type { DailyLoad } from './types';
 export function calculateACWR(loads: DailyLoad[]): number {
   if (loads.length === 0) return 0;
 
-  const sorted = [...loads].sort((a, b) => a.date.localeCompare(b.date));
+  // Tie-break por rtss: com datas duplicadas, o resultado não pode depender
+  // da ordem de entrada (slice(-7) escolheria subconjuntos diferentes).
+  const sorted = [...loads].sort((a, b) => a.date.localeCompare(b.date) || a.rtss - b.rtss);
   const last7 = sorted.slice(-7);
   const last28 = sorted.slice(-28);
 
