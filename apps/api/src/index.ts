@@ -2,6 +2,7 @@ import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { Elysia } from 'elysia';
 import { logger } from './lib/logger';
+import { athleteRoutes } from './routes/athlete';
 import { authRoutes } from './routes/auth';
 import { feedbackRoutes } from './routes/feedback';
 import { garminRoutes } from './routes/garmin';
@@ -11,9 +12,51 @@ import { planRoutes } from './routes/plan';
 import { pushRoutes } from './routes/push';
 import { workoutRoutes } from './routes/workouts';
 
+// Validação de env no boot — um caractere errado na key não dá erro visível:
+// a geração cai 3× em 401 e devolve o plano fallback silenciosamente.
+const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
+if (!/^sk-ant-[A-Za-z0-9_-]{24,}$/.test(anthropicKey)) {
+  logger.error(
+    { keyPrefix: anthropicKey.slice(0, 10) || '(vazia)' },
+    'ANTHROPIC_API_KEY ausente ou com formato inválido (esperado sk-ant-…) — toda geração de plano vai cair no fallback determinístico',
+  );
+}
+for (const name of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
+  if (!process.env[name]) {
+    logger.error({ env: name }, 'Variável de ambiente obrigatória ausente');
+  }
+}
+if (!process.env.CRON_SECRET) {
+  logger.warn(
+    'CRON_SECRET ausente — POST /push/rpe-reminders vai rejeitar todas as chamadas (401)',
+  );
+}
+if (!process.env.SIDECAR_SECRET) {
+  logger.warn(
+    'SIDECAR_SECRET ausente — chamadas ao sidecar Garmin irão sem o segredo compartilhado',
+  );
+}
+
+const isProd = process.env.NODE_ENV === 'production';
+
+// CORS travado: a auth é por Bearer token (não cookie), então credentials fica
+// desligado — isso remove o combo perigoso "origin refletido + credentials".
+// Origens explícitas via CORS_ORIGINS (lista separada por vírgula) em produção.
+const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const app = new Elysia()
-  .use(cors())
-  .use(swagger({ path: '/docs' }))
+  .use(
+    cors({
+      origin: corsOrigins.length > 0 ? corsOrigins : !isProd,
+      credentials: false,
+      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    }),
+  )
+  // Swagger só fora de produção — não expõe o schema completo da API em prod.
+  .use(isProd ? new Elysia() : swagger({ path: '/docs' }))
   .get('/health', () => ({ status: 'ok', ts: new Date().toISOString() }))
   .use(authRoutes)
   .use(onboardingRoutes)
@@ -23,15 +66,21 @@ const app = new Elysia()
   .use(jobRoutes)
   .use(feedbackRoutes)
   .use(pushRoutes)
-  .onError(({ error, code }) => {
+  .use(athleteRoutes)
+  .onError(({ error, code, set }) => {
     logger.error({ code, err: error }, 'Unhandled error');
-    const message = error instanceof Error ? error.message : String(error);
-    if (process.env.NODE_ENV === 'development') {
-      return new Response(JSON.stringify({ error: message }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    // Nunca devolve error.message ao cliente (nem em dev) — mensagens do
+    // Postgres/Garmin/stack viravam reconhecimento pra atacante. Só status +
+    // texto genérico; o detalhe fica no log do servidor.
+    if (code === 'VALIDATION') {
+      set.status = 400;
+      return { error: 'Requisição inválida' };
     }
+    if (code === 'NOT_FOUND') {
+      set.status = 404;
+      return { error: 'Recurso não encontrado' };
+    }
+    set.status = 500;
     return { error: 'Tive um problema técnico, já avisamos a equipe.' };
   })
   .listen(process.env.PORT ?? 3000);

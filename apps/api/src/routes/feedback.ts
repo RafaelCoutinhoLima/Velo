@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { generateFeedback } from '../claude/client';
 import { FeedbackInputSchema } from '../claude/schemas';
 import { supabase as defaultSupabase } from '../db/client';
+import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { logger } from '../lib/logger';
 
 function stripMarkdown(md: string): string {
@@ -16,35 +17,40 @@ function stripMarkdown(md: string): string {
 
 type Db = Pick<typeof defaultSupabase, 'from'>;
 
-export function createFeedbackPlugin(db: Db = defaultSupabase) {
+export function createFeedbackPlugin(
+  db: Db = defaultSupabase,
+  verify: TokenVerifier = verifySupabaseToken,
+) {
   return new Elysia({ prefix: '/feedback' })
-    .get(
-      '/',
-      async ({ query }) => {
-        const { athlete_id } = query;
+    .use(authGuard(verify))
+    .get('/', async ({ userId }) => {
+      const { data: athlete } = await db
+        .from('athletes')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+      if (!athlete) return { feedbacks: [] };
 
-        const { data, error } = await db
-          .from('feedback')
-          .select('id, workout_id, feedback_md, created_at')
-          .eq('athlete_id', athlete_id)
-          .order('created_at', { ascending: false })
-          .limit(20);
+      const { data, error } = await db
+        .from('feedback')
+        .select('id, workout_id, feedback_md, created_at')
+        .eq('athlete_id', (athlete as { id: string }).id)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-        if (error) throw new Error('Falha ao buscar feedbacks');
-        return { feedbacks: data };
-      },
-      { query: t.Object({ athlete_id: t.String() }) },
-    )
+      if (error) throw new Error('Falha ao buscar feedbacks');
+      return { feedbacks: data };
+    })
     .post(
       '/',
-      async ({ body, set }) => {
-        const { workout_id, athlete_id } = body;
+      async ({ userId, body, set }) => {
+        const { workout_id } = body;
 
-        // Resolve internal athlete ID
+        // Resolve internal athlete ID a partir do dono autenticado
         const { data: athlete } = await db
           .from('athletes')
           .select('id, birth_year, calibration_mode')
-          .eq('user_id', athlete_id)
+          .eq('user_id', userId)
           .single();
 
         if (!athlete) {
@@ -151,7 +157,6 @@ export function createFeedbackPlugin(db: Db = defaultSupabase) {
       {
         body: t.Object({
           workout_id: t.String(),
-          athlete_id: t.String(),
         }),
       },
     );

@@ -27,8 +27,9 @@ async function request<T>(
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
-    clearTimeout(timeoutId);
-
+    // NÃO limpa o timeout aqui: a leitura do corpo (res.text abaixo) também pode
+    // pendurar, e o abort precisa continuar armado até ela terminar. O clear vai
+    // no finally.
     const text = await res.text();
     let data: unknown;
     try {
@@ -44,11 +45,12 @@ async function request<T>(
 
     return data as T;
   } catch (err) {
-    clearTimeout(timeoutId);
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('A conexão demorou demais. Verifique sua internet.');
     }
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -60,6 +62,7 @@ export function useApi() {
     get: <T>(path: string) => request<T>('GET', path, token),
     post: <T>(path: string, body: unknown) => request<T>('POST', path, token, body),
     patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, token, body),
+    del: <T>(path: string) => request<T>('DELETE', path, token),
     // Para sync/connect do Garmin — timeout longo (sidecar + Garmin são lentos).
     postLong: <T>(path: string, body: unknown) =>
       request<T>('POST', path, token, body, LONG_TIMEOUT_MS),

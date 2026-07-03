@@ -38,7 +38,7 @@ export default function DisclaimerScreen() {
       icon: 'lock-closed-outline',
       eyebrow: 'Privacidade',
       title: 'Seus dados (LGPD)',
-      body: 'Coletamos seus dados de treino do Garmin, perfil esportivo e métricas fisiológicas para gerar planos personalizados. Seus dados ficam armazenados em servidores no Brasil. Você pode exportar ou excluir seus dados a qualquer momento nas configurações.',
+      body: 'Coletamos seus dados de treino do Garmin, perfil esportivo e métricas fisiológicas para gerar planos personalizados. Seus dados ficam armazenados em servidores no Brasil; suas métricas fisiológicas (sem seu nome) são enviadas ao Claude (Anthropic, nos EUA) para gerar o plano. Você pode exportar ou excluir seus dados a qualquer momento nas configurações.',
     },
     {
       icon: 'sparkles-outline',

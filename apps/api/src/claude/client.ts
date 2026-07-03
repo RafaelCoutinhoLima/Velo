@@ -43,7 +43,11 @@ export interface PlanResult {
 }
 
 export async function generatePlan(input: PlanInput): Promise<PlanResult> {
-  await assertUnderCap(input.athleteId);
+  // Reserva atômica ANTES de gastar tokens: increment_claude_usage devolve o
+  // novo contador do mês; se passar do teto, rejeita sem chamar o Claude.
+  // Corrige o TOCTOU do antigo check-then-act (duas gerações concorrentes liam
+  // 29 e ambas passavam).
+  await reserveUsageOrThrow(input.athleteId);
 
   let lastError: string | undefined;
 
@@ -81,8 +85,6 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
       };
       const costUsd =
         tokensUsed.input * COST_INPUT_PER_TOKEN + tokensUsed.output * COST_OUTPUT_PER_TOKEN;
-
-      await incrementUsage(input.athleteId);
 
       return {
         plan: guarded,
@@ -129,6 +131,10 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
 }
 
 export async function generateFeedback(feedbackInput: FeedbackInput): Promise<FeedbackOutput> {
+  // Mesma cota mensal das gerações de plano — antes o feedback chamava o Claude
+  // sem NENHUM teto (DoS de custo). Feedback em cache nem chega aqui.
+  await reserveUsageOrThrow(feedbackInput.athlete_id);
+
   const userMessage = JSON.stringify(feedbackInput, null, 2);
 
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -216,23 +222,29 @@ function buildFallbackPlan(input: PlanInput): PlanResponse {
   };
 }
 
-async function assertUnderCap(athleteId: string): Promise<void> {
+// Reserva 1 chamada na cota mensal de forma ATÔMICA e rejeita se ultrapassar o
+// teto. increment_claude_usage (migração 007) faz o upsert e devolve o novo
+// call_count numa única operação — sob concorrência, cada request recebe um
+// número distinto, então no máximo CLAUDE_HARD_CAP chamadas passam por mês.
+async function reserveUsageOrThrow(athleteId: string): Promise<void> {
   const month = `${new Date().toISOString().slice(0, 7)}-01`;
-  const { data } = await supabase
-    .from('claude_usage')
-    .select('call_count')
-    .eq('athlete_id', athleteId)
-    .eq('month', month)
-    .single();
+  const { data, error } = await supabase.rpc('increment_claude_usage', {
+    p_athlete_id: athleteId,
+    p_month: month,
+  });
 
-  if (data && data.call_count >= CLAUDE_HARD_CAP) {
-    throw new Error(`Limite de ${CLAUDE_HARD_CAP} planos por mês atingido`);
+  if (error) {
+    // Erro de infra ao reservar: não bloqueia o usuário legítimo (fail-open só
+    // aqui). A janela de bypass por concorrência — o achado real — segue fechada
+    // pela atomicidade quando o banco responde.
+    logger.error({ error, athleteId }, 'Falha ao reservar cota Claude');
+    return;
   }
-}
 
-async function incrementUsage(athleteId: string): Promise<void> {
-  const month = `${new Date().toISOString().slice(0, 7)}-01`;
-  await supabase.rpc('increment_claude_usage', { p_athlete_id: athleteId, p_month: month });
+  const count = typeof data === 'number' ? data : Number(data ?? 0);
+  if (count > CLAUDE_HARD_CAP) {
+    throw new Error(`Limite de ${CLAUDE_HARD_CAP} gerações por mês atingido`);
+  }
 }
 
 // Registra o fallback determinístico em guardrail_violations (fire-and-forget) para o

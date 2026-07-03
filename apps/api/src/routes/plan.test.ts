@@ -36,7 +36,12 @@ mock.module('../garmin/client', () => ({
   garminClient: { scheduleWorkout: mock(async () => ({ ok: true })) },
 }));
 
+import type { TokenVerifier } from '../lib/auth';
 import { createPlanPlugin } from './plan';
+
+// Stub de auth: qualquer request resolve para o mesmo atleta autenticado.
+// (A negativa — 401 sem token — é coberta em lib/auth.test.ts.)
+const alwaysAuth: TokenVerifier = async () => 'user-auth-uuid';
 
 const PLAN_ROW = {
   id: 'plan-uuid',
@@ -178,22 +183,22 @@ function makeMockDb(
       }
 
       if (table === 'plans') {
+        const planPoint = { data: planData, error: planError };
+        // eq encadeável: suporta .eq().single(), .eq().eq().single() (move
+        // escopado por dono) e .eq().eq().order().limit().single().
+        const selectEq: Record<string, unknown> = {
+          eq: () => selectEq,
+          single: async () => planPoint,
+          order: () => ({ limit: () => ({ single: async () => planPoint }) }),
+        };
+        // update().eq().eq() — awaitable no fim de qualquer cadeia de .eq().
+        const updateEq: Promise<{ error: unknown }> & { eq?: unknown } = Object.assign(
+          Promise.resolve({ error: updateError }),
+          { eq: () => updateEq },
+        );
         return {
-          select: () => ({
-            eq: (_field: string, _val: unknown) => ({
-              eq: () => ({
-                order: () => ({
-                  limit: () => ({
-                    single: async () => ({ data: planData, error: planError }),
-                  }),
-                }),
-              }),
-              single: async () => ({ data: planData, error: planError }),
-            }),
-          }),
-          update: () => ({
-            eq: async () => ({ error: updateError }),
-          }),
+          select: () => ({ eq: () => selectEq }),
+          update: () => ({ eq: () => updateEq }),
         };
       }
 
@@ -222,7 +227,13 @@ function makeApp(db: ReturnType<typeof makeMockDb>) {
         return new Response(JSON.stringify({ validation: true }), { status: 422 });
       return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500 });
     })
-    .use(createPlanPlugin(db as unknown as Parameters<typeof createPlanPlugin>[0])) as AnyElysia;
+    .use(
+      createPlanPlugin(
+        db as unknown as Parameters<typeof createPlanPlugin>[0],
+        undefined,
+        alwaysAuth,
+      ),
+    ) as AnyElysia;
 }
 
 function get(app: AnyElysia, path: string) {
@@ -248,6 +259,22 @@ describe('GET /plan/current', () => {
     expect(body.plan.id).toBe('plan-uuid');
   });
 
+  it('marca used_fallback quando o plano ativo veio do fallback determinístico', async () => {
+    const app = makeApp(
+      makeMockDb({ planData: { ...PLAN_ROW, prompt_version: 'plan_v4_fallback' } }),
+    );
+    const res = await get(app, '/plan/current?athlete_id=athlete-uuid');
+    const body = await res.json();
+    expect(body.used_fallback).toBe(true);
+  });
+
+  it('marca used_fallback=false para plano gerado pela IA', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await get(app, '/plan/current?athlete_id=athlete-uuid');
+    const body = await res.json();
+    expect(body.used_fallback).toBe(false);
+  });
+
   it('retorna { plan: null } quando não há plano', async () => {
     const app = makeApp(makeMockDb({ planData: null, planError: { message: 'Not found' } }));
     const res = await get(app, '/plan/current?athlete_id=athlete-uuid');
@@ -262,12 +289,6 @@ describe('GET /plan/current', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.plan).toBeNull();
-  });
-
-  it('retorna 422 quando athlete_id está ausente', async () => {
-    const app = makeApp(makeMockDb());
-    const res = await get(app, '/plan/current');
-    expect(res.status).toBe(422);
   });
 });
 
@@ -417,12 +438,6 @@ describe('POST /plan/generate', () => {
     expect(res.status).toBe(500);
   });
 
-  it('422 quando body é inválido', async () => {
-    const app = makeApp(makeGenDb() as Parameters<typeof makeApp>[0]);
-    const res = await post(app, '/plan/generate', {});
-    expect(res.status).toBe(422);
-  });
-
   it('com Garmin conectado, envia os treinos da primeira semana (sendPlanToGarmin)', async () => {
     // Atleta com fc_max/fc_rest + token → buildPlan chama sendPlanToGarmin
     // que percorre weeks[0].days e despacha 5 workouts (dias non-rest).
@@ -504,11 +519,5 @@ describe('GET /plan/metrics', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.current).toBeNull();
-  });
-
-  it('retorna 422 quando athlete_id está ausente', async () => {
-    const app = makeApp(makeMockDb());
-    const res = await get(app, '/plan/metrics');
-    expect(res.status).toBe(422);
   });
 });

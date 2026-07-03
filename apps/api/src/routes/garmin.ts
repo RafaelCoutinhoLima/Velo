@@ -9,39 +9,53 @@ import {
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { classifySport } from '../garmin/sport';
+import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { evaluateCalibration } from '../lib/calibration';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
 const SIDECAR_URL = process.env.GARMIN_SIDECAR_URL ?? 'http://localhost:8001';
+// Segredo compartilhado API↔sidecar. O sidecar rejeita chamadas sem ele, de
+// modo que a porta interna não fica operável por qualquer processo na rede.
+const SIDECAR_SECRET = process.env.SIDECAR_SECRET ?? '';
 const DEFAULT_FTP_PACE_S = 330; // 5:30/km — fallback para atletas sem histórico
 
-export function createGarminPlugin(db: Db = defaultSupabase) {
+function sidecarHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { 'x-sidecar-secret': SIDECAR_SECRET, ...extra };
+}
+
+export function createGarminPlugin(
+  db: Db = defaultSupabase,
+  verify: TokenVerifier = verifySupabaseToken,
+) {
   return new Elysia({ prefix: '/garmin' })
+    .use(authGuard(verify))
     .post(
       '/connect',
-      async ({ body }) => {
-        const { athlete_id, email, password, mfa_code } = body;
+      async ({ userId, body }) => {
+        const { email, password, mfa_code } = body;
 
         const { data: athlete, error: athleteErr } = await db
           .from('athletes')
           .select('id')
-          .eq('user_id', athlete_id)
+          .eq('user_id', userId)
           .single();
 
         if (athleteErr || !athlete) throw new Error('Atleta não encontrado');
 
         const sidecarRes = await fetch(`${SIDECAR_URL}/auth`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: sidecarHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ email, password, mfa_code }),
         });
 
         if (!sidecarRes.ok) {
+          // Detalhe do sidecar (que pode ecoar motivo de auth Garmin / e-mail)
+          // fica só no log do servidor; ao cliente vai mensagem genérica.
           const err = (await sidecarRes.json().catch(() => ({}))) as { detail?: string };
-          logger.warn({ status: sidecarRes.status }, 'Sidecar auth falhou');
-          throw new Error(err.detail ?? 'Falha ao conectar com o Garmin');
+          logger.warn({ status: sidecarRes.status, detail: err.detail }, 'Sidecar auth falhou');
+          throw new Error('Falha ao conectar com o Garmin. Verifique suas credenciais.');
         }
 
         const { session } = (await sidecarRes.json()) as { session: Record<string, unknown> };
@@ -61,7 +75,6 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
       },
       {
         body: t.Object({
-          athlete_id: t.String(),
           email: t.String(),
           password: t.String({ minLength: 1 }),
           mfa_code: t.Optional(t.String()),
@@ -70,13 +83,13 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
     )
     .post(
       '/sync',
-      async ({ body }) => {
-        const { athlete_id, days = 90 } = body;
+      async ({ userId, body }) => {
+        const { days = 90 } = body;
 
         const { data: athlete, error: athleteErr } = await db
           .from('athletes')
           .select('id')
-          .eq('user_id', athlete_id)
+          .eq('user_id', userId)
           .single();
 
         if (athleteErr || !athlete) throw new Error('Atleta não encontrado');
@@ -93,7 +106,7 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
 
         const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
         const sidecarRes = await fetch(`${SIDECAR_URL}/metrics?date=${since}&days=${days}`, {
-          headers: { 'x-garmin-token': tokenJson as string },
+          headers: sidecarHeaders({ 'x-garmin-token': tokenJson as string }),
         });
 
         if (!sidecarRes.ok) {
@@ -148,7 +161,6 @@ export function createGarminPlugin(db: Db = defaultSupabase) {
       },
       {
         body: t.Object({
-          athlete_id: t.String(),
           days: t.Optional(t.Number({ minimum: 1, maximum: 365 })),
         }),
       },

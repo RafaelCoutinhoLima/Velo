@@ -12,27 +12,36 @@ mock.module('../claude/client', () => ({
   })),
 }));
 
+import type { TokenVerifier } from '../lib/auth';
 import { createFeedbackPlugin } from './feedback';
+
+const alwaysAuth: TokenVerifier = async () => 'user-uuid';
 
 // biome-ignore lint/suspicious/noExplicitAny: mock type for Elysia generics
 type AnyElysia = Elysia<any, any, any, any, any, any, any>;
 type Db = Parameters<typeof createFeedbackPlugin>[0];
 
-// GET-only mock (testes de listagem)
-function makeMockDbGet(opts: { data?: unknown[]; error?: { message: string } | null } = {}) {
-  const { data = [], error = null } = opts;
+// GET-only mock (testes de listagem): athletes → id do dono; feedback → lista
+function makeMockDbGet(
+  opts: { data?: unknown[]; error?: { message: string } | null; athlete?: unknown } = {},
+) {
+  const { data = [], error = null, athlete = { id: 'aid' } } = opts;
   return {
-    from: (_table: string) => ({
-      select: () => ({
-        eq: () => ({
-          order: () => ({
-            limit: async () => ({ data, error }),
+    from: (table: string) => {
+      if (table === 'athletes') {
+        return {
+          select: () => ({ eq: () => ({ single: async () => ({ data: athlete, error: null }) }) }),
+        };
+      }
+      // feedback
+      return {
+        select: () => ({
+          eq: () => ({
+            order: () => ({ limit: async () => ({ data, error }) }),
           }),
-          single: async () => ({ data: null, error: { message: 'not found' } }),
         }),
-        single: async () => ({ data: null, error: null }),
-      }),
-    }),
+      };
+    },
   } as unknown as Db;
 }
 
@@ -94,7 +103,7 @@ function makeMockDbPost(opts: PostOpts = {}) {
 function makeApp(db: Db) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
-    .use(createFeedbackPlugin(db)) as AnyElysia;
+    .use(createFeedbackPlugin(db, alwaysAuth)) as AnyElysia;
 }
 
 function get(app: AnyElysia, path: string) {
@@ -134,12 +143,6 @@ describe('GET /feedback', () => {
     const res = await get(app, '/feedback?athlete_id=user-uuid');
     expect(res.status).toBe(500);
     expect((await res.json()).error).toContain('Falha ao buscar feedbacks');
-  });
-
-  it('retorna 422 quando athlete_id está ausente', async () => {
-    const app = makeApp(makeMockDbGet());
-    const res = await get(app, '/feedback');
-    expect(res.status).toBe(422);
   });
 });
 

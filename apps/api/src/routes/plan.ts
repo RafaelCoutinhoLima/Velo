@@ -4,6 +4,7 @@ import { supabase as defaultSupabase } from '../db/client';
 import { garminClient } from '../garmin/client';
 import { classifySport } from '../garmin/sport';
 import { buildGarminWorkout, planDayDate } from '../garmin/workoutBuilder';
+import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { evaluateCalibration } from '../lib/calibration';
 import { logger } from '../lib/logger';
 
@@ -14,126 +15,123 @@ const DEFAULT_SYNC_TIMEOUT_MS = 30_000;
 export function createPlanPlugin(
   db: Db = defaultSupabase,
   syncTimeoutMs = DEFAULT_SYNC_TIMEOUT_MS,
+  verify: TokenVerifier = verifySupabaseToken,
 ) {
   return new Elysia({ prefix: '/plan' })
-    .get(
-      '/current',
-      async ({ query }) => {
-        const { athlete_id } = query;
+    .use(authGuard(verify))
+    .get('/current', async ({ userId }) => {
+      const { data: athlete } = await db
+        .from('athletes')
+        .select('id, calibration_mode, created_at')
+        .eq('user_id', userId)
+        .single();
+
+      if (!athlete) return { plan: null, calibration_mode: true };
+
+      const a = athlete as { id: string; calibration_mode?: boolean; created_at?: string };
+
+      // US-017: avalia calibração na leitura também — flip de 14 dias
+      // acontece mesmo se o atleta só abrir o app (sem sync nem gerar plano).
+      const { calibrationMode } = await evaluateCalibration(db, a.id, {
+        athleteRow: { calibration_mode: a.calibration_mode, created_at: a.created_at },
+      });
+
+      const { data, error } = await db
+        .from('plans')
+        .select('*')
+        .eq('athlete_id', a.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error || !data) return { plan: null, calibration_mode: calibrationMode };
+      // Fallback determinístico grava prompt_version com sufixo _fallback —
+      // o app usa isso pra avisar que o plano não é personalizado.
+      const promptVersion = String((data as { prompt_version?: string }).prompt_version ?? '');
+      return {
+        plan: data,
+        calibration_mode: calibrationMode,
+        used_fallback: promptVersion.endsWith('_fallback'),
+      };
+    })
+    .post('/generate', async ({ userId, set }) => {
+      const { data: athlete, error: athleteErr } = await db
+        .from('athletes')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (athleteErr || !athlete)
+        throw new Error('Atleta não encontrado. Complete o onboarding primeiro.');
+
+      const internalId = (athlete as { id: string }).id;
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), syncTimeoutMs),
+      );
+
+      const planPromise = buildPlan(internalId, athlete as Record<string, unknown>, db);
+
+      try {
+        const { plan, usedFallback } = await Promise.race([planPromise, timeoutPromise]);
+        return { plan, used_fallback: usedFallback };
+      } catch (err) {
+        if (err instanceof Error && err.message === 'TIMEOUT') {
+          const { data: job } = await db
+            .from('jobs')
+            .insert({
+              athlete_id: internalId,
+              type: 'plan_generate',
+              payload: { athlete_id: userId },
+              status: 'running',
+            })
+            .select('id')
+            .single();
+
+          const jobId = job?.id;
+
+          // buildPlan is still running — update job when it finishes
+          planPromise
+            .then(async ({ plan, usedFallback }) => {
+              if (!jobId) return;
+              await db
+                .from('jobs')
+                .update({
+                  status: 'done',
+                  result: { plan, used_fallback: usedFallback },
+                  finished_at: new Date().toISOString(),
+                })
+                .eq('id', jobId);
+            })
+            .catch(async (buildErr) => {
+              if (!jobId) return;
+              await db
+                .from('jobs')
+                .update({
+                  status: 'failed',
+                  error: buildErr instanceof Error ? buildErr.message : String(buildErr),
+                  finished_at: new Date().toISOString(),
+                })
+                .eq('id', jobId);
+            });
+
+          set.status = 202;
+          return { job_id: jobId, message: 'Continuamos preparando seu plano. Te avisaremos.' };
+        }
+        logger.error({ err, athlete_id: userId }, 'Falha ao gerar plano');
+        throw err;
+      }
+    })
+    .post(
+      '/send-to-garmin',
+      async ({ userId, body, set }) => {
+        const { week_number = 1 } = body;
 
         const { data: athlete } = await db
-          .from('athletes')
-          .select('id, calibration_mode, created_at')
-          .eq('user_id', athlete_id)
-          .single();
-
-        if (!athlete) return { plan: null, calibration_mode: true };
-
-        const a = athlete as { id: string; calibration_mode?: boolean; created_at?: string };
-
-        // US-017: avalia calibração na leitura também — flip de 14 dias
-        // acontece mesmo se o atleta só abrir o app (sem sync nem gerar plano).
-        const { calibrationMode } = await evaluateCalibration(db, a.id, {
-          athleteRow: { calibration_mode: a.calibration_mode, created_at: a.created_at },
-        });
-
-        const { data, error } = await db
-          .from('plans')
-          .select('*')
-          .eq('athlete_id', a.id)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (error || !data) return { plan: null, calibration_mode: calibrationMode };
-        return { plan: data, calibration_mode: calibrationMode };
-      },
-      { query: t.Object({ athlete_id: t.String() }) },
-    )
-    .post(
-      '/generate',
-      async ({ body, set }) => {
-        const { athlete_id: userId } = body;
-
-        const { data: athlete, error: athleteErr } = await db
           .from('athletes')
           .select('*')
           .eq('user_id', userId)
-          .single();
-
-        if (athleteErr || !athlete)
-          throw new Error('Atleta não encontrado. Complete o onboarding primeiro.');
-
-        const internalId = (athlete as { id: string }).id;
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT')), syncTimeoutMs),
-        );
-
-        const planPromise = buildPlan(internalId, athlete as Record<string, unknown>, db);
-
-        try {
-          const plan = await Promise.race([planPromise, timeoutPromise]);
-          return { plan };
-        } catch (err) {
-          if (err instanceof Error && err.message === 'TIMEOUT') {
-            const { data: job } = await db
-              .from('jobs')
-              .insert({
-                athlete_id: internalId,
-                type: 'plan_generate',
-                payload: { athlete_id: userId },
-                status: 'running',
-              })
-              .select('id')
-              .single();
-
-            const jobId = job?.id;
-
-            // buildPlan is still running — update job when it finishes
-            planPromise
-              .then(async (plan) => {
-                if (!jobId) return;
-                await db
-                  .from('jobs')
-                  .update({
-                    status: 'done',
-                    result: { plan },
-                    finished_at: new Date().toISOString(),
-                  })
-                  .eq('id', jobId);
-              })
-              .catch(async (buildErr) => {
-                if (!jobId) return;
-                await db
-                  .from('jobs')
-                  .update({
-                    status: 'failed',
-                    error: buildErr instanceof Error ? buildErr.message : String(buildErr),
-                    finished_at: new Date().toISOString(),
-                  })
-                  .eq('id', jobId);
-              });
-
-            set.status = 202;
-            return { job_id: jobId, message: 'Continuamos preparando seu plano. Te avisaremos.' };
-          }
-          logger.error({ err, athlete_id: userId }, 'Falha ao gerar plano');
-          throw err;
-        }
-      },
-      { body: t.Object({ athlete_id: t.String() }) },
-    )
-    .post(
-      '/send-to-garmin',
-      async ({ body, set }) => {
-        const { athlete_id, week_number = 1 } = body;
-
-        const { data: athlete } = await db
-          .from('athletes')
-          .select('*')
-          .eq('user_id', athlete_id)
           .single();
 
         if (!athlete) {
@@ -199,20 +197,30 @@ export function createPlanPlugin(
       },
       {
         body: t.Object({
-          athlete_id: t.String(),
           week_number: t.Optional(t.Number({ minimum: 1 })),
         }),
       },
     )
     .patch(
       '/move',
-      async ({ body }) => {
+      async ({ userId, body }) => {
         const { plan_id, workout_day, target_day, force } = body;
+
+        // Escopa o plano ao atleta autenticado: sem isto qualquer um adivinha
+        // um plan_id e reescreve o plano de outra pessoa (BOLA).
+        const { data: athlete } = await db
+          .from('athletes')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+        if (!athlete) throw new Error('Plano não encontrado');
+        const ownerId = (athlete as { id: string }).id;
 
         const { data: plan } = await db
           .from('plans')
           .select('plan_json')
           .eq('id', plan_id)
+          .eq('athlete_id', ownerId)
           .single();
 
         if (!plan) throw new Error('Plano não encontrado');
@@ -261,7 +269,11 @@ export function createPlanPlugin(
           break;
         }
 
-        await db.from('plans').update({ plan_json: planJson }).eq('id', plan_id);
+        await db
+          .from('plans')
+          .update({ plan_json: planJson })
+          .eq('id', plan_id)
+          .eq('athlete_id', ownerId);
 
         return { ok: true };
       },
@@ -274,44 +286,38 @@ export function createPlanPlugin(
         }),
       },
     )
-    .get(
-      '/metrics',
-      async ({ query }) => {
-        const { athlete_id } = query;
+    .get('/metrics', async ({ userId }) => {
+      const { data: athlete } = await db
+        .from('athletes')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
 
-        const { data: athlete } = await db
-          .from('athletes')
-          .select('id')
-          .eq('user_id', athlete_id)
-          .single();
+      if (!athlete) return { current: null, history: [] };
 
-        if (!athlete) return { current: null, history: [] };
+      const internalId = (athlete as { id: string }).id;
 
-        const internalId = (athlete as { id: string }).id;
+      const [currentResult, historyResult] = await Promise.all([
+        db
+          .from('metrics_daily')
+          .select('date, atl, ctl, tsb, acwr')
+          .eq('athlete_id', internalId)
+          .order('date', { ascending: false })
+          .limit(1)
+          .single(),
+        db
+          .from('metrics_daily')
+          .select('date, ctl, tsb, acwr')
+          .eq('athlete_id', internalId)
+          .order('date', { ascending: false })
+          .limit(42),
+      ]);
 
-        const [currentResult, historyResult] = await Promise.all([
-          db
-            .from('metrics_daily')
-            .select('date, atl, ctl, tsb, acwr')
-            .eq('athlete_id', internalId)
-            .order('date', { ascending: false })
-            .limit(1)
-            .single(),
-          db
-            .from('metrics_daily')
-            .select('date, ctl, tsb, acwr')
-            .eq('athlete_id', internalId)
-            .order('date', { ascending: false })
-            .limit(42),
-        ]);
-
-        return {
-          current: currentResult.data ?? null,
-          history: (currentResult.data ? (historyResult.data ?? []) : []).reverse(),
-        };
-      },
-      { query: t.Object({ athlete_id: t.String() }) },
-    );
+      return {
+        current: currentResult.data ?? null,
+        history: (currentResult.data ? (historyResult.data ?? []) : []).reverse(),
+      };
+    });
 }
 
 export const planRoutes = createPlanPlugin();
@@ -460,5 +466,5 @@ async function buildPlan(internalId: string, athlete: Record<string, unknown>, d
     logger.warn({ err, athlete_id: internalId }, 'Falha ao enviar plano pro Garmin (não crítico)'),
   );
 
-  return result.plan;
+  return { plan: result.plan, usedFallback: result.usedFallback === true };
 }

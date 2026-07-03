@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApi } from '../../lib/api';
 import { Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
-import { LoadingScreen } from '../LoadingScreen';
 import { Button } from '../Button';
+import { GenerationProgress } from './GenerationProgress';
 
 interface EmptyPlanProps {
   athleteId: string;
@@ -92,25 +92,18 @@ export function EmptyPlan({ athleteId, onPlanReady }: EmptyPlanProps) {
     }, 5000);
   }
 
-  if (phase === 'submitting') {
-    return <LoadingScreen message="Enviando pedido pra IA..." subMessage="Isso vai ser rápido." />;
-  }
-
-  if (phase === 'polling') {
-    const subMessage =
-      pollSeconds < 30
-        ? 'Isso geralmente leva até 1 minuto.'
-        : pollSeconds < 90
-          ? 'Demorando mais que o esperado. Pode levar até 2 minutos no total.'
-          : 'Mais de 90 segundos. Você pode esperar ou cancelar.';
+  if (phase === 'submitting' || phase === 'polling') {
+    const footnote =
+      phase === 'submitting'
+        ? 'Enviando pedido pra IA…'
+        : pollSeconds < 30
+          ? 'Isso geralmente leva até 1 minuto.'
+          : pollSeconds < 90
+            ? 'Demorando mais que o esperado. Pode levar até 2 minutos no total.'
+            : 'Mais de 90 segundos. Você pode esperar ou cancelar.';
 
     return (
-      <View style={styles.wrap}>
-        <View style={styles.spinner}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-        <Text style={styles.title}>Gerando seu plano com IA...</Text>
-        <Text style={styles.text}>{subMessage}</Text>
+      <GenerationProgress footnote={footnote}>
         {pollSeconds >= 90 ? (
           <Button
             label="Cancelar"
@@ -120,7 +113,7 @@ export function EmptyPlan({ athleteId, onPlanReady }: EmptyPlanProps) {
             accessibilityLabel="Cancelar geração do plano"
           />
         ) : null}
-      </View>
+      </GenerationProgress>
     );
   }
 
@@ -184,7 +177,6 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'center',
       marginBottom: Spacing.lg,
     },
-    spinner: { marginBottom: Spacing.lg },
     title: {
       ...theme.type.headline,
       color: theme.colors.textPrimary,

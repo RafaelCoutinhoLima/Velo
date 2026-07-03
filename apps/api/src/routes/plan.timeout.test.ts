@@ -15,7 +15,10 @@ mock.module('../garmin/client', () => ({
   garminClient: { scheduleWorkout: mock(async () => ({ ok: true })) },
 }));
 
+import type { TokenVerifier } from '../lib/auth';
 import { createPlanPlugin } from './plan';
+
+const alwaysAuth: TokenVerifier = async () => 'user-uuid';
 
 const RECENT_ISO = new Date(Date.now() - 3 * 86_400_000).toISOString();
 
@@ -72,7 +75,11 @@ function makeApp(db: ReturnType<typeof makeDb>, syncTimeoutMs: number) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
     .use(
-      createPlanPlugin(db as unknown as Parameters<typeof createPlanPlugin>[0], syncTimeoutMs),
+      createPlanPlugin(
+        db as unknown as Parameters<typeof createPlanPlugin>[0],
+        syncTimeoutMs,
+        alwaysAuth,
+      ),
     ) as AnyElysia;
 }
 

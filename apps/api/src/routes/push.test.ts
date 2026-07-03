@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+import type { TokenVerifier } from '../lib/auth';
 import { createPushPlugin } from './push';
+
+const CRON_SECRET = 'test-cron-secret';
+const alwaysAuth: TokenVerifier = async () => 'user-auth-uuid';
 
 const USER_UUID = 'user-auth-uuid';
 const ATHLETE_UUID = 'athlete-internal-uuid';
@@ -63,18 +67,26 @@ type AnyElysia = Elysia<any, any, any, any, any, any, any>;
 function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
-    .use(createPushPlugin(db as unknown as Parameters<typeof createPushPlugin>[0])) as AnyElysia;
+    .use(
+      createPushPlugin(
+        db as unknown as Parameters<typeof createPushPlugin>[0],
+        alwaysAuth,
+        CRON_SECRET,
+      ),
+    ) as AnyElysia;
 }
 
-function post(app: AnyElysia, path: string, body: object) {
+function post(app: AnyElysia, path: string, body: object, headers: Record<string, string> = {}) {
   return app.handle(
     new Request(`http://localhost${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify(body),
     }),
   );
 }
+
+const CRON_HEADER = { 'x-cron-secret': CRON_SECRET };
 
 describe('POST /push/register', () => {
   beforeEach(() => {
@@ -110,8 +122,18 @@ describe('POST /push/rpe-reminders', () => {
     );
   });
 
+  it('401 sem o x-cron-secret correto', async () => {
+    const res = await post(makeApp(makeMockDb()), '/push/rpe-reminders', {});
+    expect(res.status).toBe(401);
+  });
+
   it('retorna { reminded: 0 } quando não há treino sem RPE', async () => {
-    const res = await post(makeApp(makeMockDb({ workoutsNoRpe: [] })), '/push/rpe-reminders', {});
+    const res = await post(
+      makeApp(makeMockDb({ workoutsNoRpe: [] })),
+      '/push/rpe-reminders',
+      {},
+      CRON_HEADER,
+    );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ reminded: 0 });
   });
@@ -124,14 +146,14 @@ describe('POST /push/rpe-reminders', () => {
       ],
       pushToken: EXPO_TOKEN,
     });
-    const r1 = await post(makeApp(withToken), '/push/rpe-reminders', {});
+    const r1 = await post(makeApp(withToken), '/push/rpe-reminders', {}, CRON_HEADER);
     expect(await r1.json()).toEqual({ reminded: 1 }); // 2 treinos, 1 atleta → 1 push
 
     const noToken = makeMockDb({
       workoutsNoRpe: [{ id: 'w1', athlete_id: 'a1' }],
       pushToken: null,
     });
-    const r2 = await post(makeApp(noToken), '/push/rpe-reminders', {});
+    const r2 = await post(makeApp(noToken), '/push/rpe-reminders', {}, CRON_HEADER);
     expect(await r2.json()).toEqual({ reminded: 0 });
   });
 });

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+import type { TokenVerifier } from '../lib/auth';
 import { createGarminPlugin } from './garmin';
+
+const alwaysAuth: TokenVerifier = async () => 'user-auth-uuid';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Fixtures
@@ -203,7 +206,7 @@ function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
     .use(
-      createGarminPlugin(db as unknown as Parameters<typeof createGarminPlugin>[0]),
+      createGarminPlugin(db as unknown as Parameters<typeof createGarminPlugin>[0], alwaysAuth),
     ) as AnyElysia;
 }
 
@@ -259,7 +262,8 @@ describe('POST /garmin/connect', () => {
 
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toContain('Login inválido');
+    // Detalhe do sidecar não vaza ao cliente — mensagem genérica de Garmin.
+    expect(body.error).toContain('Garmin');
   });
 
   it('retorna erro 500 se Vault falha ao salvar token', async () => {

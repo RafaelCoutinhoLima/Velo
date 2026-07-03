@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
+import { bearer, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { logger } from '../lib/logger';
 import { sendExpoPush } from '../lib/push';
 
@@ -12,18 +13,31 @@ type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 // dogfooding). Migrar p/ flag dedicada se virar ruído.
 const RPE_REMINDER_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-export function createPushPlugin(db: Db = defaultSupabase) {
+export function createPushPlugin(
+  db: Db = defaultSupabase,
+  verify: TokenVerifier = verifySupabaseToken,
+  // Segredo do cron: sem ele o sweep de push fica aberto (qualquer um dispara
+  // lembretes a todos os atletas). Injetável para testes.
+  cronSecret: string | undefined = process.env.CRON_SECRET,
+) {
   return (
     new Elysia({ prefix: '/push' })
       .post(
         '/register',
-        async ({ body, set }) => {
-          const { athlete_id, token } = body;
+        async ({ headers, body, set }) => {
+          // Auth de usuário: o push_token é gravado para o dono autenticado,
+          // nunca para um athlete_id arbitrário do corpo.
+          const userId = await verify(bearer(headers.authorization));
+          if (!userId) {
+            set.status = 401;
+            return { error: 'Não autenticado' };
+          }
+          const { token } = body;
 
           const { data: athlete } = await db
             .from('athletes')
             .select('id')
-            .eq('user_id', athlete_id)
+            .eq('user_id', userId)
             .single();
 
           if (!athlete) {
@@ -44,13 +58,18 @@ export function createPushPlugin(db: Db = defaultSupabase) {
         },
         {
           body: t.Object({
-            athlete_id: t.String(),
             token: t.String({ minLength: 1 }),
           }),
         },
       )
-      // Cron-triggered (Railway). Lembra atletas com treino recente sem RPE.
-      .post('/rpe-reminders', async () => {
+      // Cron-triggered (Railway). Protegido por segredo compartilhado — não é
+      // um endpoint de usuário. Lembra atletas com treino recente sem RPE.
+      .post('/rpe-reminders', async ({ headers, set }) => {
+        if (!cronSecret || headers['x-cron-secret'] !== cronSecret) {
+          set.status = 401;
+          return { error: 'Não autorizado' };
+        }
+
         const cutoff = new Date(Date.now() - RPE_REMINDER_WINDOW_MS).toISOString();
 
         const { data: workouts } = await db

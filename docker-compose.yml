@@ -27,8 +27,12 @@ services:
       context: .
       dockerfile: services/garmin-sidecar/Dockerfile
       target: dev
-    ports:
-      - "8000:8000"
+    # Sem `ports:` de propósito — o sidecar NÃO é publicado no host. Só a API,
+    # na mesma rede `fitsync-net`, o alcança via http://garmin-sidecar:8000.
+    # Isso remove a superfície onde qualquer processo no host operava contas
+    # Garmin. Para debug local: `docker compose exec garmin-sidecar ...`.
+    expose:
+      - "8000"
     env_file:
       - .env
     volumes:

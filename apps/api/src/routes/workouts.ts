@@ -1,158 +1,182 @@
 import { Elysia, t } from 'elysia';
-import { supabase } from '../db/client';
+import { supabase as defaultSupabase } from '../db/client';
 import { garminClient } from '../garmin/client';
 import { classifySport } from '../garmin/sport';
+import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { logger } from '../lib/logger';
 
-export const workoutRoutes = new Elysia({ prefix: '/workouts' })
-  .get(
-    '/',
-    async ({ query }) => {
-      const { athlete_id, limit = 30 } = query;
+type Db = Pick<typeof defaultSupabase, 'from'>;
 
-      // athlete_id from session = Supabase user UUID; resolve to internal athletes.id
-      const { data: athlete } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('user_id', athlete_id)
-        .single();
+// Resolve o athletes.id interno a partir do dono autenticado (user_id do JWT).
+async function resolveInternalId(db: Db, userId: string): Promise<string | null> {
+  const { data } = await db.from('athletes').select('id').eq('user_id', userId).single();
+  return (data as { id: string } | null)?.id ?? null;
+}
 
-      if (!athlete) return { workouts: [] };
+export function createWorkoutsPlugin(
+  db: Db = defaultSupabase,
+  verify: TokenVerifier = verifySupabaseToken,
+) {
+  return new Elysia({ prefix: '/workouts' })
+    .use(authGuard(verify))
+    .get(
+      '/',
+      async ({ userId, query }) => {
+        const { limit = 30 } = query;
 
-      const { data, error } = await supabase
-        .from('workouts')
-        .select(
-          'id, date, distance_m, duration_s, avg_hr, rtss, rpe, type_key:raw_payload->activityType->>typeKey',
-        )
-        .eq('athlete_id', (athlete as { id: string }).id)
-        .order('date', { ascending: false })
-        .limit(limit);
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) return { workouts: [] };
 
-      if (error) throw new Error('Falha ao buscar treinos');
+        const { data, error } = await db
+          .from('workouts')
+          .select(
+            'id, date, distance_m, duration_s, avg_hr, rtss, rpe, type_key:raw_payload->activityType->>typeKey',
+          )
+          .eq('athlete_id', internalId)
+          .order('date', { ascending: false })
+          .limit(limit);
 
-      // Deriva o esporte do typeKey (sem coluna dedicada) e remove o campo cru.
-      const workouts = ((data ?? []) as Array<Record<string, unknown>>).map((w) => {
-        const { type_key, ...rest } = w;
-        return { ...rest, sport: classifySport(type_key as string | null) };
-      });
-      return { workouts };
-    },
-    {
-      query: t.Object({
-        athlete_id: t.String(),
-        limit: t.Optional(t.Number()),
-      }),
-    },
-  )
-  .get(
-    '/:id',
-    async ({ params, set }) => {
-      const { id } = params;
-      const { data, error } = await supabase
-        .from('workouts')
-        .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
-        .eq('id', id)
-        .single();
+        if (error) throw new Error('Falha ao buscar treinos');
 
-      if (error || !data) {
-        set.status = 404;
-        return { error: 'Treino não encontrado' };
-      }
+        // Deriva o esporte do typeKey (sem coluna dedicada) e remove o campo cru.
+        const workouts = ((data ?? []) as Array<Record<string, unknown>>).map((w) => {
+          const { type_key, ...rest } = w;
+          return { ...rest, sport: classifySport(type_key as string | null) };
+        });
+        return { workouts };
+      },
+      {
+        query: t.Object({
+          limit: t.Optional(t.Number()),
+        }),
+      },
+    )
+    .get(
+      '/:id',
+      async ({ userId, params, set }) => {
+        const { id } = params;
 
-      const raw = (data.raw_payload ?? {}) as Record<string, unknown>;
-      const avgSpeedMs = typeof raw.averageSpeed === 'number' ? raw.averageSpeed : null;
-
-      const workout = {
-        id: data.id,
-        date: data.date,
-        sport: classifySport(
-          (raw.activityType as { typeKey?: string } | undefined)?.typeKey ?? null,
-        ),
-        distance_m: data.distance_m,
-        duration_s: data.duration_s,
-        avg_hr: data.avg_hr,
-        rtss: data.rtss,
-        rpe: data.rpe,
-        max_hr: typeof raw.maxHR === 'number' ? raw.maxHR : null,
-        calories: typeof raw.calories === 'number' ? raw.calories : null,
-        elevation_gain:
-          typeof raw.elevationGain === 'number' ? Math.round(raw.elevationGain) : null,
-        elevation_loss:
-          typeof raw.elevationLoss === 'number' ? Math.round(raw.elevationLoss) : null,
-        avg_pace_s: avgSpeedMs && avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : null,
-        vo2max: typeof raw.vO2MaxValue === 'number' ? raw.vO2MaxValue : null,
-        steps: typeof raw.steps === 'number' ? raw.steps : null,
-        activity_name: typeof raw.activityName === 'string' ? raw.activityName : null,
-        location: typeof raw.locationName === 'string' ? raw.locationName : null,
-      };
-
-      return { workout };
-    },
-    { params: t.Object({ id: t.String() }) },
-  )
-  .patch(
-    '/:id',
-    async ({ params, body, set }) => {
-      const { id } = params;
-      const { rpe } = body;
-
-      const { error } = await supabase.from('workouts').update({ rpe }).eq('id', id);
-
-      if (error) {
-        set.status = 500;
-        return { error: 'Falha ao salvar RPE' };
-      }
-      return { ok: true };
-    },
-    {
-      params: t.Object({ id: t.String() }),
-      body: t.Object({ rpe: t.Number({ minimum: 1, maximum: 10 }) }),
-    },
-  )
-  .post(
-    '/sync',
-    async ({ body }) => {
-      const { athlete_id, days = 90 } = body;
-
-      const { data: athlete } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('id', athlete_id)
-        .single();
-
-      if (!athlete) throw new Error('Atleta não encontrado');
-
-      try {
-        const activities = await garminClient.getActivities(athlete_id, days);
-        let synced = 0;
-
-        for (const act of activities) {
-          const { error } = await supabase.from('workouts').upsert(
-            {
-              athlete_id,
-              garmin_id: act.garmin_id,
-              date: act.date,
-              distance_m: act.distance_m,
-              duration_s: act.duration_s,
-              avg_hr: act.avg_hr,
-              raw_payload: act.raw,
-            },
-            { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false },
-          );
-          if (!error) synced++;
+        // Escopa o treino ao dono: sem isto GET /workouts/<uuid> lê raw_payload
+        // (locationName/GPS) de outro atleta.
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) {
+          set.status = 404;
+          return { error: 'Treino não encontrado' };
         }
 
-        logger.info({ athlete_id, synced }, 'Sync Garmin concluído');
-        return { synced };
-      } catch (err) {
-        logger.error({ err, athlete_id }, 'Falha no sync Garmin');
-        throw new Error('Não consegui sincronizar com o Garmin');
-      }
-    },
-    {
-      body: t.Object({
-        athlete_id: t.String(),
-        days: t.Optional(t.Number()),
-      }),
-    },
-  );
+        const { data, error } = await db
+          .from('workouts')
+          .select('id, date, distance_m, duration_s, avg_hr, rtss, rpe, raw_payload')
+          .eq('id', id)
+          .eq('athlete_id', internalId)
+          .single();
+
+        if (error || !data) {
+          set.status = 404;
+          return { error: 'Treino não encontrado' };
+        }
+
+        const raw = (data.raw_payload ?? {}) as Record<string, unknown>;
+        const avgSpeedMs = typeof raw.averageSpeed === 'number' ? raw.averageSpeed : null;
+
+        const workout = {
+          id: data.id,
+          date: data.date,
+          sport: classifySport(
+            (raw.activityType as { typeKey?: string } | undefined)?.typeKey ?? null,
+          ),
+          distance_m: data.distance_m,
+          duration_s: data.duration_s,
+          avg_hr: data.avg_hr,
+          rtss: data.rtss,
+          rpe: data.rpe,
+          max_hr: typeof raw.maxHR === 'number' ? raw.maxHR : null,
+          calories: typeof raw.calories === 'number' ? raw.calories : null,
+          elevation_gain:
+            typeof raw.elevationGain === 'number' ? Math.round(raw.elevationGain) : null,
+          elevation_loss:
+            typeof raw.elevationLoss === 'number' ? Math.round(raw.elevationLoss) : null,
+          avg_pace_s: avgSpeedMs && avgSpeedMs > 0 ? Math.round(1000 / avgSpeedMs) : null,
+          vo2max: typeof raw.vO2MaxValue === 'number' ? raw.vO2MaxValue : null,
+          steps: typeof raw.steps === 'number' ? raw.steps : null,
+          activity_name: typeof raw.activityName === 'string' ? raw.activityName : null,
+          location: typeof raw.locationName === 'string' ? raw.locationName : null,
+        };
+
+        return { workout };
+      },
+      { params: t.Object({ id: t.String() }) },
+    )
+    .patch(
+      '/:id',
+      async ({ userId, params, body, set }) => {
+        const { id } = params;
+        const { rpe } = body;
+
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) {
+          set.status = 404;
+          return { error: 'Treino não encontrado' };
+        }
+
+        const { error } = await db
+          .from('workouts')
+          .update({ rpe })
+          .eq('id', id)
+          .eq('athlete_id', internalId);
+
+        if (error) {
+          set.status = 500;
+          return { error: 'Falha ao salvar RPE' };
+        }
+        return { ok: true };
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({ rpe: t.Number({ minimum: 1, maximum: 10 }) }),
+      },
+    )
+    .post(
+      '/sync',
+      async ({ userId, body }) => {
+        const { days = 90 } = body;
+
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) throw new Error('Atleta não encontrado');
+
+        try {
+          const activities = await garminClient.getActivities(internalId, days);
+          let synced = 0;
+
+          for (const act of activities) {
+            const { error } = await db.from('workouts').upsert(
+              {
+                athlete_id: internalId,
+                garmin_id: act.garmin_id,
+                date: act.date,
+                distance_m: act.distance_m,
+                duration_s: act.duration_s,
+                avg_hr: act.avg_hr,
+                raw_payload: act.raw,
+              },
+              { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false },
+            );
+            if (!error) synced++;
+          }
+
+          logger.info({ athlete_id: internalId, synced }, 'Sync Garmin concluído');
+          return { synced };
+        } catch (err) {
+          logger.error({ err, athlete_id: internalId }, 'Falha no sync Garmin');
+          throw new Error('Não consegui sincronizar com o Garmin');
+        }
+      },
+      {
+        body: t.Object({
+          days: t.Optional(t.Number()),
+        }),
+      },
+    );
+}
+
+export const workoutRoutes = createWorkoutsPlugin();

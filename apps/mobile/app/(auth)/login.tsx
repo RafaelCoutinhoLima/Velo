@@ -21,21 +21,15 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
-  async function loginWithGoogle() {
-    setError(null);
-    setLoading(true);
-    try {
-      const { error: authErr } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: 'fitsync://auth/callback' },
-      });
-      if (authErr) throw authErr;
-    } catch {
-      setError('Não conseguimos fazer login com Google. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
+  function loginWithGoogle() {
+    // OAuth com Google no app nativo exige abrir o browser do sistema e tratar
+    // o deep link de volta (expo-web-browser + Linking + exchangeCodeForSession).
+    // Esse fluxo ainda não está montado — signInWithOAuth apenas devolveria a URL
+    // e o login morreria em silêncio (spinner que liga e desliga). Até existir,
+    // orientamos o usuário em vez de fingir que funciona.
+    setError('Login com Google chega em breve. Use e-mail (ou Apple no iPhone) por enquanto.');
   }
 
   async function loginWithApple() {
@@ -88,14 +82,22 @@ export default function LoginScreen() {
       return;
     }
     setError(null);
+    setInfo(null);
     setLoading(true);
     try {
-      const { error: authErr } = await supabase.auth.signUp({
+      const { data, error: authErr } = await supabase.auth.signUp({
         email: email.trim(),
         password,
       });
       if (authErr) throw authErr;
-      setError(null);
+      // Com confirmação de e-mail desligada, o signUp já devolve sessão → segue
+      // pro app. Com confirmação ligada, não há sessão: avisa o usuário em vez
+      // de deixar a tela parada sem feedback nenhum.
+      if (data.session) {
+        router.replace('/');
+      } else {
+        setInfo('Conta criada! Confirme pelo link no seu e-mail e depois entre.');
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Não foi possível criar a conta.');
     } finally {
@@ -141,6 +143,12 @@ export default function LoginScreen() {
           </View>
         ) : null}
 
+        {info ? (
+          <View style={styles.errorWrap}>
+            <Text style={styles.infoText}>{info}</Text>
+          </View>
+        ) : null}
+
         {/* Google primeiro — maior taxa de uso */}
         <Button
           label="Continuar com Google"
@@ -165,7 +173,7 @@ export default function LoginScreen() {
         ) : null}
 
         <TouchableOpacity
-          onPress={() => { setShowEmailForm(!showEmailForm); setError(null); }}
+          onPress={() => { setShowEmailForm(!showEmailForm); setError(null); setInfo(null); }}
           style={styles.emailToggle}
           accessibilityRole="button"
           accessibilityLabel="Entrar com e-mail"
@@ -270,6 +278,16 @@ const createStyles = (theme: Theme) =>
       maxWidth: 280,
     },
     errorWrap: { marginBottom: Spacing.md },
+    infoText: {
+      ...theme.type.bodySm,
+      color: theme.colors.textSecondary,
+      backgroundColor: theme.colors.surface,
+      borderRadius: Radii.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: Spacing.md,
+      textAlign: 'center',
+    },
     socialBtn: { marginBottom: Spacing.sm },
     appleBtn: { width: '100%', height: 52, marginBottom: Spacing.sm },
     emailToggle: {

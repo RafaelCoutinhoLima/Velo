@@ -76,8 +76,16 @@ export const useAuthStore = create<AuthState>()(
         Object.fromEntries(
           Object.entries(state).filter(([key]) => key !== '_hasHydrated'),
         ) as AuthState,
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          // Hidratação falhou (SecureStore corrompido/indisponível). NÃO deixa
+          // o app preso no spinner: segue como se não houvesse sessão salva.
+          console.warn('[store] Falha ao hidratar auth store', error);
+        }
+        // Sempre marca hidratado — inclusive em erro. Usa o setter do store (não
+        // o `state`, que vem undefined quando há erro), senão _hasHydrated fica
+        // false para sempre e a tela inicial trava carregando.
+        useAuthStore.getState().setHasHydrated(true);
       },
     },
   ),

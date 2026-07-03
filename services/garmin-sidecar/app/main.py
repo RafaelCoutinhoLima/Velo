@@ -2,9 +2,10 @@ import logging
 import re
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.deps import verify_sidecar_secret
 from app.routes import auth, metrics, workout
 
 app = FastAPI(title="FitSync Garmin Sidecar", version="0.1.0")
@@ -25,11 +26,19 @@ class RedactingFilter(logging.Filter):
         return True
 
 
-logger.addFilter(RedactingFilter())
+# IMPORTANTE: o filtro precisa ficar nos HANDLERS (não no logger "sidecar"). Os
+# logs reais vêm de loggers filhos ("sidecar.auth", "sidecar.garmin") que
+# propagam direto para os handlers do root — os filtros de um logger ancestral
+# NÃO são consultados nessa propagação. Anexar ao handler garante a redação de
+# qualquer registro, venha de onde vier.
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(RedactingFilter())
 
-app.include_router(auth.router)
-app.include_router(metrics.router)
-app.include_router(workout.router)
+# Toda rota operacional exige o segredo compartilhado API↔sidecar.
+_secured = [Depends(verify_sidecar_secret)]
+app.include_router(auth.router, dependencies=_secured)
+app.include_router(metrics.router, dependencies=_secured)
+app.include_router(workout.router, dependencies=_secured)
 
 
 @app.get("/health")

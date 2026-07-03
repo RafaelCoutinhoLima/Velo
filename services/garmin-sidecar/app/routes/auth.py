@@ -13,7 +13,11 @@ async def garmin_login(body: AuthRequest) -> AuthResponse:
     try:
         tokens = client.login(body.email, body.password, body.mfa_code)
     except GarminAuthError as exc:
+        # Detalhe do Garmin (pode ecoar e-mail/motivo) fica só no log do sidecar;
+        # ao chamador vai mensagem genérica.
         logger.error("GarminAuthError: %s | causa: %s", exc, exc.__cause__)
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=401, detail="Falha na autenticação com o Garmin"
+        ) from exc
 
     return AuthResponse(session=tokens)

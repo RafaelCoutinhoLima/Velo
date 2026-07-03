@@ -5,6 +5,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -15,6 +16,7 @@ import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import { persister } from '../../lib/queryClient';
 import { useAuthStore } from '../../lib/store';
 import { useApi } from '../../lib/api';
 import {
@@ -44,7 +46,7 @@ export default function SettingsScreen() {
   const setGarminConnected = useAuthStore((s) => s.setGarminConnected);
   const setLastGarminSync = useAuthStore((s) => s.setLastGarminSync);
   const session = useAuthStore((s) => s.session);
-  const { post, postLong } = useApi();
+  const { get, post, postLong, del } = useApi();
   const qc = useQueryClient();
   const {
     theme,
@@ -64,6 +66,9 @@ export default function SettingsScreen() {
   const [connectStep, setConnectStep] = useState<'idle' | 'connecting' | 'syncing'>('idle');
   const [syncCount, setSyncCount] = useState<number | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [dataBusy, setDataBusy] = useState<'idle' | 'exporting' | 'deleting'>('idle');
+  const [dataStatus, setDataStatus] = useState<{ kind: 'ok' | 'error'; msg: string } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   // Mensagem de status do botão de re-sync (sucesso ou erro) — sem isso o
   // botão parecia "morto" quando o sync falhava (erro era engolido).
@@ -286,7 +291,56 @@ export default function SettingsScreen() {
   async function logout() {
     await supabase.auth.signOut();
     clearSession();
+    // Limpa o cache do react-query (memória + persistido no SecureStore) para
+    // que dados de treino do usuário anterior não fiquem no dispositivo.
+    qc.clear();
+    await Promise.resolve(persister.removeClient()).catch(() => {});
     router.replace('/(auth)/login');
+  }
+
+  // LGPD art. 18 V — portabilidade: baixa todos os dados do titular e abre a
+  // folha de compartilhamento com o JSON.
+  async function exportData() {
+    if (dataBusy !== 'idle') return;
+    setDataBusy('exporting');
+    setDataStatus(null);
+    try {
+      const data = await get<Record<string, unknown>>('/athlete/export');
+      await Share.share({
+        title: 'Meus dados Velo',
+        message: JSON.stringify(data, null, 2),
+      });
+      setDataStatus({ kind: 'ok', msg: 'Exportação gerada. Escolha onde salvar/enviar.' });
+    } catch (err: unknown) {
+      setDataStatus({
+        kind: 'error',
+        msg: err instanceof Error ? err.message : 'Não consegui exportar seus dados.',
+      });
+    } finally {
+      setDataBusy('idle');
+    }
+  }
+
+  // LGPD art. 18 VI — eliminação: apaga a conta no servidor (cascata) e desloga.
+  async function deleteAccount() {
+    setShowDeleteModal(false);
+    if (dataBusy !== 'idle') return;
+    setDataBusy('deleting');
+    setDataStatus(null);
+    try {
+      await del('/athlete');
+      await supabase.auth.signOut();
+      clearSession();
+      qc.clear();
+      await Promise.resolve(persister.removeClient()).catch(() => {});
+      router.replace('/(auth)/login');
+    } catch (err: unknown) {
+      setDataBusy('idle');
+      setDataStatus({
+        kind: 'error',
+        msg: err instanceof Error ? err.message : 'Não consegui excluir a conta. Tente de novo.',
+      });
+    }
   }
 
   const isBusy = connectStep !== 'idle';
@@ -444,11 +498,49 @@ export default function SettingsScreen() {
             divider
           />
           <SettingRow
+            icon="download-outline"
+            title="Exportar meus dados"
+            subtitle="Baixe tudo o que a Velo guarda sobre você (LGPD)"
+            onPress={exportData}
+            right={
+              dataBusy === 'exporting' ? (
+                <ActivityIndicator size="small" color={theme.colors.textMuted} />
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />
+              )
+            }
+            divider
+          />
+          <SettingRow
             icon="log-out-outline"
             title="Sair da conta"
             onPress={() => setShowLogoutModal(true)}
+            divider
+          />
+          <SettingRow
+            icon="trash-outline"
+            iconColor={theme.colors.danger}
+            title="Excluir minha conta"
+            subtitle="Apaga permanentemente todos os seus dados (LGPD)"
+            onPress={() => setShowDeleteModal(true)}
+            right={
+              dataBusy === 'deleting' ? (
+                <ActivityIndicator size="small" color={theme.colors.danger} />
+              ) : null
+            }
           />
         </View>
+
+        {dataStatus ? (
+          <Text
+            style={[
+              styles.syncNote,
+              dataStatus.kind === 'error' ? { color: theme.colors.danger } : null,
+            ]}
+          >
+            {dataStatus.msg}
+          </Text>
+        ) : null}
 
         <Text style={styles.footer}>Velo · versão 0.1.0</Text>
       </ScrollView>
@@ -544,6 +636,17 @@ export default function SettingsScreen() {
         confirmVariant="danger"
         onConfirm={logout}
         onCancel={() => setShowLogoutModal(false)}
+      />
+
+      <ConfirmModal
+        visible={showDeleteModal}
+        title="Excluir minha conta"
+        message="Isso apaga permanentemente seu perfil, treinos, métricas e planos. Não dá para desfazer. Continuar?"
+        confirmLabel="Excluir tudo"
+        cancelLabel="Cancelar"
+        confirmVariant="danger"
+        onConfirm={deleteAccount}
+        onCancel={() => setShowDeleteModal(false)}
       />
     </View>
   );

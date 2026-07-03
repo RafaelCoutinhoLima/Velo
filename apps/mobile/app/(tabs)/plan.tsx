@@ -31,6 +31,7 @@ import type { ZoneCode } from '../../lib/theme';
 import { CoachInsights } from '../../components/plan/CoachInsights';
 import { MetricChip } from '../../components/plan/MetricChip';
 import { CalibrationBanner } from '../../components/plan/CalibrationBanner';
+import { FallbackPlanBanner } from '../../components/plan/FallbackPlanBanner';
 import { CalibrationDoneNotice } from '../../components/plan/CalibrationDoneNotice';
 import { WeeklyGoalRing } from '../../components/plan/WeeklyGoalRing';
 import { EmptyPlan } from '../../components/plan/EmptyPlan';
@@ -71,6 +72,7 @@ interface Plan {
 interface PlanResponse {
   plan: Plan | null;
   calibration_mode?: boolean;
+  used_fallback?: boolean;
 }
 
 // Data real do dia N do plano = week_start + (N-1). Meio-dia evita
@@ -312,6 +314,7 @@ export default function PlanScreen() {
         {showCalibDone ? (
           <CalibrationDoneNotice onDismiss={() => setShowCalibDone(false)} />
         ) : null}
+        {data?.used_fallback ? <FallbackPlanBanner /> : null}
         {calibrationMode ? <CalibrationBanner /> : null}
 
         {/* ── Hero: treino de hoje ── */}

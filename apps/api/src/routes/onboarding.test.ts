@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import { Elysia } from 'elysia';
+import type { TokenVerifier } from '../lib/auth';
 import { createOnboardingPlugin } from './onboarding';
+
+const alwaysAuth: TokenVerifier = async () => 'user-uuid';
 
 // ── Mock DB ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +67,10 @@ function makeApp(db: ReturnType<typeof makeMockDb>) {
   return new Elysia()
     .onError(({ error }) => ({ error: (error as Error).message }))
     .use(
-      createOnboardingPlugin(db as unknown as Parameters<typeof createOnboardingPlugin>[0]),
+      createOnboardingPlugin(
+        db as unknown as Parameters<typeof createOnboardingPlugin>[0],
+        alwaysAuth,
+      ),
     ) as AnyElysia;
 }
 
@@ -117,12 +123,6 @@ describe('GET /onboarding/profile-status', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ profile_complete: false });
   });
-
-  it('retorna 422 quando athlete_id ausente', async () => {
-    const app = makeApp(makeMockDb());
-    const res = await get(app, '/onboarding/profile-status');
-    expect(res.status).toBe(422);
-  });
 });
 
 // ── POST /onboarding/profile ──────────────────────────────────────────────────
@@ -142,7 +142,8 @@ describe('POST /onboarding/profile', () => {
     const res = await post(app, '/onboarding/profile', VALID_PROFILE);
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toContain('permission denied');
+    // Mensagem genérica: o detalhe do Postgres não vaza mais ao cliente.
+    expect(body.error).toBe('Falha ao salvar perfil');
   });
 
   it('retorna 422 para body inválido (birth_year fora do range)', async () => {
@@ -329,11 +330,5 @@ describe('POST /onboarding/consent', () => {
     );
     const res = await post(app, '/onboarding/consent', { athlete_id: 'user-uuid' });
     expect(res.status).toBe(500);
-  });
-
-  it('retorna 422 quando body está ausente', async () => {
-    const app = makeApp(makeMockDb());
-    const res = await post(app, '/onboarding/consent', {});
-    expect(res.status).toBe(422);
   });
 });

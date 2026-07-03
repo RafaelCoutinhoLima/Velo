@@ -59,9 +59,14 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const weightNum = Number(weightKg.replace(',', '.'));
+  const weightInvalid =
+    weightKg.length > 0 && (Number.isNaN(weightNum) || weightNum < 30 || weightNum > 200);
+
   const isValid =
     birthYear !== null &&
     weightKg.length > 0 &&
+    !weightInvalid &&
     sex !== null &&
     frequency !== null &&
     availableDays.length >= 2;
@@ -232,6 +237,9 @@ export default function ProfileScreen() {
         <SectionCard>
           <SectionTitle>Peso corporal</SectionTitle>
           <WeightPicker value={weightKg} onChange={(w) => { setError(null); setWeightKg(w); }} />
+          {weightInvalid ? (
+            <Text style={styles.fieldHint}>Informe um peso entre 30 e 200 kg.</Text>
+          ) : null}
         </SectionCard>
 
         <SectionCard>
@@ -354,6 +362,12 @@ const createStyles = (theme: Theme) =>
     yearText: { fontFamily: Fonts.data, fontSize: FontSize.sm, color: theme.colors.textSecondary },
     yearTextActive: { color: theme.colors.onAccent },
 
+    fieldHint: {
+      ...theme.type.bodySm,
+      fontSize: FontSize.xs,
+      color: theme.colors.danger,
+      marginTop: Spacing.xs,
+    },
     weightRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.sm },
     weightInput: {
       fontFamily: Fonts.displayBlack,
