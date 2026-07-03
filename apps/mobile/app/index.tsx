@@ -21,7 +21,12 @@ export default function Index() {
 
     let cancelled = false;
     setChecking(true);
-    fetch(`${API_URL}/onboarding/profile-status?athlete_id=${session.athlete_id}`)
+    // Precisa do Bearer token: /onboarding/profile-status agora exige auth
+    // (o userId sai do token). Sem o header, tomava 401 e o retorno pós-login
+    // caía sempre no onboarding.
+    fetch(`${API_URL}/onboarding/profile-status`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
       .then((r) => r.json())
       .then((data: { profile_complete: boolean }) => {
         if (!cancelled && data.profile_complete) setOnboardingComplete();
