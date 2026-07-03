@@ -58,6 +58,14 @@ jobs:
         env:
           COVERAGE_MIN_LINES: "80"
           COVERAGE_MIN_FUNCTIONS: "80"
+          # Placeholders: db/client.ts e claude/client.ts validam/lêem estas
+          # envs no import. Sem elas (não há apps/api/.env no CI), db/client
+          # lança e vários arquivos de teste nem carregam → cobertura despenca.
+          # Os testes injetam mocks/stubs, então nenhuma chamada de rede real
+          # acontece. Mesmo padrão do job do sidecar.
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder
+          ANTHROPIC_API_KEY: sk-ant-placeholder
         run: bun test --coverage 2>&1 | bun run ../../scripts/check-coverage.ts
 
   # ─── Sidecar Python: pytest + mypy strict via Docker dev image ──────────────
