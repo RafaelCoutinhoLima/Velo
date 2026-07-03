@@ -23,6 +23,13 @@ class GarminSyncError(Exception):
     pass
 
 
+class GarminSessionExpiredError(GarminSyncError):
+    """Sessão OAuth do Vault expirou/inválida — o Garmin respondeu 401 ao usá-la.
+    Sinaliza que o atleta precisa RECONECTAR o Garmin (novo /auth)."""
+
+    pass
+
+
 class GarminClient:
     def __init__(self) -> None:
         self._api: Optional[Garmin] = None
@@ -47,9 +54,15 @@ class GarminClient:
                 "Muitas tentativas de login — aguarde alguns minutos antes de tentar novamente"
             ) from exc
         except GarminConnectAuthenticationError as exc:
-            raise GarminAuthError(f"Credenciais inválidas: {exc}") from exc
+            # Mensagem curada (sem interpolar {exc} — não vaza interno do Garmin).
+            raise GarminAuthError("Credenciais inválidas. Verifique e-mail e senha.") from exc
         except Exception as exc:
-            raise GarminAuthError(f"Falha no login Garmin: {type(exc).__name__}: {exc}") from exc
+            # Type name fica só no log (client.py loga via cadeia); ao usuário,
+            # mensagem genérica e segura.
+            logger.warning("Falha inesperada no login Garmin: %s", type(exc).__name__)
+            raise GarminAuthError(
+                "Não consegui conectar ao Garmin agora. Tente novamente em instantes."
+            ) from exc
 
     def restore_session(self, tokens: dict[str, Any]) -> None:
         self._api = Garmin("", "")
@@ -60,8 +73,13 @@ class GarminClient:
             raise GarminSyncError("Sessão Garmin não inicializada")
         try:
             raw = self._api.get_activities_by_date(start_date)
+        except GarminConnectAuthenticationError as exc:
+            # Token do Vault expirou — o atleta precisa reconectar o Garmin.
+            raise GarminSessionExpiredError(f"Sessão Garmin expirada: {exc}") from exc
         except Exception as exc:
-            raise GarminSyncError(f"Falha ao buscar atividades: {type(exc).__name__}") from exc
+            raise GarminSyncError(
+                f"Falha ao buscar atividades: {type(exc).__name__}: {exc}"
+            ) from exc
 
         # Importa TODAS as atividades (não só corrida): o coach prescreve corrida
         # mas precisa enxergar a carga total (bike/natação/força) pra estimar

@@ -51,11 +51,12 @@ export function createGarminPlugin(
         });
 
         if (!sidecarRes.ok) {
-          // Detalhe do sidecar (que pode ecoar motivo de auth Garmin / e-mail)
-          // fica só no log do servidor; ao cliente vai mensagem genérica.
+          // O detalhe do sidecar é uma mensagem CURADA (credenciais inválidas,
+          // muitas tentativas, etc. — sem interno cru do Garmin), então é seguro
+          // e útil repassar ao usuário. Fallback genérico se vier vazio.
           const err = (await sidecarRes.json().catch(() => ({}))) as { detail?: string };
           logger.warn({ status: sidecarRes.status, detail: err.detail }, 'Sidecar auth falhou');
-          throw new Error('Falha ao conectar com o Garmin. Verifique suas credenciais.');
+          throw new Error(err.detail ?? 'Falha ao conectar com o Garmin.');
         }
 
         const { session } = (await sidecarRes.json()) as { session: Record<string, unknown> };
@@ -110,10 +111,16 @@ export function createGarminPlugin(
         });
 
         if (!sidecarRes.ok) {
+          const detail = (await sidecarRes.json().catch(() => ({}))) as { detail?: string };
           logger.error(
-            { status: sidecarRes.status, athlete_id: internalId },
+            { status: sidecarRes.status, detail: detail.detail, athlete_id: internalId },
             'Sidecar metrics falhou',
           );
+          // 401 "Sessão Garmin expirada" → o token OAuth do Vault caducou; o
+          // atleta precisa reconectar (não é falha genérica de rede/sync).
+          if (sidecarRes.status === 401 && detail.detail === 'Sessão Garmin expirada') {
+            throw new Error('Sua conexão Garmin expirou. Reconecte o Garmin nas configurações.');
+          }
           throw new Error('Não consegui sincronizar com o Garmin');
         }
 

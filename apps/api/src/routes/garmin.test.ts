@@ -262,8 +262,8 @@ describe('POST /garmin/connect', () => {
 
     expect(res.status).toBe(500);
     const body = await res.json();
-    // Detalhe do sidecar não vaza ao cliente — mensagem genérica de Garmin.
-    expect(body.error).toContain('Garmin');
+    // Mensagem curada do sidecar é repassada ao usuário (útil p/ reconectar).
+    expect(body.error).toBe('Login inválido');
   });
 
   it('retorna erro 500 se Vault falha ao salvar token', async () => {
@@ -405,6 +405,20 @@ describe('POST /garmin/sync', () => {
     const res = await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
     expect(res.status).toBe(500);
+  });
+
+  it('sessão expirada (sidecar 401) → mensagem de reconectar', async () => {
+    (globalThis as unknown as { fetch: unknown }).fetch = mock(async (url: string) =>
+      url.includes('/metrics')
+        ? new Response(JSON.stringify({ detail: 'Sessão Garmin expirada' }), { status: 401 })
+        : new Response('{}', { status: 200 }),
+    );
+    const app = makeApp(makeMockDb({ rpcData: TOKEN_JSON }));
+    const res = await post(app, '/garmin/sync', { athlete_id: USER_UUID });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toContain('Reconecte o Garmin');
   });
 
   it('usa days padrão de 90 quando não informado', async () => {
