@@ -27,12 +27,14 @@ export default function Index() {
         if (!cancelled && data.profile_complete) setOnboardingComplete();
       })
       .catch(() => {/* silently ignore — local state is the fallback */})
-      .finally(() => { if (!cancelled) setChecking(false); });
+      // Sem guarda de `cancelled`: setOnboardingComplete() re-dispara o efeito
+      // e o cleanup roda antes do finally — checking ficaria true pra sempre.
+      .finally(() => setChecking(false));
 
     return () => { cancelled = true; };
   }, [_hasHydrated, session?.athlete_id, onboardingComplete]);
 
-  if (!_hasHydrated || checking) {
+  if (!_hasHydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={theme.colors.primary} />
@@ -41,6 +43,13 @@ export default function Index() {
   }
 
   if (!session) return <Redirect href="/(auth)/login" />;
-  if (!onboardingComplete) return <Redirect href="/onboarding" />;
-  return <Redirect href="/(tabs)/plan" />;
+  if (onboardingComplete) return <Redirect href="/(tabs)/plan" />;
+  if (checking) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={theme.colors.primary} />
+      </View>
+    );
+  }
+  return <Redirect href="/onboarding" />;
 }

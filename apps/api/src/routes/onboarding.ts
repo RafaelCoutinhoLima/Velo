@@ -92,7 +92,7 @@ export function createOnboardingPlugin(db: Db = defaultSupabase) {
           athlete_id: t.String(),
           birth_year: t.Number({ minimum: 1930, maximum: 2013 }),
           weight_kg: t.Number({ minimum: 30, maximum: 200 }),
-          sex: t.Union([t.Literal('M'), t.Literal('F'), t.Literal('other')]),
+          sex: t.Optional(t.Union([t.Literal('M'), t.Literal('F'), t.Literal('other')])),
           weekly_frequency: t.String(),
           timezone: t.String(),
           available_days: t.Optional(t.Array(t.String())),

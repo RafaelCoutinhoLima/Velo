@@ -23,7 +23,10 @@ const RECENT_ISO = new Date(Date.now() - 3 * 86_400_000).toISOString();
 type AnyElysia = Elysia<any, any, any, any, any, any, any>;
 
 function makeDb(jobInsertId: string | null = 'job-async') {
-  const listP = Promise.resolve({ data: [], error: null });
+  // limit() precisa ser awaitable (lista) e ter .single() (primeiro workout)
+  const listP = Object.assign(Promise.resolve({ data: [], error: null }), {
+    single: async () => ({ data: null, error: null }),
+  });
   const awaitableEq = Object.assign(Promise.resolve({ data: [], error: null }), {
     order: () => ({ limit: () => listP }),
   });

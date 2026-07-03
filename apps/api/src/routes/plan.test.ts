@@ -357,7 +357,10 @@ function makeGenDb(
     token = null,
     planRow = null,
   } = opts;
-  const listP = Promise.resolve({ data: [], error: null });
+  // limit() precisa ser awaitable (lista) e ter .single() (primeiro workout)
+  const listP = Object.assign(Promise.resolve({ data: [], error: null }), {
+    single: async () => ({ data: null, error: null }),
+  });
   const awaitableEq = Object.assign(Promise.resolve({ data: [], error: null }), {
     order: () => ({ limit: () => listP }),
   });

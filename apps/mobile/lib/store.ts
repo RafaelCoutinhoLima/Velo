@@ -70,6 +70,12 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'fitsync-auth',
       storage: createJSONStorage(() => chunkedSecureStorage),
+      // _hasHydrated é estado de runtime — persistido, um app recém-aberto
+      // leria true antes da hidratação real terminar.
+      partialize: (state) =>
+        Object.fromEntries(
+          Object.entries(state).filter(([key]) => key !== '_hasHydrated'),
+        ) as AuthState,
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
