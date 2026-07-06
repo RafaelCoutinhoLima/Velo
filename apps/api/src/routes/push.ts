@@ -77,8 +77,14 @@ export function createPushPlugin(
         const rows = (workouts ?? []) as { id: string; athlete_id: string }[];
         if (rows.length === 0) return { reminded: 0 };
 
-        // Um lembrete por atleta, mesmo com vários treinos sem RPE.
+        // Um lembrete por atleta, mesmo com vários treinos sem RPE. Guarda um
+        // workout_id por atleta pro deep link: o tap na notificação abre a
+        // tela do treino direto no input de RPE.
         const athleteIds = [...new Set(rows.map((w) => w.athlete_id))];
+        const workoutByAthlete = new Map<string, string>();
+        for (const w of rows) {
+          if (!workoutByAthlete.has(w.athlete_id)) workoutByAthlete.set(w.athlete_id, w.id);
+        }
 
         // Uma query pros tokens de todos os candidatos (era 1 por atleta) e
         // envios em paralelo — o sweep roda em cron e escala linear no nº de
@@ -88,23 +94,24 @@ export function createPushPlugin(
           .select('id, push_token')
           .in('id', athleteIds);
 
-        const tokens = ((athletes ?? []) as { push_token?: string | null }[])
-          .map((a) => a.push_token)
-          .filter((t): t is string => !!t);
+        const targets = ((athletes ?? []) as { id: string; push_token?: string | null }[]).filter(
+          (a): a is { id: string; push_token: string } => !!a.push_token,
+        );
 
         await Promise.all(
-          tokens.map((token) =>
+          targets.map((a) =>
             sendExpoPush(
-              token,
+              a.push_token,
               'Como foi o treino?',
               'Toca aqui e me conta o esforço de 1 a 10 💪',
               {
                 type: 'rpe_reminder',
+                workout_id: workoutByAthlete.get(a.id),
               },
             ),
           ),
         );
-        const reminded = tokens.length;
+        const reminded = targets.length;
 
         logger.info({ reminded, candidates: athleteIds.length }, 'Sweep de lembrete de RPE');
         return { reminded };

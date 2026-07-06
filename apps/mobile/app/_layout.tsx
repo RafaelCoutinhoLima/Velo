@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
 import {
@@ -92,6 +93,45 @@ function ThemedStack() {
           animation: 'fade',
         }}
       />
+      <NotificationRouter />
     </>
   );
+}
+
+// Deep link das notificações push (Sprint 3): tap no lembrete de RPE abre o
+// treino direto; "calibração concluída" abre o plano. Vive DENTRO do
+// ThemedStack (irmão do Stack) para o efeito só rodar com a navegação montada.
+function routeFromNotificationData(data: unknown): void {
+  const d = data as { type?: string; workout_id?: string } | null;
+  if (d?.type === 'rpe_reminder' && d.workout_id) {
+    router.push(`/workout/${d.workout_id}` as never);
+  } else if (d?.type === 'calibration_done') {
+    router.push('/(tabs)/plan' as never);
+  }
+}
+
+function NotificationRouter() {
+  useEffect(() => {
+    // App aberto/background: tap chega pelo listener.
+    const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
+      routeFromNotificationData(resp.notification.request.content.data);
+    });
+
+    // Cold start: o app foi ABERTO pelo tap. Pequeno delay pro redirect
+    // inicial do index (login/plan) assentar antes de empilhar a rota alvo.
+    const timeoutId = setTimeout(() => {
+      Notifications.getLastNotificationResponseAsync()
+        .then((resp) => {
+          if (resp) routeFromNotificationData(resp.notification.request.content.data);
+        })
+        .catch(() => {/* sem resposta pendente — segue o fluxo normal */});
+    }, 800);
+
+    return () => {
+      sub.remove();
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  return null;
 }

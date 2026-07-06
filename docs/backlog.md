@@ -180,7 +180,7 @@
 - [x] Hard cap 30 chamadas Claude/atleta/mês (RF-032) — tabela `claude_usage` + guard no backend
 - [x] Log de violações de guardrail em `guardrail_violations` (RF-031)
 - [x] Motor de geração Claude v2: briefing inteligente (`claude/briefing.ts`) + guardrails G1–G10 (`claude/guardrails.ts`) + `prompts/plan_v2.ts` + plano multi-semanas
-- [ ] Deep linking push notification validado em iOS + Android
+- [x] Deep linking push notification **implementado** (2026-07-06): `NotificationRouter` no `_layout.tsx` (tap quente + cold start), `workout_id` no data do push de RPE → abre `/workout/[id]`; `calibration_done` → plano. Validação física em iOS/Android pendente
 - [x] `principios_treino.md` v1 + `generation_spec.md` v1.0 — contexto científico + spec de geração injetados/contratualizados
 
 ### Próximos passos prioritários (Sprint 3)
@@ -210,8 +210,8 @@
 | ID | Story | Pts | Prioridade | Status | Observação |
 |---|---|---|---|---|---|
 | US-018 | Replanejamento automático semanal | 5 | MUST | ❌ Não iniciado | Trigger toda segunda-feira + Claude call |
-| US-019 | Replanejamento sob demanda | 3 | SHOULD | ❌ Não iniciado | Botão na tela de plano + rate limit 1x/semana |
-| US-020 | Diff visual do plano atualizado | 5 | MUST | ❌ Não iniciado | Componente `<PlanDiff>` + API com versão anterior |
+| US-019 | Replanejamento sob demanda | 3 | SHOULD | ✅ Done (2026-07-06) | `POST /plan/replan` (rate limit 1x/semana via `plans.source`, migração 010) + botão "Replanejar" com ConfirmModal em `plan.tsx`. 3 testes novos |
+| US-020 | Diff visual do plano atualizado | 5 | MUST | ✅ Done (2026-07-06) | `diffWeeks` no retorno do `/plan/replan` (dia a dia: tipo/km/min) + `plan/updated.tsx` renderiza as mudanças e o total km antes→depois |
 
 ### Subtarefas técnicas
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   ScrollView,
   RefreshControl,
@@ -159,6 +160,43 @@ function useMoveMutation(planId: string) {
   });
 }
 
+export interface PlanDiff {
+  days: {
+    day: number;
+    before: { type: string; distance_km: number; duration_min: number } | null;
+    after: { type: string; distance_km: number; duration_min: number } | null;
+    changed: boolean;
+  }[];
+  changed_days: number;
+  total_km_before: number;
+  total_km_after: number;
+}
+
+// US-019: replaneja a semana sob demanda. O servidor limita a 1x/semana
+// (429 com mensagem amigável) e devolve o diff (US-020) pra tela de
+// confirmação mostrar o que mudou. Geração pode demorar → postLong (90s).
+function useReplanMutation() {
+  const qc = useQueryClient();
+  const { postLong } = useApi();
+  return useMutation({
+    mutationFn: () =>
+      postLong<{ plan: Plan; diff: PlanDiff; used_fallback?: boolean }>('/plan/replan', {}),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['plan'] });
+      router.replace({
+        pathname: '/plan/updated',
+        params: { diff: JSON.stringify(res.diff) },
+      } as never);
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Replanejamento',
+        err instanceof Error ? err.message : 'Não deu certo. Tente de novo mais tarde.',
+      );
+    },
+  });
+}
+
 export default function PlanScreen() {
   const session = useAuthStore((s) => s.session);
   const lastSeenCalibrationMode = useAuthStore((s) => s.lastSeenCalibrationMode);
@@ -194,6 +232,8 @@ export default function PlanScreen() {
   }, [data?.calibration_mode, lastSeenCalibrationMode, setLastSeenCalibrationMode]);
   const planId = plan?.id ?? '';
   const moveMutation = useMoveMutation(planId);
+  const replanMutation = useReplanMutation();
+  const [showReplanConfirm, setShowReplanConfirm] = useState(false);
 
   const [days, setDays] = useState<WorkoutDay[]>([]);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -508,12 +548,19 @@ export default function PlanScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => router.push('/plan/new' as never)}
+            onPress={() => setShowReplanConfirm(true)}
+            disabled={replanMutation.isPending}
             accessibilityRole="button"
-            accessibilityLabel="Pedir um novo plano"
+            accessibilityLabel="Replanejar a semana"
           >
-            <Ionicons name="sparkles-outline" size={18} color={theme.colors.accent} />
-            <Text style={[styles.actionBtnText, { color: theme.colors.accent }]}>Novo Plano</Text>
+            <Ionicons
+              name={replanMutation.isPending ? 'hourglass-outline' : 'sparkles-outline'}
+              size={18}
+              color={theme.colors.accent}
+            />
+            <Text style={[styles.actionBtnText, { color: theme.colors.accent }]}>
+              {replanMutation.isPending ? 'Replanejando…' : 'Replanejar'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -533,6 +580,19 @@ export default function PlanScreen() {
         confirmVariant="danger"
         onConfirm={confirmMove}
         onCancel={() => setPendingMove(null)}
+      />
+
+      <ConfirmModal
+        visible={showReplanConfirm}
+        title="Replanejar a semana?"
+        message="Vou recalcular sua semana com base nos seus dados mais recentes. Você pode replanejar 1 vez por semana."
+        confirmLabel="Replanejar"
+        cancelLabel="Agora não"
+        onConfirm={() => {
+          setShowReplanConfirm(false);
+          replanMutation.mutate();
+        }}
+        onCancel={() => setShowReplanConfirm(false)}
       />
     </View>
   );

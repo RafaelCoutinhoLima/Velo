@@ -524,3 +524,71 @@ describe('GET /plan/metrics', () => {
     expect(body.current).toBeNull();
   });
 });
+
+describe('POST /plan/replan', () => {
+  it('replaneja, devolve o plano novo e o diff dia a dia', async () => {
+    // Fixture próprio (não PLAN_ROW): os testes do /move mutam o plan_json
+    // compartilhado in-place, o que tornaria estas asserções dependentes da
+    // ordem de execução.
+    const prevPlan = {
+      id: 'plan-prev',
+      plan_json: {
+        weeks: [
+          {
+            week_number: 1,
+            days: [
+              // Dia 1 idêntico ao que o mock do generatePlan devolve.
+              {
+                day: 1,
+                type: 'easy',
+                duration_min: 40,
+                distance_km: 6,
+                zones: [2],
+                description: 'Leve',
+              },
+              {
+                day: 2,
+                type: 'interval',
+                duration_min: 60,
+                distance_km: 10,
+                zones: [4],
+                description: 'Tiros',
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const db = makeGenDb({ planRow: prevPlan });
+    const app = makeApp(db as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/replan', {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.plan.weeks[0].days.length).toBeGreaterThan(0);
+    // Novo plano (mock do generatePlan) tem só o dia 1: easy/6km/40min.
+    expect(body.diff.total_km_after).toBe(6);
+    expect(body.diff.total_km_before).toBe(16);
+    // Dia 1 é idêntico nos dois planos → não mudou.
+    expect(body.diff.days[0].changed).toBe(false);
+    // Dia 2 existia antes (interval) e sumiu no novo → mudou.
+    expect(body.diff.days[1].changed).toBe(true);
+    expect(body.diff.changed_days).toBeGreaterThan(0);
+  });
+
+  it('404 quando não há plano ativo (fluxo certo é /generate)', async () => {
+    const app = makeApp(makeGenDb({ planRow: null }) as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/replan', {});
+    expect(res.status).toBe(404);
+  });
+
+  it('429 quando já houve replanejamento na última semana', async () => {
+    // planRow com created_at recente é devolvido também na consulta de rate
+    // limit (source='replan') do mock — simula replan feito há minutos.
+    const recentReplan = { ...PLAN_ROW, created_at: new Date().toISOString() };
+    const app = makeApp(makeGenDb({ planRow: recentReplan }) as Parameters<typeof makeApp>[0]);
+    const res = await post(app, '/plan/replan', {});
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error).toContain('replanejou');
+  });
+});
