@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_URL } from './apiUrl';
 
 // US-015 Camada 2: registra o token de push do dispositivo no backend.
 // Best-effort (Camada 3): qualquer falha é engolida — sem token o sistema

@@ -32,18 +32,21 @@ export function createPlanPlugin(
 
       // US-017: avalia calibração na leitura também — flip de 14 dias
       // acontece mesmo se o atleta só abrir o app (sem sync nem gerar plano).
-      const { calibrationMode } = await evaluateCalibration(db, a.id, {
-        athleteRow: { calibration_mode: a.calibration_mode, created_at: a.created_at },
-      });
-
-      const { data, error } = await db
-        .from('plans')
-        .select('*')
-        .eq('athlete_id', a.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      // Em paralelo com a busca do plano: são independentes, e essa rota roda
+      // em TODA abertura da home — economiza um round-trip inteiro.
+      const [{ calibrationMode }, { data, error }] = await Promise.all([
+        evaluateCalibration(db, a.id, {
+          athleteRow: { calibration_mode: a.calibration_mode, created_at: a.created_at },
+        }),
+        db
+          .from('plans')
+          .select('*')
+          .eq('athlete_id', a.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single(),
+      ]);
 
       if (error || !data) return { plan: null, calibration_mode: calibrationMode };
       // Fallback determinístico grava prompt_version com sufixo _fallback —
@@ -179,18 +182,36 @@ export function createPlanPlugin(
           .toISOString()
           .slice(0, 10);
 
-        let sent = 0;
-        for (const day of week.days) {
-          if (day.type === 'rest') continue;
-          const date = planDayDate(weekStart, day.day);
-          const dayLabel = `${day.type.charAt(0).toUpperCase() + day.type.slice(1)} D${day.day}`;
-          const workout = buildGarminWorkout(day, zonesMap, `FitSync — ${dayLabel}`);
-          await garminClient.scheduleWorkout(internalId, tokenJson as string, workout, date);
-          sent++;
-          logger.info(
-            { athlete_id: internalId, date, type: day.type },
-            'Workout enviado ao Garmin (manual)',
-          );
+        // Agenda os treinos da semana em PARALELO — cada scheduleWorkout é uma
+        // ida sidecar→Garmin (~0.5-2s); em série, 5 treinos seguravam a
+        // resposta por até 10s. Falha parcial não aborta os demais.
+        const runDays = week.days.filter((day) => day.type !== 'rest');
+        const results = await Promise.allSettled(
+          runDays.map((day) => {
+            const date = planDayDate(weekStart, day.day);
+            const dayLabel = `${day.type.charAt(0).toUpperCase() + day.type.slice(1)} D${day.day}`;
+            const workout = buildGarminWorkout(day, zonesMap, `FitSync — ${dayLabel}`);
+            return garminClient
+              .scheduleWorkout(internalId, tokenJson as string, workout, date)
+              .then(() => {
+                logger.info(
+                  { athlete_id: internalId, date, type: day.type },
+                  'Workout enviado ao Garmin (manual)',
+                );
+              });
+          }),
+        );
+        const sent = results.filter((r) => r.status === 'fulfilled').length;
+
+        // Falha total continua virando erro pro usuário (mesma semântica de
+        // antes, quando o primeiro throw abortava a rota).
+        if (runDays.length > 0 && sent === 0) {
+          const first = results.find((r) => r.status === 'rejected') as
+            | PromiseRejectedResult
+            | undefined;
+          throw first?.reason instanceof Error
+            ? first.reason
+            : new Error('Falha ao enviar treinos pro Garmin');
         }
 
         return { ok: true, sent };

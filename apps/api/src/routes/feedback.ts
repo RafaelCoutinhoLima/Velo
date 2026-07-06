@@ -3,6 +3,7 @@ import { generateFeedback } from '../claude/client';
 import { FeedbackInputSchema } from '../claude/schemas';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
 
 function stripMarkdown(md: string): string {
@@ -24,17 +25,13 @@ export function createFeedbackPlugin(
   return new Elysia({ prefix: '/feedback' })
     .use(authGuard(verify))
     .get('/', async ({ userId }) => {
-      const { data: athlete } = await db
-        .from('athletes')
-        .select('id')
-        .eq('user_id', userId)
-        .single();
-      if (!athlete) return { feedbacks: [] };
+      const internalId = await resolveInternalId(db, userId);
+      if (!internalId) return { feedbacks: [] };
 
       const { data, error } = await db
         .from('feedback')
         .select('id, workout_id, feedback_md, created_at')
-        .eq('athlete_id', (athlete as { id: string }).id)
+        .eq('athlete_id', internalId)
         .order('created_at', { ascending: false })
         .limit(20);
 

@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { bearer, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
 import { sendExpoPush } from '../lib/push';
 
@@ -34,13 +35,8 @@ export function createPushPlugin(
           }
           const { token } = body;
 
-          const { data: athlete } = await db
-            .from('athletes')
-            .select('id')
-            .eq('user_id', userId)
-            .single();
-
-          if (!athlete) {
+          const internalId = await resolveInternalId(db, userId);
+          if (!internalId) {
             set.status = 404;
             return { error: 'Atleta não encontrado' };
           }
@@ -48,7 +44,7 @@ export function createPushPlugin(
           const { error } = await db
             .from('athletes')
             .update({ push_token: token })
-            .eq('id', (athlete as { id: string }).id);
+            .eq('id', internalId);
 
           if (error) {
             set.status = 500;
@@ -84,23 +80,31 @@ export function createPushPlugin(
         // Um lembrete por atleta, mesmo com vários treinos sem RPE.
         const athleteIds = [...new Set(rows.map((w) => w.athlete_id))];
 
-        let reminded = 0;
-        for (const id of athleteIds) {
-          const { data: athlete } = await db
-            .from('athletes')
-            .select('push_token')
-            .eq('id', id)
-            .single();
-          const token = (athlete as { push_token?: string } | null)?.push_token;
-          if (!token) continue;
-          await sendExpoPush(
-            token,
-            'Como foi o treino?',
-            'Toca aqui e me conta o esforço de 1 a 10 💪',
-            { type: 'rpe_reminder' },
-          );
-          reminded++;
-        }
+        // Uma query pros tokens de todos os candidatos (era 1 por atleta) e
+        // envios em paralelo — o sweep roda em cron e escala linear no nº de
+        // atletas. sendExpoPush nunca lança.
+        const { data: athletes } = await db
+          .from('athletes')
+          .select('id, push_token')
+          .in('id', athleteIds);
+
+        const tokens = ((athletes ?? []) as { push_token?: string | null }[])
+          .map((a) => a.push_token)
+          .filter((t): t is string => !!t);
+
+        await Promise.all(
+          tokens.map((token) =>
+            sendExpoPush(
+              token,
+              'Como foi o treino?',
+              'Toca aqui e me conta o esforço de 1 a 10 💪',
+              {
+                type: 'rpe_reminder',
+              },
+            ),
+          ),
+        );
+        const reminded = tokens.length;
 
         logger.info({ reminded, candidates: athleteIds.length }, 'Sweep de lembrete de RPE');
         return { reminded };

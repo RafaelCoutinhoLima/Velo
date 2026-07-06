@@ -15,7 +15,15 @@ import {
   PlanResponseSchema,
 } from './schemas';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// maxRetries: 0 — o loop de tentativas externo (com re-briefing do erro) já é o
+// mecanismo de retry; o default do SDK (2 retries com backoff de até 8s POR
+// tentativa) multiplicava as esperas: 3 tentativas × 3 chamadas HTTP = até 9
+// requests antes do fallback. timeout: 25s casa com o race de 30s do /plan/generate.
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  maxRetries: 0,
+  timeout: 25_000,
+});
 
 const CLAUDE_HARD_CAP = 30;
 // Custo por token via env (default Sonnet 4.6: $3/MTok input, $15/MTok output).
@@ -108,6 +116,10 @@ export async function generatePlan(input: PlanInput): Promise<PlanResult> {
           'Tentativa de geração falhou',
         );
       }
+      // Erro não-retriável (billing/auth/request inválido): repetir não muda o
+      // resultado — vai direto pro fallback em vez de queimar mais 2 chamadas.
+      // Retry continua valendo pra ZodError/parse (resposta malformada) e 429/5xx.
+      if (err instanceof Anthropic.APIError && [400, 401, 403].includes(err.status ?? 0)) break;
       if (attempt === 3) break;
     }
   }
@@ -152,6 +164,8 @@ export async function generateFeedback(feedbackInput: FeedbackInput): Promise<Fe
       return FeedbackOutputSchema.parse(JSON.parse(jsonStr));
     } catch (err) {
       logger.warn({ attempt, error: String(err) }, 'Tentativa de geração de feedback falhou');
+      // Não-retriável: falha já — a 2ª tentativa daria o mesmo erro.
+      if (err instanceof Anthropic.APIError && [400, 401, 403].includes(err.status ?? 0)) throw err;
       if (attempt === 2) throw err;
     }
   }

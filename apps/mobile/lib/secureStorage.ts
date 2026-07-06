@@ -46,13 +46,14 @@ async function getItem(key: string): Promise<string | null> {
   const count = Number(head.slice(MANIFEST_PREFIX.length));
   if (!Number.isInteger(count) || count <= 0) return null;
 
-  const parts: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const part = await rawGet(chunkKey(key, i));
-    if (part == null) return null; // pedaço faltando → trata como ausente
-    parts.push(part);
-  }
-  return parts.join('');
+  // Chunks em PARALELO: são chaves independentes do keystore (~10-50ms cada
+  // no Android). Em série, restaurar um cache de 20 chunks custava 200ms-1s
+  // no caminho de startup (o PersistQueryClientProvider espera o restore).
+  const parts = await Promise.all(
+    Array.from({ length: count }, (_, i) => rawGet(chunkKey(key, i))),
+  );
+  if (parts.some((p) => p == null)) return null; // pedaço faltando → ausente
+  return (parts as string[]).join('');
 }
 
 async function setItem(key: string, value: string): Promise<void> {
@@ -65,10 +66,14 @@ async function setItem(key: string, value: string): Promise<void> {
   }
 
   const count = Math.ceil(value.length / CHUNK_SIZE);
-  for (let i = 0; i < count; i++) {
-    const slice = value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-    await rawSet(chunkKey(key, i), slice);
-  }
+  // Chunks em paralelo (chaves distintas); o manifesto SÓ é gravado depois de
+  // todos — se o app morrer no meio, getItem acha chunk faltando e trata o
+  // valor como ausente (mesma garantia da escrita sequencial).
+  await Promise.all(
+    Array.from({ length: count }, (_, i) =>
+      rawSet(chunkKey(key, i), value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)),
+    ),
+  );
   await rawSet(key, `${MANIFEST_PREFIX}${count}`);
 }
 
@@ -77,9 +82,9 @@ async function removeItem(key: string): Promise<void> {
   if (head?.startsWith(MANIFEST_PREFIX)) {
     const count = Number(head.slice(MANIFEST_PREFIX.length));
     if (Number.isInteger(count)) {
-      for (let i = 0; i < count; i++) {
-        await rawDel(chunkKey(key, i));
-      }
+      await Promise.all(
+        Array.from({ length: count }, (_, i) => rawDel(chunkKey(key, i))),
+      );
     }
   }
   await rawDel(key);

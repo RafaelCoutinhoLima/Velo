@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { resolveInternalId } from '../lib/internalId';
 
 type Db = Pick<typeof defaultSupabase, 'from'>;
 
@@ -15,12 +16,8 @@ export function createJobsPlugin(
       async ({ userId, params, set }) => {
         // Escopa o job ao atleta autenticado: sem isto qualquer um enumera
         // UUIDs de job e lê o plano completo gerado por outra pessoa (BOLA).
-        const { data: athlete } = await db
-          .from('athletes')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
-        if (!athlete) {
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) {
           set.status = 404;
           return { error: 'Job não encontrado' };
         }
@@ -29,7 +26,7 @@ export function createJobsPlugin(
           .from('jobs')
           .select('id, status, result, error, created_at, finished_at')
           .eq('id', params.id)
-          .eq('athlete_id', (athlete as { id: string }).id)
+          .eq('athlete_id', internalId)
           .single();
 
         if (error || !data) {
@@ -46,19 +43,15 @@ export function createJobsPlugin(
         const { type, payload } = body;
 
         // athlete_id sempre derivado do dono autenticado — nunca do corpo.
-        const { data: athlete } = await db
-          .from('athletes')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
-        if (!athlete) {
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) {
           set.status = 404;
           return { error: 'Atleta não encontrado' };
         }
 
         const { data, error } = await db
           .from('jobs')
-          .insert({ athlete_id: (athlete as { id: string }).id, type, payload })
+          .insert({ athlete_id: internalId, type, payload })
           .select('id')
           .single();
 

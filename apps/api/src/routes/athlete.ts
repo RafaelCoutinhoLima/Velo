@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { invalidateInternalId, resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
@@ -48,23 +49,21 @@ export function createAthletePlugin(
           exported_at: new Date().toISOString(),
           athlete,
         };
-        for (const table of OWNED_TABLES) {
-          const { data } = await db.from(table).select('*').eq('athlete_id', internalId);
-          out[table] = data ?? [];
-        }
+        // 6 tabelas em paralelo (era em série — ~0.3-0.9s desnecessários).
+        const results = await Promise.all(
+          OWNED_TABLES.map((table) => db.from(table).select('*').eq('athlete_id', internalId)),
+        );
+        OWNED_TABLES.forEach((table, i) => {
+          out[table] = results[i].data ?? [];
+        });
         return out;
       })
       // Eliminação (LGPD art. 18 VI): apaga o segredo Garmin do Vault (fora do
       // cascade) e depois o usuário Auth, que cascateia todo o resto por FK.
       .delete('/', async ({ userId, set }) => {
-        const { data: athlete } = await db
-          .from('athletes')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
+        const internalId = await resolveInternalId(db, userId);
 
-        if (athlete) {
-          const internalId = (athlete as { id: string }).id;
+        if (internalId) {
           try {
             await db.rpc('delete_garmin_token', { p_athlete_id: internalId });
           } catch (err) {
@@ -80,6 +79,8 @@ export function createAthletePlugin(
           return { error: 'Falha ao excluir conta' };
         }
 
+        // O mapeamento user_id→athletes.id morreu junto com a conta.
+        invalidateInternalId(db, userId);
         logger.info({ userId }, 'Conta excluída a pedido do titular (LGPD)');
         return { ok: true };
       })

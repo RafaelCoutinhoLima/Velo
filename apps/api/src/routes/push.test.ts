@@ -38,6 +38,11 @@ function makeMockDb(opts: MockOpts = {}) {
                   ? { data: { id: ATHLETE_UUID, push_token: pushToken }, error: null }
                   : { data: null, error: { message: 'not found' } },
             }),
+            // Busca em lote do sweep de RPE (rpe-reminders)
+            in: async (_col: string, ids: unknown[]) => ({
+              data: ids.map((id) => ({ id, push_token: pushToken })),
+              error: null,
+            }),
           }),
           update: (_d: unknown) => ({
             eq: async (_col: string, _v: unknown) => {

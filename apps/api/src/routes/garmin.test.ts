@@ -366,7 +366,11 @@ describe('POST /garmin/sync', () => {
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
-    const rows = db._calls.workoutsUpserted as { garmin_id: string; rpe?: number }[];
+    // Upserts agora vão em LOTE (arrays); achata e olha só as linhas do sync
+    // (têm `date` — as do write-back de rtss só têm athlete_id/garmin_id/rtss).
+    const rows = (db._calls.workoutsUpserted as unknown[])
+      .flat()
+      .filter((r) => 'date' in (r as object)) as { garmin_id: string; rpe?: number }[];
     const byId = (id: string) => rows.find((r) => r.garmin_id === id);
     expect(byId('g1')?.rpe).toBe(7); // 1–10 válido → importado
     expect('rpe' in (byId('g2') ?? {})).toBe(false); // 12 fora de 1–10 → omitido
@@ -527,13 +531,21 @@ describe('POST /garmin/sync', () => {
     expect(db._calls.calibrationUpdate).toBe(0);
   });
 
+  // O write-back de rtss agora vai num ÚNICO upsert em lote (era 1 UPDATE por
+  // treino). As linhas do lote são identificáveis por terem rtss numérico.
+  const rtssWrites = (db: { _calls: { workoutsUpserted: unknown[] } }) =>
+    (db._calls.workoutsUpserted as Record<string, unknown>[][])
+      .flat()
+      .filter((r) => typeof r.rtss === 'number');
+
   it('computa rTSS para workouts sem rtss e atualiza no banco', async () => {
     const workoutsWithoutRtss = SAMPLE_ACTIVITIES.map((a) => ({ ...a, rtss: null }));
     const db = makeMockDb({ rpcData: TOKEN_JSON, workoutsData: workoutsWithoutRtss as never });
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
-    expect(db._calls.workoutsUpdate).toBe(workoutsWithoutRtss.length);
+    expect(rtssWrites(db).length).toBe(workoutsWithoutRtss.length);
+    expect(db._calls.workoutsUpdate).toBe(0); // nada de UPDATE por linha
   });
 
   it('não atualiza rtss de workouts que já têm valor calculado', async () => {
@@ -542,6 +554,7 @@ describe('POST /garmin/sync', () => {
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
+    expect(rtssWrites(db).length).toBe(0);
     expect(db._calls.workoutsUpdate).toBe(0);
   });
 
@@ -572,8 +585,8 @@ describe('POST /garmin/sync', () => {
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
-    // Ambos receberam carga calculada (update) e as métricas foram salvas.
-    expect(db._calls.workoutsUpdate).toBe(2);
+    // Ambos receberam carga calculada (write-back em lote) e as métricas foram salvas.
+    expect(rtssWrites(db).length).toBe(2);
     expect(db._calls.metricsUpsert).toBe(1);
   });
 
@@ -603,7 +616,7 @@ describe('POST /garmin/sync', () => {
     const app = makeApp(db);
     await post(app, '/garmin/sync', { athlete_id: USER_UUID });
 
-    expect(db._calls.workoutsUpdate).toBe(2); // cada treino tem sua carga gravada
+    expect(rtssWrites(db).length).toBe(2); // cada treino tem sua carga gravada (em lote)
     expect(db._calls.metricsUpsert).toBe(1); // métricas computadas uma vez
   });
 });

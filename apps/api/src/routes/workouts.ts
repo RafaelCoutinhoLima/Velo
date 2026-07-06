@@ -1,17 +1,10 @@
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
-import { garminClient } from '../garmin/client';
 import { classifySport } from '../garmin/sport';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
-import { logger } from '../lib/logger';
+import { resolveInternalId } from '../lib/internalId';
 
 type Db = Pick<typeof defaultSupabase, 'from'>;
-
-// Resolve o athletes.id interno a partir do dono autenticado (user_id do JWT).
-async function resolveInternalId(db: Db, userId: string): Promise<string | null> {
-  const { data } = await db.from('athletes').select('id').eq('user_id', userId).single();
-  return (data as { id: string } | null)?.id ?? null;
-}
 
 export function createWorkoutsPlugin(
   db: Db = defaultSupabase,
@@ -134,47 +127,6 @@ export function createWorkoutsPlugin(
       {
         params: t.Object({ id: t.String() }),
         body: t.Object({ rpe: t.Number({ minimum: 1, maximum: 10 }) }),
-      },
-    )
-    .post(
-      '/sync',
-      async ({ userId, body }) => {
-        const { days = 90 } = body;
-
-        const internalId = await resolveInternalId(db, userId);
-        if (!internalId) throw new Error('Atleta não encontrado');
-
-        try {
-          const activities = await garminClient.getActivities(internalId, days);
-          let synced = 0;
-
-          for (const act of activities) {
-            const { error } = await db.from('workouts').upsert(
-              {
-                athlete_id: internalId,
-                garmin_id: act.garmin_id,
-                date: act.date,
-                distance_m: act.distance_m,
-                duration_s: act.duration_s,
-                avg_hr: act.avg_hr,
-                raw_payload: act.raw,
-              },
-              { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false },
-            );
-            if (!error) synced++;
-          }
-
-          logger.info({ athlete_id: internalId, synced }, 'Sync Garmin concluído');
-          return { synced };
-        } catch (err) {
-          logger.error({ err, athlete_id: internalId }, 'Falha no sync Garmin');
-          throw new Error('Não consegui sincronizar com o Garmin');
-        }
-      },
-      {
-        body: t.Object({
-          days: t.Optional(t.Number()),
-        }),
       },
     );
 }

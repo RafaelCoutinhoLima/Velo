@@ -5,13 +5,18 @@ import { supabase } from '../db/client';
 // Supabase, ou null se o token for ausente/inválido/expirado.
 export type TokenVerifier = (token: string | undefined) => Promise<string | null>;
 
-// Verificador real: valida o JWT server-side no Supabase Auth (assinatura ES256
-// + expiração) e extrai o user id. Injetável para testes via authGuard(verify).
+// Verificador real: valida o JWT LOCALMENTE (assinatura ES256 via WebCrypto +
+// expiração) e extrai o user id. O projeto usa signing keys assimétricas, então
+// getClaims busca o JWKS público uma vez (cacheado em memória) e as
+// verificações seguintes são puro CPU — antes, getUser() fazia uma ida à rede
+// ao Supabase Auth em CADA request (~200-800ms medidos por request).
+// Injetável para testes via authGuard(verify).
 export const verifySupabaseToken: TokenVerifier = async (token) => {
   if (!token) return null;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user.id;
+  const { data, error } = await supabase.auth.getClaims(token);
+  const sub = data?.claims?.sub;
+  if (error || !sub) return null;
+  return sub;
 };
 
 // Extrai o token do header "Authorization: Bearer <token>".

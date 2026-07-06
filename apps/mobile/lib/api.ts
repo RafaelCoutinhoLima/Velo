@@ -1,6 +1,6 @@
 import { useAuthStore } from './store';
+import { API_URL } from './apiUrl';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const TIMEOUT_MS = 15_000;
 // Operações que falam com o Garmin Connect (via sidecar) são lentas — buscar
 // 90 dias de atividades passa fácil dos 15s. Timeout generoso pra elas.

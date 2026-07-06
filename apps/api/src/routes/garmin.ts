@@ -11,6 +11,7 @@ import { supabase as defaultSupabase } from '../db/client';
 import { classifySport } from '../garmin/sport';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { evaluateCalibration } from '../lib/calibration';
+import { resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
@@ -36,13 +37,8 @@ export function createGarminPlugin(
       async ({ userId, body }) => {
         const { email, password, mfa_code } = body;
 
-        const { data: athlete, error: athleteErr } = await db
-          .from('athletes')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
-
-        if (athleteErr || !athlete) throw new Error('Atleta não encontrado');
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) throw new Error('Atleta não encontrado');
 
         const sidecarRes = await fetch(`${SIDECAR_URL}/auth`, {
           method: 'POST',
@@ -62,7 +58,7 @@ export function createGarminPlugin(
         const { session } = (await sidecarRes.json()) as { session: Record<string, unknown> };
 
         const { error: vaultErr } = await db.rpc('store_garmin_token', {
-          p_athlete_id: (athlete as { id: string }).id,
+          p_athlete_id: internalId,
           p_tokens: JSON.stringify(session),
         });
 
@@ -71,7 +67,7 @@ export function createGarminPlugin(
           throw new Error('Falha ao salvar credenciais Garmin');
         }
 
-        logger.info({ athlete_id: (athlete as { id: string }).id }, 'Garmin conectado');
+        logger.info({ athlete_id: internalId }, 'Garmin conectado');
         return { ok: true };
       },
       {
@@ -87,15 +83,8 @@ export function createGarminPlugin(
       async ({ userId, body }) => {
         const { days = 90 } = body;
 
-        const { data: athlete, error: athleteErr } = await db
-          .from('athletes')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
-
-        if (athleteErr || !athlete) throw new Error('Atleta não encontrado');
-
-        const internalId = (athlete as { id: string }).id;
+        const internalId = await resolveInternalId(db, userId);
+        if (!internalId) throw new Error('Atleta não encontrado');
 
         const { data: tokenJson, error: vaultErr } = await db.rpc('get_garmin_token', {
           p_athlete_id: internalId,
@@ -128,13 +117,15 @@ export function createGarminPlugin(
           activities: Record<string, unknown>[];
         };
 
-        let synced = 0;
+        // Upsert em LOTE (antes: 1 round-trip por atividade — sync de 90 dias
+        // com 60 treinos = 60 idas sequenciais ao banco, segurando o spinner).
+        // Dois lotes porque o upsert atualiza toda coluna presente no objeto:
+        // US-015 Camada 1 — `rpe` (perceivedEffort do Garmin) só entra quando
+        // há valor válido 1–10, senão um re-sync sobrescreveria o RPE digitado
+        // pelo atleta com null.
+        const withRpe: Record<string, unknown>[] = [];
+        const withoutRpe: Record<string, unknown>[] = [];
         for (const act of activities) {
-          // US-015 Camada 1: se o Garmin já trouxe RPE (perceivedEffort),
-          // importa automaticamente. `rpe` só entra no payload quando há
-          // valor válido 1–10 — assim um re-sync não sobrescreve um RPE
-          // digitado pelo atleta com null (upsert só atualiza colunas
-          // presentes no objeto em caso de conflito).
           const importedRpe = normalizeRpe(act.perceived_effort);
           const row: Record<string, unknown> = {
             athlete_id: internalId,
@@ -149,12 +140,25 @@ export function createGarminPlugin(
             // rtss zerado força recálculo (fórmula depende do esporte)
             rtss: null,
           };
-          if (importedRpe !== null) row.rpe = importedRpe;
+          if (importedRpe !== null) {
+            row.rpe = importedRpe;
+            withRpe.push(row);
+          } else {
+            withoutRpe.push(row);
+          }
+        }
 
+        let synced = 0;
+        for (const batch of [withRpe, withoutRpe]) {
+          if (batch.length === 0) continue;
           const { error } = await db
             .from('workouts')
-            .upsert(row, { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false });
-          if (!error) synced++;
+            .upsert(batch, { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false });
+          if (error) {
+            logger.error({ error, athlete_id: internalId }, 'Upsert em lote do sync falhou');
+          } else {
+            synced += batch.length;
+          }
         }
 
         if (synced > 0) {
@@ -245,17 +249,24 @@ async function computeAndSaveMetrics(athleteId: string, db: Db): Promise<void> {
   // funções de ATL/CTL aplicam decaimento por ENTRADA tratando 1 entrada = 1
   // dia, então 2 treinos no mesmo dia precisam virar 1 entrada somada.
   const loadByDate = new Map<string, number>();
+  // Acumula os rtss recalculados e grava UMA vez em lote no final — o sync
+  // zera rtss de todas as linhas, então antes isso era 1 UPDATE por treino
+  // (90 round-trips sequenciais depois dos upserts do sync).
+  const recomputed: Record<string, unknown>[] = [];
   for (const w of workouts) {
     let load = w.rtss;
     if (load === null) {
       load = workoutLoad(w, ftpPace, hr);
-      await db
-        .from('workouts')
-        .update({ rtss: load })
-        .eq('athlete_id', athleteId)
-        .eq('garmin_id', w.garmin_id);
+      recomputed.push({ athlete_id: athleteId, garmin_id: w.garmin_id, rtss: load });
     }
     loadByDate.set(w.date, (loadByDate.get(w.date) ?? 0) + load);
+  }
+  if (recomputed.length > 0) {
+    // Linhas recém-lidas do banco → o upsert vira UPDATE das colunas presentes.
+    const { error } = await db
+      .from('workouts')
+      .upsert(recomputed, { onConflict: 'athlete_id,garmin_id', ignoreDuplicates: false });
+    if (error) logger.error({ error, athlete_id: athleteId }, 'Falha ao gravar rtss em lote');
   }
 
   const dailyLoads = [...loadByDate.entries()]
