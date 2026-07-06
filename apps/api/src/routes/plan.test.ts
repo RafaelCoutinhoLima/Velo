@@ -214,6 +214,9 @@ function makeMockDb(
         }),
       };
     },
+    // workout_calibration_stats → null força o caminho de fallback (scan),
+    // que é o comportamento coberto por estes testes.
+    rpc: async () => ({ data: null, error: null }),
   };
 }
 

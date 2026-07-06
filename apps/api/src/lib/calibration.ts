@@ -77,16 +77,33 @@ export async function evaluateCalibration(
   let distinctWorkoutDays = opts.distinctWorkoutDays;
   let earliestWorkoutDate = opts.earliestWorkoutDate;
   if (distinctWorkoutDays === undefined || earliestWorkoutDate === undefined) {
-    const { data: workouts } = await db
-      .from('workouts')
-      .select('date')
-      .eq('athlete_id', athleteInternalId);
-    const dates = ((workouts ?? []) as { date: string }[]).map((w) => w.date).filter(Boolean);
-    if (distinctWorkoutDays === undefined) distinctWorkoutDays = new Set(dates).size;
-    if (earliestWorkoutDate === undefined) {
-      earliestWorkoutDate = dates.length
-        ? dates.reduce((a, b) => (new Date(a).getTime() <= new Date(b).getTime() ? a : b))
-        : undefined;
+    // 1 round-trip agregado (migração 009) em vez de ler TODAS as datas —
+    // essa avaliação roda em cada abertura da home durante a calibração e o
+    // scan crescia sem teto com o histórico importado.
+    const { data: stats } = await db.rpc('workout_calibration_stats', {
+      p_athlete_id: athleteInternalId,
+    });
+    const row = (Array.isArray(stats) ? stats[0] : stats) as
+      | { distinct_days?: number; earliest_date?: string | null }
+      | null
+      | undefined;
+
+    if (row && typeof row.distinct_days === 'number') {
+      if (distinctWorkoutDays === undefined) distinctWorkoutDays = row.distinct_days;
+      if (earliestWorkoutDate === undefined) earliestWorkoutDate = row.earliest_date ?? undefined;
+    } else {
+      // Função ausente (migração não aplicada / mock de teste) → scan antigo.
+      const { data: workouts } = await db
+        .from('workouts')
+        .select('date')
+        .eq('athlete_id', athleteInternalId);
+      const dates = ((workouts ?? []) as { date: string }[]).map((w) => w.date).filter(Boolean);
+      if (distinctWorkoutDays === undefined) distinctWorkoutDays = new Set(dates).size;
+      if (earliestWorkoutDate === undefined) {
+        earliestWorkoutDate = dates.length
+          ? dates.reduce((a, b) => (new Date(a).getTime() <= new Date(b).getTime() ? a : b))
+          : undefined;
+      }
     }
   }
 
