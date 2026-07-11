@@ -32,18 +32,18 @@ import {
 } from '../../lib/theme';
 // Import direto (não via lib/theme) porque o preview precisa das cores do
 // tema INATIVO — useTheme() só expõe o tema selecionado no momento.
-import { veloLight, veloDark } from '../../lib/themes';
-
-const THEME_PREVIEWS: Record<ThemeName, { primary: string; bg: string }> = {
-  veloLight: { primary: veloLight.colors.primary, bg: veloLight.colors.bg },
-  veloDark: { primary: veloDark.colors.primary, bg: veloDark.colors.bg },
-};
+import { veloDark, veloLight } from '../../lib/themes';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { ErrorCard } from '../../components/ErrorCard';
 import { TopBar } from '../../components/TopBar';
+
+const THEME_PREVIEWS: Record<ThemeName, { primary: string; bg: string }> = {
+  veloLight: { primary: veloLight.colors.primary, bg: veloLight.colors.bg },
+  veloDark: { primary: veloDark.colors.primary, bg: veloDark.colors.bg },
+};
 
 export default function SettingsScreen() {
   const clearSession = useAuthStore((s) => s.clearSession);
@@ -159,14 +159,14 @@ export default function SettingsScreen() {
                 <View
                   style={[
                     styles.themeSwatch,
-                    { backgroundColor: THEME_PREVIEWS[opt.name as ThemeName].primary },
+                    { backgroundColor: THEME_PREVIEWS[opt.name].primary },
                   ]}
                 />
                 <View
                   style={[
                     styles.themeSwatch,
                     {
-                      backgroundColor: THEME_PREVIEWS[opt.name as ThemeName].bg,
+                      backgroundColor: THEME_PREVIEWS[opt.name].bg,
                       borderWidth: 1,
                       borderColor: theme.colors.border,
                     },
