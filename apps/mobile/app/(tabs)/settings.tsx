@@ -30,6 +30,14 @@ import {
   type Theme,
   type ThemeName,
 } from '../../lib/theme';
+// Import direto (não via lib/theme) porque o preview precisa das cores do
+// tema INATIVO — useTheme() só expõe o tema selecionado no momento.
+import { veloLight, veloDark } from '../../lib/themes';
+
+const THEME_PREVIEWS: Record<ThemeName, { primary: string; bg: string }> = {
+  veloLight: { primary: veloLight.colors.primary, bg: veloLight.colors.bg },
+  veloDark: { primary: veloDark.colors.primary, bg: veloDark.colors.bg },
+};
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { LoadingScreen } from '../../components/LoadingScreen';
@@ -151,18 +159,14 @@ export default function SettingsScreen() {
                 <View
                   style={[
                     styles.themeSwatch,
-                    {
-                      backgroundColor:
-                        opt.name === 'veloDark' ? '#5b95f7' : '#2a5ea7',
-                    },
+                    { backgroundColor: THEME_PREVIEWS[opt.name as ThemeName].primary },
                   ]}
                 />
                 <View
                   style={[
                     styles.themeSwatch,
                     {
-                      backgroundColor:
-                        opt.name === 'veloDark' ? '#101113' : '#f5f8fd',
+                      backgroundColor: THEME_PREVIEWS[opt.name as ThemeName].bg,
                       borderWidth: 1,
                       borderColor: theme.colors.border,
                     },

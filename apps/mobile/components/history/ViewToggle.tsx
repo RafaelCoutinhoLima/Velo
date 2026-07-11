@@ -61,11 +61,16 @@ const createStyles = (theme: Theme) =>
     },
     btnActive: {
       backgroundColor: theme.colors.surface,
-      shadowColor: '#000',
-      shadowOpacity: 0.12,
-      shadowRadius: 3,
-      shadowOffset: { width: 0, height: 1 },
-      elevation: 2,
+      // No escuro a elevação vira superfície (sem sombra), como o resto do tema.
+      ...(theme.name === 'veloDark'
+        ? null
+        : {
+            shadowColor: theme.colors.textPrimary,
+            shadowOpacity: 0.12,
+            shadowRadius: 3,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 2,
+          }),
     },
     text: { fontFamily: Fonts.bodySemiBold, fontSize: FontSize.sm, color: theme.colors.textSecondary },
     textActive: { color: theme.colors.primary },
