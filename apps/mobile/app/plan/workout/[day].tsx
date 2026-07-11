@@ -555,11 +555,16 @@ const createStyles = (theme: Theme) =>
     },
     toggleBtnActive: {
       backgroundColor: theme.colors.surface,
-      shadowColor: '#000',
-      shadowOpacity: 0.12,
-      shadowRadius: 3,
-      shadowOffset: { width: 0, height: 1 },
-      elevation: 2,
+      // No escuro a elevação vira superfície (sem sombra), como o resto do tema.
+      ...(theme.name === 'veloDark'
+        ? null
+        : {
+            shadowColor: theme.colors.textPrimary,
+            shadowOpacity: 0.12,
+            shadowRadius: 3,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 2,
+          }),
     },
     toggleText: {
       fontFamily: Fonts.bodySemiBold,
@@ -575,7 +580,7 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: 14,
+      borderRadius: Radii.lg,
       overflow: 'hidden',
     },
     mainCard: {
