@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../lib/store';
@@ -8,6 +8,7 @@ import { Fonts, FontSize, Radii, Spacing, Tracking, useTheme, type Theme } from 
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
 import { Button } from '../../components/Button';
+import { BackHeader } from '../../components/BackHeader';
 
 interface Feedback {
   texto_principal: string;
@@ -61,16 +62,7 @@ export default function FeedbackScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-        >
-          <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
-      </View>
+      <BackHeader />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {status === 'error' ? (
@@ -138,22 +130,6 @@ export default function FeedbackScreen() {
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.bg },
-    header: {
-      flexDirection: 'row',
-      paddingHorizontal: Spacing.md,
-      paddingTop: Spacing.xl + Spacing.xs,
-      paddingBottom: Spacing.sm,
-    },
-    backBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: Radii.md,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     content: { padding: Spacing.lg, gap: Spacing.md },
 
     hero: { alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.sm },

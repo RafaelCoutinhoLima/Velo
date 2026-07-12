@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Radii, Spacing, useTheme, type Theme } from '../../lib/theme';
 import { Button } from '../../components/Button';
 import { ErrorCard } from '../../components/ErrorCard';
 import { GenerationProgress } from '../../components/plan/GenerationProgress';
+import { BackHeader } from '../../components/BackHeader';
 
 // "Pedir Novo Plano" — dispara a regeneração do plano semanal pela IA.
 // Reaproveita o endpoint /plan/generate + polling de job.
@@ -93,16 +94,7 @@ export default function NewPlanScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-        >
-          <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
-      </View>
+      <BackHeader />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.iconCircle}>
@@ -138,22 +130,6 @@ export default function NewPlanScreen() {
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.bg },
-    header: {
-      flexDirection: 'row',
-      paddingHorizontal: Spacing.md,
-      paddingTop: Spacing.xl + Spacing.xs,
-      paddingBottom: Spacing.sm,
-    },
-    backBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: Radii.md,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     content: { padding: Spacing.lg, gap: Spacing.md },
     iconCircle: {
       width: 88,
