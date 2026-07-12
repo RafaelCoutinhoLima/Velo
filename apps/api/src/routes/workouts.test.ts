@@ -13,6 +13,8 @@ const AID = '11111111-1111-4111-8111-111111111111';
 const WID = '22222222-2222-4222-8222-222222222222';
 
 // Mock genérico: athletes → internalId; workouts → dados/erro configuráveis.
+// `calls` captura os argumentos que chegam à query (limit da listagem, payload
+// do update) pra asserções de contrato — não só do shape da resposta.
 function makeMockDb(
   opts: {
     athlete?: { id: string } | null;
@@ -32,7 +34,9 @@ function makeMockDb(
     updateError = null,
   } = opts;
 
-  return {
+  const calls: { limit?: number; update?: Record<string, unknown> } = {};
+
+  const db = {
     from: (table: string) => {
       if (table === 'athletes') {
         return {
@@ -46,21 +50,29 @@ function makeMockDb(
         select: () => ({
           eq: () => ({
             order: () => ({
-              limit: async () => ({ data: listData, error: listError }),
+              limit: async (n: number) => {
+                calls.limit = n;
+                return { data: listData, error: listError };
+              },
             }),
             eq: () => ({
               single: async () => ({ data: single ?? null, error: singleError }),
             }),
           }),
         }),
-        update: () => ({
-          eq: () => ({
-            eq: async () => ({ error: updateError }),
-          }),
-        }),
+        update: (payload: Record<string, unknown>) => {
+          calls.update = payload;
+          return {
+            eq: () => ({
+              eq: async () => ({ error: updateError }),
+            }),
+          };
+        },
       };
     },
   } as unknown as Db;
+
+  return { db, calls };
 }
 
 function makeApp(db: Db) {
@@ -85,7 +97,7 @@ function patch(app: AnyElysia, path: string, body: object) {
 
 describe('GET /workouts', () => {
   it('lista treinos derivando o esporte do typeKey e removendo o campo cru', async () => {
-    const db = makeMockDb({
+    const { db, calls } = makeMockDb({
       listData: [
         {
           id: WID,
@@ -115,24 +127,33 @@ describe('GET /workouts', () => {
         sport: 'bike',
       },
     ]);
+    expect(calls.limit).toBe(30); // default do limit quando a query não o envia
   });
 
   it('retorna lista vazia quando o atleta ainda não tem perfil (internalId nulo)', async () => {
-    const app = makeApp(makeMockDb({ athlete: null }));
+    const app = makeApp(makeMockDb({ athlete: null }).db);
     const res = await get(app, '/workouts');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ workouts: [] });
   });
 
-  it('aceita o parâmetro limit', async () => {
-    const app = makeApp(makeMockDb({ listData: [] }));
+  it('repassa o parâmetro limit da query para o banco', async () => {
+    const { db, calls } = makeMockDb({ listData: [] });
+    const app = makeApp(db);
     const res = await get(app, '/workouts?limit=5');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ workouts: [] });
+    expect(calls.limit).toBe(5);
+  });
+
+  it('422 quando limit não é numérico', async () => {
+    const app = makeApp(makeMockDb().db);
+    const res = await get(app, '/workouts?limit=abc');
+    expect(res.status).toBe(422);
   });
 
   it('propaga falha do banco como erro', async () => {
-    const app = makeApp(makeMockDb({ listError: { message: 'connection error' } }));
+    const app = makeApp(makeMockDb({ listError: { message: 'connection error' } }).db);
     const res = await get(app, '/workouts');
     expect((await res.json()).error).toContain('Falha ao buscar treinos');
   });
@@ -140,7 +161,7 @@ describe('GET /workouts', () => {
   it('401 quando não autenticado', async () => {
     const app = new Elysia()
       .onError(({ error }) => ({ error: (error as Error).message }))
-      .use(createWorkoutsPlugin(makeMockDb(), async () => null)) as AnyElysia;
+      .use(createWorkoutsPlugin(makeMockDb().db, async () => null)) as AnyElysia;
     const res = await get(app, '/workouts');
     expect(res.status).toBe(401);
   });
@@ -148,7 +169,7 @@ describe('GET /workouts', () => {
 
 describe('GET /workouts/:id', () => {
   it('retorna detalhes completos derivando campos do raw_payload', async () => {
-    const db = makeMockDb({
+    const { db } = makeMockDb({
       single: {
         id: WID,
         date: '2026-05-10',
@@ -197,7 +218,7 @@ describe('GET /workouts/:id', () => {
   });
 
   it('lida com raw_payload ausente devolvendo campos derivados nulos', async () => {
-    const db = makeMockDb({
+    const { db } = makeMockDb({
       single: {
         id: WID,
         date: '2026-05-10',
@@ -219,7 +240,7 @@ describe('GET /workouts/:id', () => {
   });
 
   it('não calcula pace quando averageSpeed é zero', async () => {
-    const db = makeMockDb({
+    const { db } = makeMockDb({
       single: {
         id: WID,
         date: '2026-05-10',
@@ -233,21 +254,21 @@ describe('GET /workouts/:id', () => {
   });
 
   it('404 quando o atleta ainda não tem perfil (internalId nulo)', async () => {
-    const app = makeApp(makeMockDb({ athlete: null }));
+    const app = makeApp(makeMockDb({ athlete: null }).db);
     const res = await get(app, `/workouts/${WID}`);
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('Treino não encontrado');
   });
 
   it('404 quando o treino não existe ou pertence a outro atleta (escopo IDOR)', async () => {
-    const app = makeApp(makeMockDb({ single: null }));
+    const app = makeApp(makeMockDb({ single: null }).db);
     const res = await get(app, `/workouts/${WID}`);
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe('Treino não encontrado');
   });
 
   it('404 quando o banco retorna erro na busca', async () => {
-    const app = makeApp(makeMockDb({ singleError: { message: 'db down' } }));
+    const app = makeApp(makeMockDb({ singleError: { message: 'db down' } }).db);
     const res = await get(app, `/workouts/${WID}`);
     expect(res.status).toBe(404);
   });
@@ -255,7 +276,7 @@ describe('GET /workouts/:id', () => {
   it('401 quando não autenticado', async () => {
     const app = new Elysia()
       .onError(({ error }) => ({ error: (error as Error).message }))
-      .use(createWorkoutsPlugin(makeMockDb(), async () => null)) as AnyElysia;
+      .use(createWorkoutsPlugin(makeMockDb().db, async () => null)) as AnyElysia;
     const res = await get(app, `/workouts/${WID}`);
     expect(res.status).toBe(401);
   });
@@ -263,33 +284,35 @@ describe('GET /workouts/:id', () => {
 
 describe('PATCH /workouts/:id', () => {
   it('salva o RPE (happy path)', async () => {
-    const app = makeApp(makeMockDb());
+    const { db, calls } = makeMockDb();
+    const app = makeApp(db);
     const res = await patch(app, `/workouts/${WID}`, { rpe: 7 });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+    expect(calls.update).toEqual({ rpe: 7 }); // só o RPE chega ao update — nada além
   });
 
   it('404 quando o atleta ainda não tem perfil (internalId nulo)', async () => {
-    const app = makeApp(makeMockDb({ athlete: null }));
+    const app = makeApp(makeMockDb({ athlete: null }).db);
     const res = await patch(app, `/workouts/${WID}`, { rpe: 7 });
     expect(res.status).toBe(404);
   });
 
   it('500 quando o banco falha ao salvar', async () => {
-    const app = makeApp(makeMockDb({ updateError: { message: 'update failed' } }));
+    const app = makeApp(makeMockDb({ updateError: { message: 'update failed' } }).db);
     const res = await patch(app, `/workouts/${WID}`, { rpe: 7 });
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('Falha ao salvar RPE');
   });
 
   it('422 quando rpe está fora do intervalo válido (1-10)', async () => {
-    const app = makeApp(makeMockDb());
+    const app = makeApp(makeMockDb().db);
     const res = await patch(app, `/workouts/${WID}`, { rpe: 11 });
     expect(res.status).toBe(422);
   });
 
   it('422 quando rpe é menor que 1', async () => {
-    const app = makeApp(makeMockDb());
+    const app = makeApp(makeMockDb().db);
     const res = await patch(app, `/workouts/${WID}`, { rpe: 0 });
     expect(res.status).toBe(422);
   });
@@ -297,7 +320,7 @@ describe('PATCH /workouts/:id', () => {
   it('401 quando não autenticado', async () => {
     const app = new Elysia()
       .onError(({ error }) => ({ error: (error as Error).message }))
-      .use(createWorkoutsPlugin(makeMockDb(), async () => null)) as AnyElysia;
+      .use(createWorkoutsPlugin(makeMockDb().db, async () => null)) as AnyElysia;
     const res = await patch(app, `/workouts/${WID}`, { rpe: 7 });
     expect(res.status).toBe(401);
   });
