@@ -14,16 +14,13 @@ import { useApi } from '../../lib/api';
 import { Fonts, FontSize, FontWeight, Radii, Spacing, Tracking, useTheme, type Theme } from '../../lib/theme';
 import { LoadingScreen } from '../../components/LoadingScreen';
 import { ErrorCard } from '../../components/ErrorCard';
+import { BackHeader } from '../../components/BackHeader';
+import { RpeScale, RPE_LABELS } from '../../components/workout/RpeScale';
 
 const PT_WEEKDAYS_FULL = [
   'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
   'Quinta-feira', 'Sexta-feira', 'Sábado',
 ];
-
-const RPE_LABELS: Record<number, string> = {
-  1: 'Muito fácil', 2: 'Fácil', 3: 'Leve', 4: 'Moderado', 5: 'Razoável',
-  6: 'Intenso', 7: 'Difícil', 8: 'Muito difícil', 9: 'Extenuante', 10: 'Máximo',
-};
 
 function formatPace(paceS: number): string {
   const min = Math.floor(paceS / 60);
@@ -130,19 +127,6 @@ export default function WorkoutDetailScreen() {
     }
   }
 
-  function BackButton() {
-    return (
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => router.back()}
-        accessibilityRole="button"
-        accessibilityLabel="Voltar"
-      >
-        <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
-      </TouchableOpacity>
-    );
-  }
-
   function SplitPanel({
     left,
     right,
@@ -194,9 +178,7 @@ export default function WorkoutDetailScreen() {
   if (isError || !data?.workout) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <BackButton />
-        </View>
+        <BackHeader />
         <View style={styles.content}>
           <ErrorCard message="Treino não encontrado ou falha ao carregar." />
         </View>
@@ -212,9 +194,7 @@ export default function WorkoutDetailScreen() {
   return (
     <View style={styles.container}>
       {/* ── Header ── só botão de voltar. Tipo do treino vai pro hero como dot. */}
-      <View style={styles.header}>
-        <BackButton />
-      </View>
+      <BackHeader />
 
       <ScrollView
         style={styles.scroll}
@@ -370,34 +350,7 @@ export default function WorkoutDetailScreen() {
           ) : (
             <>
               <Text style={styles.cardSub}>Como você sentiu? Ajuda a calibrar seu plano.</Text>
-              <View style={styles.rpeRow}>
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <TouchableOpacity
-                    key={n}
-                    style={[
-                      styles.rpeBtn,
-                      rpe === n && {
-                        backgroundColor: rpeColor(n),
-                        borderColor: rpeColor(n),
-                        ...theme.shadow.glow,
-                        shadowColor: rpeColor(n),
-                      },
-                    ]}
-                    onPress={() => saveRpe(n)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`RPE ${n}: ${RPE_LABELS[n]}`}
-                    accessibilityState={{ selected: rpe === n }}
-                  >
-                    <Text style={[styles.rpeBtnText, rpe === n && styles.rpeBtnTextActive]}>
-                      {n}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.rpeExtremes}>
-                <Text style={styles.rpeExtremeText}>muito fácil</Text>
-                <Text style={styles.rpeExtremeText}>máximo</Text>
-              </View>
+              <RpeScale value={rpe} onSelect={saveRpe} colorFor={rpeColor} />
               <Text style={styles.rpeMicrocopy}>
                 Seu RPE calibra a carga dos próximos treinos.
               </Text>
@@ -442,25 +395,6 @@ const createStyles = (theme: Theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.colors.bg },
 
-    // Header
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.md,
-      paddingHorizontal: Spacing.md,
-      paddingTop: Spacing.xl + Spacing.xs,
-      paddingBottom: Spacing.sm,
-    },
-    backBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: Radii.md,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     typePill: {
       paddingHorizontal: Spacing.md,
       paddingVertical: 6,
@@ -661,38 +595,6 @@ const createStyles = (theme: Theme) =>
       fontFamily: Fonts.bodySemiBold,
       fontSize: FontSize.sm,
       color: theme.colors.accent,
-    },
-    // Escala RPE (tela 31): grade de 10 células, raio 9, selecionada com
-    // cor cheia + sombra da própria cor.
-    rpeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-    rpeBtn: {
-      flexGrow: 1,
-      flexBasis: '17%',
-      aspectRatio: 0.82,
-      maxHeight: 52,
-      borderRadius: 9,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.colors.surface,
-    },
-    rpeBtnText: {
-      fontFamily: Fonts.dataSemiBold,
-      fontSize: FontSize.md,
-      color: theme.colors.textSecondary,
-      fontVariant: ['tabular-nums'],
-    },
-    rpeBtnTextActive: { color: theme.colors.onAccent },
-    rpeExtremes: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginTop: 6,
-    },
-    rpeExtremeText: {
-      fontFamily: Fonts.bodyMedium,
-      fontSize: 10,
-      color: theme.colors.textMuted,
     },
     rpeMicrocopy: {
       ...theme.type.bodySm,

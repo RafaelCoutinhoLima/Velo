@@ -2,7 +2,7 @@
 // Referência funcional: design_handoff_velo_identidade/Treino de Hoje.dc.html
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../../lib/store';
@@ -10,6 +10,7 @@ import { useApi } from '../../../lib/api';
 import { Fonts, FontSize, Radii, Spacing, useTheme, type Theme, type ZoneCode } from '../../../lib/theme';
 import { LoadingScreen } from '../../../components/LoadingScreen';
 import { ErrorCard } from '../../../components/ErrorCard';
+import { BackHeader } from '../../../components/BackHeader';
 import { SendToWatch } from '../../../components/plan/SendToWatch';
 import {
   WorkoutProfile,
@@ -102,7 +103,7 @@ export default function PlannedWorkoutScreen() {
   if (!plan || !workout) {
     return (
       <View style={styles.screen}>
-        <Header dateText="" styles={styles} theme={theme} />
+        <BackHeader />
         <View style={{ padding: Spacing.md }}>
           <ErrorCard message="Treino não encontrado no plano atual." />
         </View>
@@ -119,7 +120,9 @@ export default function PlannedWorkoutScreen() {
 
   return (
     <View style={styles.screen}>
-      <Header dateText={dateLabel(plan.week_start, workout.day)} styles={styles} theme={theme} />
+      <BackHeader
+        right={<Text style={styles.headerDate}>{dateLabel(plan.week_start, workout.day)}</Text>}
+      />
 
       <ScrollView
         style={{ flex: 1 }}
@@ -319,30 +322,6 @@ export default function PlannedWorkoutScreen() {
   );
 }
 
-function Header({
-  dateText,
-  styles,
-  theme,
-}: {
-  dateText: string;
-  styles: ReturnType<typeof createStyles>;
-  theme: Theme;
-}) {
-  return (
-    <View style={styles.header}>
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => router.back()}
-        accessibilityRole="button"
-        accessibilityLabel="Voltar"
-      >
-        <Ionicons name="arrow-back" size={22} color={theme.colors.textPrimary} />
-      </TouchableOpacity>
-      {dateText ? <Text style={styles.headerDate}>{dateText}</Text> : null}
-    </View>
-  );
-}
-
 function TargetCell({
   value,
   unit,
@@ -410,24 +389,6 @@ const createStyles = (theme: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.colors.bg },
 
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: Spacing.md,
-      paddingTop: Spacing.xl + Spacing.xs,
-      paddingBottom: Spacing.sm,
-    },
-    backBtn: {
-      width: 42,
-      height: 42,
-      borderRadius: Radii.md,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     headerDate: {
       fontFamily: Fonts.data,
       fontSize: 11,
