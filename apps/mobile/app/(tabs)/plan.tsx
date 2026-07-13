@@ -377,8 +377,16 @@ export default function PlanScreen() {
                 styles.heroCard,
                 selectedDay !== null && selectedDay !== todayWorkout.day && styles.cardTarget,
               ]}
+              accessibilityRole="button"
               accessibilityLabel={`Treino de hoje: ${TYPE_LABELS[todayWorkout.type]}, ${todayWorkout.duration_min} minutos`}
               accessibilityHint="Segure para mover de dia"
+              accessibilityState={{ selected: selectedDay === todayWorkout.day }}
+              accessibilityActions={[{ name: 'longpress', label: 'Mover treino de dia' }]}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === 'longpress') {
+                  handleLongPress(todayWorkout.day);
+                }
+              }}
             >
               <View style={styles.heroEyebrowRow}>
                 <View style={styles.heroPill}>
@@ -500,8 +508,16 @@ export default function PlanScreen() {
                         isSelected && styles.cardSelected,
                         isTarget && styles.cardTarget,
                       ]}
+                      accessibilityRole="button"
                       accessibilityLabel={`${getDayLabel(plan.week_start, item.day)}: ${TYPE_LABELS[item.type]}, ${item.duration_min} minutos`}
                       accessibilityHint="Segure para mover de dia"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityActions={[{ name: 'longpress', label: 'Mover treino de dia' }]}
+                      onAccessibilityAction={(event) => {
+                        if (event.nativeEvent.actionName === 'longpress') {
+                          handleLongPress(item.day);
+                        }
+                      }}
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.dayEyebrow}>

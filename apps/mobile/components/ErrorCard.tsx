@@ -11,7 +11,12 @@ export function ErrorCard({ message }: ErrorCardProps) {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
-    <View style={styles.card}>
+    <View
+      style={styles.card}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
+      importantForAccessibility="yes"
+    >
       <Text style={styles.icon}>⚠️</Text>
       <Text style={styles.text}>{message}</Text>
     </View>

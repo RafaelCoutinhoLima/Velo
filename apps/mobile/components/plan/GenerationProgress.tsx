@@ -48,7 +48,11 @@ export function GenerationProgress({ footnote, children }: GenerationProgressPro
       </View>
       <Text style={styles.title}>Montando sua semana</Text>
 
-      <View style={styles.checklist}>
+      <View
+        style={styles.checklist}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={`Passo ${step + 1} de ${GENERATION_STEPS.length}: ${GENERATION_STEPS[step]}`}
+      >
         {GENERATION_STEPS.map((label, i) => {
           const done = i < step;
           const active = i === step;
