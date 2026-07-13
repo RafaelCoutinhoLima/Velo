@@ -311,6 +311,37 @@ describe('POST /garmin/connect', () => {
     const body = await res.json();
     expect(body.error).toContain('Garmin');
   });
+
+  it('rate limit: 6ª tentativa de connect na mesma janela retorna 429', async () => {
+    // Sidecar sempre recusa (senha errada) — cenário de credential stuffing.
+    installFetchMock({ authOk: false, authBody: { detail: 'Login inválido' } });
+    const app = makeApp(makeMockDb());
+
+    for (let i = 0; i < 5; i++) {
+      const res = await post(app, '/garmin/connect', {
+        email: 'rafael@garmin.test',
+        password: `wrong-${i}`,
+      });
+      expect(res.status).toBe(500);
+    }
+
+    const blocked = await post(app, '/garmin/connect', {
+      email: 'rafael@garmin.test',
+      password: 'wrong-6',
+    });
+    expect(blocked.status).toBe(429);
+    const body = await blocked.json();
+    expect(body.error).toContain('Muitas tentativas');
+  });
+
+  it('rate limit: instância nova de plugin não herda contagem (janela por instância)', async () => {
+    const app = makeApp(makeMockDb());
+    const res = await post(app, '/garmin/connect', {
+      email: 'rafael@garmin.test',
+      password: 'secret',
+    });
+    expect(res.status).toBe(200);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────

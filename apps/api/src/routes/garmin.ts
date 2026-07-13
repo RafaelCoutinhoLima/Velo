@@ -11,8 +11,10 @@ import { supabase as defaultSupabase } from '../db/client';
 import { classifySport } from '../garmin/sport';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { evaluateCalibration } from '../lib/calibration';
+import { AppError } from '../lib/errors';
 import { resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
+import { createRateLimiter } from '../lib/rateLimit';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 
@@ -26,10 +28,19 @@ function sidecarHeaders(extra: Record<string, string> = {}): Record<string, stri
   return { 'x-sidecar-secret': SIDECAR_SECRET, ...extra };
 }
 
+// 5 tentativas de login Garmin por usuário a cada 15min: o /connect recebe
+// email+senha e repassa ao Garmin via sidecar — sem limite, uma conta Velo
+// válida vira oráculo de credential stuffing contra contas Garmin (e arrisca
+// ban de IP do sidecar). 5/15min cobre erro de digitação + fluxo de MFA.
+const CONNECT_MAX_ATTEMPTS = 5;
+const CONNECT_WINDOW_MS = 15 * 60_000;
+
 export function createGarminPlugin(
   db: Db = defaultSupabase,
   verify: TokenVerifier = verifySupabaseToken,
 ) {
+  const connectLimiter = createRateLimiter(CONNECT_MAX_ATTEMPTS, CONNECT_WINDOW_MS);
+
   return new Elysia({ prefix: '/garmin' })
     .use(authGuard(verify))
     .post(
@@ -37,8 +48,15 @@ export function createGarminPlugin(
       async ({ userId, body }) => {
         const { email, password, mfa_code } = body;
 
+        if (!connectLimiter.consume(userId)) {
+          throw new AppError(
+            'Muitas tentativas de conexão com o Garmin. Aguarde 15 minutos e tente de novo.',
+            429,
+          );
+        }
+
         const internalId = await resolveInternalId(db, userId);
-        if (!internalId) throw new Error('Atleta não encontrado');
+        if (!internalId) throw new AppError('Atleta não encontrado');
 
         const sidecarRes = await fetch(`${SIDECAR_URL}/auth`, {
           method: 'POST',
@@ -52,7 +70,7 @@ export function createGarminPlugin(
           // e útil repassar ao usuário. Fallback genérico se vier vazio.
           const err = (await sidecarRes.json().catch(() => ({}))) as { detail?: string };
           logger.warn({ status: sidecarRes.status, detail: err.detail }, 'Sidecar auth falhou');
-          throw new Error(err.detail ?? 'Falha ao conectar com o Garmin.');
+          throw new AppError(err.detail ?? 'Falha ao conectar com o Garmin.');
         }
 
         const { session } = (await sidecarRes.json()) as { session: Record<string, unknown> };
@@ -64,7 +82,7 @@ export function createGarminPlugin(
 
         if (vaultErr) {
           logger.error({ err: vaultErr }, 'Falha ao salvar token Garmin no Vault');
-          throw new Error('Falha ao salvar credenciais Garmin');
+          throw new AppError('Falha ao salvar credenciais Garmin');
         }
 
         logger.info({ athlete_id: internalId }, 'Garmin conectado');
@@ -84,14 +102,14 @@ export function createGarminPlugin(
         const { days = 90 } = body;
 
         const internalId = await resolveInternalId(db, userId);
-        if (!internalId) throw new Error('Atleta não encontrado');
+        if (!internalId) throw new AppError('Atleta não encontrado');
 
         const { data: tokenJson, error: vaultErr } = await db.rpc('get_garmin_token', {
           p_athlete_id: internalId,
         });
 
         if (vaultErr || !tokenJson) {
-          throw new Error('Garmin não está conectado. Conecte o Garmin primeiro.');
+          throw new AppError('Garmin não está conectado. Conecte o Garmin primeiro.');
         }
 
         const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
@@ -108,9 +126,9 @@ export function createGarminPlugin(
           // 401 "Sessão Garmin expirada" → o token OAuth do Vault caducou; o
           // atleta precisa reconectar (não é falha genérica de rede/sync).
           if (sidecarRes.status === 401 && detail.detail === 'Sessão Garmin expirada') {
-            throw new Error('Sua conexão Garmin expirou. Reconecte o Garmin nas configurações.');
+            throw new AppError('Sua conexão Garmin expirou. Reconecte o Garmin nas configurações.');
           }
-          throw new Error('Não consegui sincronizar com o Garmin');
+          throw new AppError('Não consegui sincronizar com o Garmin');
         }
 
         const { activities } = (await sidecarRes.json()) as {

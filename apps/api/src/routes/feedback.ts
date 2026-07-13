@@ -3,6 +3,7 @@ import { generateFeedback } from '../claude/client';
 import { FeedbackInputSchema } from '../claude/schemas';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { AppError } from '../lib/errors';
 import { resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
 
@@ -35,7 +36,7 @@ export function createFeedbackPlugin(
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (error) throw new Error('Falha ao buscar feedbacks');
+      if (error) throw new AppError('Falha ao buscar feedbacks');
       return { feedbacks: data };
     })
     .post(
