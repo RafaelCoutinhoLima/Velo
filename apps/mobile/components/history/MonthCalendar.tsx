@@ -56,6 +56,7 @@ export function MonthCalendar({ workouts, monthOffset, onChangeMonth }: MonthCal
         <TouchableOpacity
           onPress={() => onChangeMonth(monthOffset - 1)}
           style={styles.navBtn}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
           accessibilityRole="button"
           accessibilityLabel="Mês anterior"
         >
@@ -68,6 +69,7 @@ export function MonthCalendar({ workouts, monthOffset, onChangeMonth }: MonthCal
           onPress={() => onChangeMonth(Math.min(0, monthOffset + 1))}
           disabled={isCurrentMonth}
           style={styles.navBtn}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
           accessibilityRole="button"
           accessibilityLabel="Próximo mês"
           accessibilityState={{ disabled: isCurrentMonth }}

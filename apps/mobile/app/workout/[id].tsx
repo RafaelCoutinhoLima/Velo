@@ -324,6 +324,7 @@ export default function WorkoutDetailScreen() {
               </View>
               <TouchableOpacity
                 onPress={() => setRpeEditOpen(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessibilityRole="button"
                 accessibilityLabel="Ajustar esforço percebido"
               >
@@ -341,6 +342,7 @@ export default function WorkoutDetailScreen() {
               </View>
               <TouchableOpacity
                 onPress={() => setRpeEditOpen(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 accessibilityRole="button"
                 accessibilityLabel="Alterar esforço percebido"
               >
@@ -358,7 +360,9 @@ export default function WorkoutDetailScreen() {
           )}
 
           {savingRpe ? (
-            <Text style={styles.rpeStatus}>Salvando…</Text>
+            <Text style={styles.rpeStatus} accessibilityLiveRegion="polite">
+              Salvando…
+            </Text>
           ) : null}
           {rpeError ? (
             <View style={{ marginTop: Spacing.sm }}>
