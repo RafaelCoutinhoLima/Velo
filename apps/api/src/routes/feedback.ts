@@ -121,6 +121,9 @@ export function createFeedbackPlugin(
         try {
           feedbackOutput = await generateFeedback(feedbackInput);
         } catch (err) {
+          // Cota mensal (AppError 429) não é falha técnica: repassa ao onError
+          // global, que devolve a mensagem curada com o status certo.
+          if (err instanceof AppError) throw err;
           logger.error({ err, workout_id, athleteId: internalId }, 'Falha ao gerar feedback');
           set.status = 500;
           return { error: 'Tive um problema técnico ao gerar o feedback. Tente novamente.' };

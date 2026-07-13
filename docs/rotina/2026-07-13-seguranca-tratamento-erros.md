@@ -55,7 +55,8 @@ maior, risco menor.
 - `apps/api/src/index.ts` (onError delega a `mapErrorResponse`)
 - `apps/api/src/routes/garmin.ts` (AppError + rate limit no `/connect`)
 - `apps/api/src/routes/garmin.test.ts` (+2 testes de rate limit)
-- `apps/api/src/routes/plan.ts` (AppError nas mensagens curadas)
+- `apps/api/src/routes/plan.ts` (AppError nas mensagens curadas; job assíncrono não grava mais erro cru)
+- `apps/api/src/routes/feedback.test.ts` (+1 teste: 429 da cota atravessa o catch)
 - `apps/api/src/routes/workouts.ts`, `feedback.ts`, `jobs.ts`, `onboarding.ts` (idem)
 - `apps/api/src/routes/push.ts` (comparação timing-safe do `x-cron-secret`)
 - `apps/api/src/claude/client.ts` (cota mensal → AppError 429)
@@ -104,10 +105,22 @@ maior, risco menor.
    expiração e isolamento entre instâncias; `garmin.test.ts` ganhou o cenário de
    credential stuffing (6ª tentativa → 429 com copy correto).
 
+6. **Revisão pós-implementação** (segunda passada sobre o próprio diff) encontrou e fechou
+   dois furos no mesmo invariante:
+   - `routes/feedback.ts` tinha um catch-all em volta de `generateFeedback` que rebaixava
+     o `AppError` 429 da cota mensal para 500 genérico — a cota só chegava ao atleta no
+     caminho do plano. O catch agora relança `AppError` (teste de regressão em
+     `feedback.test.ts`).
+   - No caminho assíncrono do `/plan/generate` (timeout → job), `plan.ts` gravava
+     `buildErr.message` **cru** em `jobs.error` — e `GET /jobs/:id` devolve essa coluna ao
+     cliente, ou seja, mensagem de Postgres (ex. `Falha ao salvar plano: <detalhe>`)
+     vazava por fora do `onError`. Agora o job grava a mensagem curada se for `AppError`
+     e o genérico caso contrário; a causa crua vai para o log.
+
 ### Verificação
 - `bun x tsc --noEmit` em `apps/api`: limpo.
-- `bun test` em `apps/api` (com os mesmos placeholders de env do CI): **209 pass, 0
-  fail** (195 pré-existentes + 14 novos). Sem env (não há `apps/api/.env` neste
+- `bun test` em `apps/api` (com os mesmos placeholders de env do CI): **210 pass, 0
+  fail** (195 pré-existentes + 15 novos). Sem env (não há `apps/api/.env` neste
   sandbox), 15 testes de `guardrails.boundaries` falham por cascata de import do
   `db/client` — comportamento idêntico na base `fe7d068`, não relacionado a esta mudança.
 - `bun run check` (biome, raiz): limpo.

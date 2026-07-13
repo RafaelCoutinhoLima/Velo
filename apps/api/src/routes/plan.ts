@@ -110,12 +110,19 @@ export function createPlanPlugin(
                   .eq('id', jobId);
               })
               .catch(async (buildErr) => {
+                logger.error({ err: buildErr, athlete_id: internalId }, 'Falha ao gerar plano');
                 if (!jobId) return;
                 await db
                   .from('jobs')
                   .update({
                     status: 'failed',
-                    error: buildErr instanceof Error ? buildErr.message : String(buildErr),
+                    // jobs.error volta ao cliente no GET /jobs/:id — mensagem
+                    // crua (Postgres/stack) vira reconhecimento pra atacante;
+                    // só AppError é curada por construção.
+                    error:
+                      buildErr instanceof AppError
+                        ? buildErr.message
+                        : 'Tive um problema técnico, já avisamos a equipe.',
                     finished_at: new Date().toISOString(),
                   })
                   .eq('id', jobId);

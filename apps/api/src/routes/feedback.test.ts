@@ -12,7 +12,9 @@ mock.module('../claude/client', () => ({
   })),
 }));
 
+import { generateFeedback } from '../claude/client';
 import type { TokenVerifier } from '../lib/auth';
+import { AppError } from '../lib/errors';
 import { createFeedbackPlugin } from './feedback';
 
 const alwaysAuth: TokenVerifier = async () => 'user-uuid';
@@ -186,5 +188,15 @@ describe('POST /feedback', () => {
     const res = await post(app, '/feedback', { workout_id: WID, athlete_id: USER });
     expect(res.status).toBe(500);
     expect((await res.json()).error).toContain('salvar');
+  });
+
+  it('429 da cota mensal atravessa o catch com a mensagem real (não vira 500 genérico)', async () => {
+    (generateFeedback as unknown as ReturnType<typeof mock>).mockImplementationOnce(async () => {
+      throw new AppError('Limite de 30 gerações por mês atingido', 429);
+    });
+    const app = makeApp(makeMockDbPost());
+    const res = await post(app, '/feedback', { workout_id: WID, athlete_id: USER });
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toContain('Limite de 30');
   });
 });
