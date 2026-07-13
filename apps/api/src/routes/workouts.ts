@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { classifySport } from '../garmin/sport';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { AppError } from '../lib/errors';
 import { resolveInternalId } from '../lib/internalId';
 
 type Db = Pick<typeof defaultSupabase, 'from'>;
@@ -29,7 +30,7 @@ export function createWorkoutsPlugin(
           .order('date', { ascending: false })
           .limit(limit);
 
-        if (error) throw new Error('Falha ao buscar treinos');
+        if (error) throw new AppError('Falha ao buscar treinos');
 
         // Deriva o esporte do typeKey (sem coluna dedicada) e remove o campo cru.
         const workouts = ((data ?? []) as Array<Record<string, unknown>>).map((w) => {

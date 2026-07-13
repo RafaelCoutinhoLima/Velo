@@ -6,6 +6,7 @@ import { classifySport } from '../garmin/sport';
 import { buildGarminWorkout, planDayDate } from '../garmin/workoutBuilder';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
 import { evaluateCalibration } from '../lib/calibration';
+import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
@@ -67,7 +68,7 @@ export function createPlanPlugin(
           .single();
 
         if (athleteErr || !athlete)
-          throw new Error('Atleta não encontrado. Complete o onboarding primeiro.');
+          throw new AppError('Atleta não encontrado. Complete o onboarding primeiro.');
 
         const internalId = (athlete as { id: string }).id;
 
@@ -109,12 +110,19 @@ export function createPlanPlugin(
                   .eq('id', jobId);
               })
               .catch(async (buildErr) => {
+                logger.error({ err: buildErr, athlete_id: internalId }, 'Falha ao gerar plano');
                 if (!jobId) return;
                 await db
                   .from('jobs')
                   .update({
                     status: 'failed',
-                    error: buildErr instanceof Error ? buildErr.message : String(buildErr),
+                    // jobs.error volta ao cliente no GET /jobs/:id — mensagem
+                    // crua (Postgres/stack) vira reconhecimento pra atacante;
+                    // só AppError é curada por construção.
+                    error:
+                      buildErr instanceof AppError
+                        ? buildErr.message
+                        : 'Tive um problema técnico, já avisamos a equipe.',
                     finished_at: new Date().toISOString(),
                   })
                   .eq('id', jobId);
@@ -139,7 +147,7 @@ export function createPlanPlugin(
           .single();
 
         if (athleteErr || !athlete)
-          throw new Error('Atleta não encontrado. Complete o onboarding primeiro.');
+          throw new AppError('Atleta não encontrado. Complete o onboarding primeiro.');
 
         const internalId = (athlete as { id: string }).id;
 
@@ -271,14 +279,17 @@ export function createPlanPlugin(
           const sent = results.filter((r) => r.status === 'fulfilled').length;
 
           // Falha total continua virando erro pro usuário (mesma semântica de
-          // antes, quando o primeiro throw abortava a rota).
+          // antes, quando o primeiro throw abortava a rota). A causa crua vai
+          // pro log; o cliente recebe mensagem curada, não o erro do Garmin.
           if (runDays.length > 0 && sent === 0) {
             const first = results.find((r) => r.status === 'rejected') as
               | PromiseRejectedResult
               | undefined;
-            throw first?.reason instanceof Error
-              ? first.reason
-              : new Error('Falha ao enviar treinos pro Garmin');
+            logger.error(
+              { err: first?.reason, athlete_id: internalId },
+              'Falha total ao enviar treinos pro Garmin',
+            );
+            throw new AppError('Não consegui enviar os treinos pro Garmin. Tente novamente.');
           }
 
           return { ok: true, sent };
@@ -301,7 +312,7 @@ export function createPlanPlugin(
             .select('id')
             .eq('user_id', userId)
             .single();
-          if (!athlete) throw new Error('Plano não encontrado');
+          if (!athlete) throw new AppError('Plano não encontrado');
           const ownerId = (athlete as { id: string }).id;
 
           const { data: plan } = await db
@@ -311,7 +322,7 @@ export function createPlanPlugin(
             .eq('athlete_id', ownerId)
             .single();
 
-          if (!plan) throw new Error('Plano não encontrado');
+          if (!plan) throw new AppError('Plano não encontrado');
 
           const planJson = plan.plan_json as {
             weeks: { days: { day: number; type: string }[] }[];
@@ -321,7 +332,7 @@ export function createPlanPlugin(
           const movingDay = allDays.find((d) => d.day === workout_day);
           const targetDayObj = allDays.find((d) => d.day === target_day);
 
-          if (!movingDay || !targetDayObj) throw new Error('Dia não encontrado');
+          if (!movingDay || !targetDayObj) throw new AppError('Dia não encontrado');
 
           const highTypes = new Set(['interval', 'tempo']);
           const prevDay = allDays.find((d) => d.day === target_day - 1);

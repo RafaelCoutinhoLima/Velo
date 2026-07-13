@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { bearer, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
@@ -13,6 +14,15 @@ type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
 // do cron mantém ~1 lembrete por treino (aceitável p/ 2 atletas em
 // dogfooding). Migrar p/ flag dedicada se virar ruído.
 const RPE_REMINDER_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+// Comparação em tempo constante do segredo do cron — `!==` retorna no primeiro
+// byte diferente e vira oráculo de timing pra adivinhar o segredo byte a byte.
+function secretMatches(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export function createPushPlugin(
   db: Db = defaultSupabase,
@@ -61,7 +71,7 @@ export function createPushPlugin(
       // Cron-triggered (Railway). Protegido por segredo compartilhado — não é
       // um endpoint de usuário. Lembra atletas com treino recente sem RPE.
       .post('/rpe-reminders', async ({ headers, set }) => {
-        if (!cronSecret || headers['x-cron-secret'] !== cronSecret) {
+        if (!cronSecret || !secretMatches(headers['x-cron-secret'], cronSecret)) {
           set.status = 401;
           return { error: 'Não autorizado' };
         }

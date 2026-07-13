@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { AppError } from '../lib/errors';
 import { resolveInternalId } from '../lib/internalId';
 
 type Db = Pick<typeof defaultSupabase, 'from'>;
@@ -55,7 +56,7 @@ export function createJobsPlugin(
           .select('id')
           .single();
 
-        if (error || !data) throw new Error('Falha ao criar job');
+        if (error || !data) throw new AppError('Falha ao criar job');
         return { job_id: data.id };
       },
       {

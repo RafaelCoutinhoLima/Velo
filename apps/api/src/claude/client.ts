@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ZodError } from 'zod';
 import { supabase } from '../db/client';
+import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { buildBriefing } from './briefing';
 import { applyGuardrails } from './guardrails';
@@ -257,7 +258,9 @@ async function reserveUsageOrThrow(athleteId: string): Promise<void> {
 
   const count = typeof data === 'number' ? data : Number(data ?? 0);
   if (count > CLAUDE_HARD_CAP) {
-    throw new Error(`Limite de ${CLAUDE_HARD_CAP} gerações por mês atingido`);
+    // AppError 429: quem bate no teto mensal precisa saber que é cota, não bug
+    // — antes virava 500 "Tive um problema técnico" e parecia falha nossa.
+    throw new AppError(`Limite de ${CLAUDE_HARD_CAP} gerações por mês atingido`, 429);
   }
 }
 

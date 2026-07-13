@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 
 type Db = Pick<typeof defaultSupabase, 'from' | 'rpc'>;
@@ -118,7 +119,7 @@ export function createOnboardingPlugin(
 
         if (error) {
           logger.error({ err: error }, 'Falha ao salvar objetivo');
-          throw new Error('Falha ao salvar objetivo');
+          throw new AppError('Falha ao salvar objetivo');
         }
 
         return { ok: true };
@@ -149,7 +150,7 @@ export function createOnboardingPlugin(
 
         if (error) {
           logger.error({ err: error }, 'Falha ao salvar consentimento');
-          throw new Error('Falha ao salvar consentimento');
+          throw new AppError('Falha ao salvar consentimento');
         }
       }
 
@@ -165,7 +166,7 @@ export function createOnboardingPlugin(
         if (available_days) updates.available_days = available_days;
         if (Object.keys(updates).length === 0) return { ok: true };
         const { error } = await db.from('athletes').update(updates).eq('user_id', userId);
-        if (error) throw new Error('Falha ao atualizar perfil');
+        if (error) throw new AppError('Falha ao atualizar perfil');
         return { ok: true };
       },
       {
@@ -184,7 +185,7 @@ export function createOnboardingPlugin(
           .from('athletes')
           .update({ fc_max, fc_rest })
           .eq('user_id', userId);
-        if (error) throw new Error('Falha ao salvar zonas');
+        if (error) throw new AppError('Falha ao salvar zonas');
         return { ok: true };
       },
       {

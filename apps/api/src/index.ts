@@ -1,6 +1,7 @@
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { Elysia } from 'elysia';
+import { AppError, mapErrorResponse } from './lib/errors';
 import { logger } from './lib/logger';
 import { athleteRoutes } from './routes/athlete';
 import { authRoutes } from './routes/auth';
@@ -68,20 +69,18 @@ const app = new Elysia()
   .use(pushRoutes)
   .use(athleteRoutes)
   .onError(({ error, code, set }) => {
-    logger.error({ code, err: error }, 'Unhandled error');
-    // Nunca devolve error.message ao cliente (nem em dev) — mensagens do
-    // Postgres/Garmin/stack viravam reconhecimento pra atacante. Só status +
-    // texto genérico; o detalhe fica no log do servidor.
-    if (code === 'VALIDATION') {
-      set.status = 400;
-      return { error: 'Requisição inválida' };
+    // Nunca devolve error.message cru ao cliente (nem em dev) — mensagens do
+    // Postgres/Garmin/stack viravam reconhecimento pra atacante. A única
+    // exceção é AppError: mensagem curada por construção (lib/errors.ts), que
+    // é fluxo operacional esperado (warn), não erro não tratado (error).
+    if (error instanceof AppError) {
+      logger.warn({ code, status: error.status, err: error }, 'Erro de domínio');
+    } else {
+      logger.error({ code, err: error }, 'Unhandled error');
     }
-    if (code === 'NOT_FOUND') {
-      set.status = 404;
-      return { error: 'Recurso não encontrado' };
-    }
-    set.status = 500;
-    return { error: 'Tive um problema técnico, já avisamos a equipe.' };
+    const { status, body } = mapErrorResponse(code, error);
+    set.status = status;
+    return body;
   })
   .listen(process.env.PORT ?? 3000);
 

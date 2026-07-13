@@ -3,6 +3,7 @@ import { generateFeedback } from '../claude/client';
 import { FeedbackInputSchema } from '../claude/schemas';
 import { supabase as defaultSupabase } from '../db/client';
 import { authGuard, type TokenVerifier, verifySupabaseToken } from '../lib/auth';
+import { AppError } from '../lib/errors';
 import { resolveInternalId } from '../lib/internalId';
 import { logger } from '../lib/logger';
 
@@ -35,7 +36,7 @@ export function createFeedbackPlugin(
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (error) throw new Error('Falha ao buscar feedbacks');
+      if (error) throw new AppError('Falha ao buscar feedbacks');
       return { feedbacks: data };
     })
     .post(
@@ -120,6 +121,9 @@ export function createFeedbackPlugin(
         try {
           feedbackOutput = await generateFeedback(feedbackInput);
         } catch (err) {
+          // Cota mensal (AppError 429) não é falha técnica: repassa ao onError
+          // global, que devolve a mensagem curada com o status certo.
+          if (err instanceof AppError) throw err;
           logger.error({ err, workout_id, athleteId: internalId }, 'Falha ao gerar feedback');
           set.status = 500;
           return { error: 'Tive um problema técnico ao gerar o feedback. Tente novamente.' };
