@@ -208,7 +208,7 @@ export default function WorkoutDetailScreen() {
               <Ionicons name="checkmark" size={12} color={theme.colors.success} />
               <Text style={styles.donePillText}>Concluído</Text>
             </View>
-            <Text style={styles.datePillMuted}>
+            <Text style={styles.datePillMuted} numberOfLines={1} ellipsizeMode="tail">
               {weekday(w.date)} · {formatDate(w.date)}
             </Text>
           </View>
@@ -319,8 +319,12 @@ export default function WorkoutDetailScreen() {
                 <Text style={[styles.rpeChipValue, { color: rpeColor(rpe) }]}>
                   {rpe}
                 </Text>
-                <Text style={styles.rpeChipLabel}>{RPE_LABELS[rpe]}</Text>
-                <Text style={styles.rpeChipSource}>do seu relógio</Text>
+                <Text style={styles.rpeChipLabel} numberOfLines={1} ellipsizeMode="tail">
+                  {RPE_LABELS[rpe]}
+                </Text>
+                <Text style={styles.rpeChipSource} numberOfLines={1} ellipsizeMode="tail">
+                  do seu relógio
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setRpeEditOpen(true)}
@@ -338,7 +342,9 @@ export default function WorkoutDetailScreen() {
                 <Text style={[styles.rpeChipValue, { color: rpeColor(rpe) }]}>
                   {rpe}
                 </Text>
-                <Text style={styles.rpeChipLabel}>{RPE_LABELS[rpe]}</Text>
+                <Text style={styles.rpeChipLabel} numberOfLines={1} ellipsizeMode="tail">
+                  {RPE_LABELS[rpe]}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setRpeEditOpen(true)}
@@ -438,6 +444,7 @@ const createStyles = (theme: Theme) =>
       letterSpacing: Tracking.wide,
     },
     datePillMuted: {
+      flexShrink: 1,
       fontFamily: Fonts.data,
       fontSize: FontSize.xs,
       color: theme.colors.textSecondary,
@@ -584,12 +591,14 @@ const createStyles = (theme: Theme) =>
       marginLeft: 2,
     },
     rpeChipLabel: {
+      flexShrink: 1,
       fontFamily: Fonts.bodySemiBold,
       fontSize: FontSize.sm,
       color: theme.colors.textPrimary,
       marginLeft: 4,
     },
     rpeChipSource: {
+      flexShrink: 1,
       fontFamily: Fonts.body,
       fontSize: FontSize.xs,
       color: theme.colors.textMuted,

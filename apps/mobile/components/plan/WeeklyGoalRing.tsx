@@ -62,6 +62,7 @@ const createStyles = (theme: Theme) =>
     card: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: Spacing.md,
       backgroundColor: theme.colors.surface,
       borderRadius: Radii.lg,
       borderWidth: 1,

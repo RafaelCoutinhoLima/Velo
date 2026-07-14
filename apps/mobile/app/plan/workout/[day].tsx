@@ -644,6 +644,7 @@ const createStyles = (theme: Theme) =>
     },
     repRecoveryUnit: { fontSize: 10, fontFamily: Fonts.data },
     repRecoveryText: {
+      flex: 1,
       fontFamily: Fonts.bodyMedium,
       fontSize: 12,
       color: theme.colors.textSecondary,
