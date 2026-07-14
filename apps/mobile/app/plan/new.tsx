@@ -83,15 +83,6 @@ export default function NewPlanScreen() {
     );
   }
 
-  function InfoRow({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
-    return (
-      <View style={styles.infoRow}>
-        <Ionicons name={icon} size={18} color={theme.colors.accent} />
-        <Text style={styles.infoText}>{text}</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <BackHeader />
@@ -108,9 +99,9 @@ export default function NewPlanScreen() {
         </Text>
 
         <View style={styles.infoCard}>
-          <InfoRow icon="refresh" text="Substitui o plano da semana atual" />
-          <InfoRow icon="trending-up" text="Considera sua carga e progressão recentes" />
-          <InfoRow icon="shield-checkmark" text="Aplica guardrails de segurança automáticos" />
+          <InfoRow icon="refresh" text="Substitui o plano da semana atual" theme={theme} styles={styles} />
+          <InfoRow icon="trending-up" text="Considera sua carga e progressão recentes" theme={theme} styles={styles} />
+          <InfoRow icon="shield-checkmark" text="Aplica guardrails de segurança automáticos" theme={theme} styles={styles} />
         </View>
 
         {error ? <ErrorCard message={error} /> : null}
@@ -123,6 +114,27 @@ export default function NewPlanScreen() {
         />
         <Button label="Cancelar" variant="ghost" onPress={() => router.back()} />
       </ScrollView>
+    </View>
+  );
+}
+
+// Definido em escopo de módulo (não dentro da tela) para manter a identidade
+// do componente estável entre renders — evita desmontar/remontar a subárvore.
+function InfoRow({
+  icon,
+  text,
+  theme,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+  theme: Theme;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={18} color={theme.colors.accent} />
+      <Text style={styles.infoText}>{text}</Text>
     </View>
   );
 }

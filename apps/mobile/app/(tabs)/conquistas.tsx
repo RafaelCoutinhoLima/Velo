@@ -93,40 +93,6 @@ export default function ConquistasScreen() {
   ];
   const unlockedCount = milestones.filter((m) => m.current >= m.threshold).length;
 
-  function StatCard({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
-    return (
-      <View style={styles.statCard}>
-        <Ionicons name={icon} size={22} color={theme.colors.accent} />
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
-      </View>
-    );
-  }
-
-  function MilestoneBadge({ m }: { m: Milestone }) {
-    const unlocked = m.current >= m.threshold;
-    const pct = Math.min(m.current / m.threshold, 1);
-    return (
-      <View style={styles.badge}>
-        <View style={[styles.badgeRing, unlocked ? styles.badgeRingOn : styles.badgeRingOff]}>
-          <Ionicons
-            name={unlocked ? m.icon : 'lock-closed'}
-            size={26}
-            color={unlocked ? theme.colors.primary : theme.colors.textMuted}
-          />
-        </View>
-        <Text style={[styles.badgeLabel, !unlocked && { color: theme.colors.textMuted }]}>{m.label}</Text>
-        {unlocked ? (
-          <Text style={styles.badgeDone}>Feito</Text>
-        ) : (
-          <View style={styles.badgeBarTrack}>
-            <View style={[styles.badgeBarFill, { width: `${pct * 100}%` }]} />
-          </View>
-        )}
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <TopBar />
@@ -156,9 +122,9 @@ export default function ConquistasScreen() {
 
             {/* ── Stats reais ── */}
             <View style={styles.statRow}>
-              <StatCard icon="footsteps-outline" value={totalKm.toFixed(0)} label="km totais" />
-              <StatCard icon="fitness-outline" value={String(totalCount)} label="treinos" />
-              <StatCard icon="trending-up-outline" value={longestKm.toFixed(1)} label="maior corrida" />
+              <StatCard icon="footsteps-outline" value={totalKm.toFixed(0)} label="km totais" theme={theme} styles={styles} />
+              <StatCard icon="fitness-outline" value={String(totalCount)} label="treinos" theme={theme} styles={styles} />
+              <StatCard icon="trending-up-outline" value={longestKm.toFixed(1)} label="maior corrida" theme={theme} styles={styles} />
             </View>
 
             {/* ── Marcos ── */}
@@ -168,7 +134,7 @@ export default function ConquistasScreen() {
             </View>
             <View style={styles.badgeGrid}>
               {milestones.map((m) => (
-                <MilestoneBadge key={m.label} m={m} />
+                <MilestoneBadge key={m.label} m={m} theme={theme} styles={styles} />
               ))}
             </View>
 
@@ -180,6 +146,57 @@ export default function ConquistasScreen() {
           </>
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+// Sub-componentes em escopo de módulo (não dentro da tela) para manter a
+// identidade estável entre renders — definir inline recriava o "type" a cada
+// render do pai, desmontando/remontando os cards e badges.
+type Styles = ReturnType<typeof createStyles>;
+
+function StatCard({
+  icon,
+  value,
+  label,
+  theme,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  label: string;
+  theme: Theme;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.statCard}>
+      <Ionicons name={icon} size={22} color={theme.colors.accent} />
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function MilestoneBadge({ m, theme, styles }: { m: Milestone; theme: Theme; styles: Styles }) {
+  const unlocked = m.current >= m.threshold;
+  const pct = Math.min(m.current / m.threshold, 1);
+  return (
+    <View style={styles.badge}>
+      <View style={[styles.badgeRing, unlocked ? styles.badgeRingOn : styles.badgeRingOff]}>
+        <Ionicons
+          name={unlocked ? m.icon : 'lock-closed'}
+          size={26}
+          color={unlocked ? theme.colors.primary : theme.colors.textMuted}
+        />
+      </View>
+      <Text style={[styles.badgeLabel, !unlocked && { color: theme.colors.textMuted }]}>{m.label}</Text>
+      {unlocked ? (
+        <Text style={styles.badgeDone}>Feito</Text>
+      ) : (
+        <View style={styles.badgeBarTrack}>
+          <View style={[styles.badgeBarFill, { width: `${pct * 100}%` }]} />
+        </View>
+      )}
     </View>
   );
 }

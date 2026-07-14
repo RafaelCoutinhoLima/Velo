@@ -110,23 +110,6 @@ export default function GarminScreen() {
     );
   }
 
-  function BenefitRow({
-    icon,
-    text,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    text: string;
-  }) {
-    return (
-      <View style={styles.benefitRow}>
-        <View style={styles.benefitIcon}>
-          <Ionicons name={icon} size={19} color={theme.colors.success} />
-        </View>
-        <Text style={styles.benefitText}>{text}</Text>
-      </View>
-    );
-  }
-
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -148,14 +131,20 @@ export default function GarminScreen() {
           <BenefitRow
             icon="cloud-download-outline"
             text="Importa seus últimos 90 dias de treino automaticamente"
+            theme={theme}
+            styles={styles}
           />
           <BenefitRow
             icon="pulse-outline"
             text="Calibra suas zonas com sua FC e pace reais"
+            theme={theme}
+            styles={styles}
           />
           <BenefitRow
             icon="refresh-outline"
             text="O plano se ajusta a cada sincronização"
+            theme={theme}
+            styles={styles}
           />
         </View>
 
@@ -218,6 +207,29 @@ export default function GarminScreen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+// Definido em escopo de módulo (não dentro da tela) para manter a identidade
+// do componente estável entre renders — evita desmontar/remontar a subárvore.
+function BenefitRow({
+  icon,
+  text,
+  theme,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+  theme: Theme;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.benefitRow}>
+      <View style={styles.benefitIcon}>
+        <Ionicons name={icon} size={19} color={theme.colors.success} />
+      </View>
+      <Text style={styles.benefitText}>{text}</Text>
+    </View>
   );
 }
 
