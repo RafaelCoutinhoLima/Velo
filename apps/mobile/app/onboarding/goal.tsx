@@ -101,39 +101,6 @@ export default function GoalScreen() {
     }
   }
 
-  function ModeCard({
-    icon,
-    active,
-    title,
-    desc,
-    onPress,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    active: boolean;
-    title: string;
-    desc: string;
-    onPress: () => void;
-  }) {
-    return (
-      <TouchableOpacity
-        style={[styles.modeCard, active && styles.modeCardActive]}
-        onPress={onPress}
-        accessibilityRole="radio"
-        accessibilityLabel={title}
-        accessibilityState={{ selected: active }}
-      >
-        <View style={[styles.modeIcon, active && styles.modeIconActive]}>
-          <Ionicons name={icon} size={20} color={active ? theme.colors.onAccent : theme.colors.textSecondary} />
-        </View>
-        <View style={styles.modeBody}>
-          <Text style={[styles.modeTitle, active && styles.modeTitleActive]}>{title}</Text>
-          <Text style={styles.modeDesc}>{desc}</Text>
-        </View>
-        {active ? <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} /> : null}
-      </TouchableOpacity>
-    );
-  }
-
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -152,6 +119,8 @@ export default function GoalScreen() {
           title="Tenho uma prova alvo"
           desc="Preparação periodizada para uma data específica"
           onPress={() => setMode('race')}
+          theme={theme}
+          styles={styles}
         />
         <ModeCard
           icon="trending-up"
@@ -159,6 +128,8 @@ export default function GoalScreen() {
           title="Quero evoluir gradualmente"
           desc="Sem prova definida — foco em base e progressão"
           onPress={() => setMode('general_progression')}
+          theme={theme}
+          styles={styles}
         />
 
         {mode === 'race' ? (
@@ -209,6 +180,45 @@ export default function GoalScreen() {
         />
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+// Definido em escopo de módulo (não dentro da tela) para manter a identidade
+// do componente estável entre renders — evita desmontar/remontar a subárvore.
+function ModeCard({
+  icon,
+  active,
+  title,
+  desc,
+  onPress,
+  theme,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  active: boolean;
+  title: string;
+  desc: string;
+  onPress: () => void;
+  theme: Theme;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.modeCard, active && styles.modeCardActive]}
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={title}
+      accessibilityState={{ selected: active }}
+    >
+      <View style={[styles.modeIcon, active && styles.modeIconActive]}>
+        <Ionicons name={icon} size={20} color={active ? theme.colors.onAccent : theme.colors.textSecondary} />
+      </View>
+      <View style={styles.modeBody}>
+        <Text style={[styles.modeTitle, active && styles.modeTitleActive]}>{title}</Text>
+        <Text style={styles.modeDesc}>{desc}</Text>
+      </View>
+      {active ? <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} /> : null}
+    </TouchableOpacity>
   );
 }
 

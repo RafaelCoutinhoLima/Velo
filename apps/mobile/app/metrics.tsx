@@ -46,93 +46,6 @@ export default function MetricsScreen() {
     return 'Zona segura';
   }
 
-  function MetricBox({
-    label,
-    value,
-    unit,
-    color,
-    statusColor,
-    statusText,
-    description,
-  }: {
-    label: string;
-    value: number | null;
-    unit?: string;
-    color: string;
-    statusColor: string;
-    statusText: string;
-    description: string;
-  }) {
-    const [expanded, setExpanded] = useState(false);
-
-    return (
-      <TouchableOpacity
-        style={styles.metricBox}
-        onPress={() => setExpanded(!expanded)}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={`${label}: ${value != null ? value.toFixed(1) : 'sem dados'}. ${statusText}. Toque para ${expanded ? 'recolher' : 'ver'} descrição`}
-      >
-        <View style={styles.metricTop}>
-          <Text style={styles.metricLabel}>{label}</Text>
-          <Ionicons name={expanded ? 'close' : 'information-circle-outline'} size={16} color={theme.colors.textMuted} />
-        </View>
-        <Text style={[styles.metricValue, { color }]}>
-          {value != null ? value.toFixed(1) : '—'}
-          {unit && value != null ? <Text style={styles.metricUnit}> {unit}</Text> : null}
-        </Text>
-        <View style={styles.metricStatus}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
-        </View>
-        {expanded ? <Text style={styles.metricDesc}>{description}</Text> : null}
-      </TouchableOpacity>
-    );
-  }
-
-  function LoadChart({ history }: { history: MetricsPoint[] }) {
-    if (!history.length) {
-      return (
-        <View style={styles.chartBox}>
-          <Text style={styles.noData}>Sem dados históricos suficientes</Text>
-        </View>
-      );
-    }
-
-    // 14 barras (buckets de ~3 dias) com gradiente de tom claro→accent,
-    // conforme o gráfico da tela 10.
-    const lastN = history.slice(-42);
-    const BUCKETS = 14;
-    const size = Math.max(1, Math.ceil(lastN.length / BUCKETS));
-    const buckets: number[] = [];
-    for (let i = 0; i < lastN.length; i += size) {
-      const chunk = lastN.slice(i, i + size);
-      buckets.push(chunk.reduce((s, p) => s + (p.ctl ?? 0), 0) / chunk.length);
-    }
-    const maxCTL = Math.max(...buckets, 1);
-
-    return (
-      <View style={styles.chartBox}>
-        <Text style={styles.chartTitle}>Carga (CTL) — últimas 6 semanas</Text>
-        <View style={styles.bars}>
-          {buckets.map((ctl, i) => {
-            const height = Math.max(4, (ctl / maxCTL) * 80);
-            const opacity = 0.3 + 0.7 * (i / Math.max(buckets.length - 1, 1));
-            return (
-              <View key={i} style={styles.barWrapper}>
-                <View style={[styles.bar, { height, opacity }]} />
-              </View>
-            );
-          })}
-        </View>
-        <View style={styles.chartLegend}>
-          <Text style={styles.legendText}>← 6 semanas atrás</Text>
-          <Text style={styles.legendText}>Hoje →</Text>
-        </View>
-      </View>
-    );
-  }
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ['metrics', session?.athlete_id],
     queryFn: () =>
@@ -192,6 +105,8 @@ export default function MetricsScreen() {
                 statusColor={acwrColor(data.current.acwr)}
                 statusText={acwrStatus(data.current.acwr)}
                 description="Carga dos últimos 7 dias dividida pelos últimos 28. Entre 0,8 e 1,3 você treina seguro; acima disso o risco de lesão sobe rápido."
+                theme={theme}
+                styles={styles}
               />
               <MetricBox
                 label="CTL"
@@ -201,6 +116,8 @@ export default function MetricsScreen() {
                 statusColor={theme.colors.accent}
                 statusText="Fitness de base"
                 description="Sua forma de fundo, média de 42 dias. Sobe devagar com treino consistente; cai quando você destreina."
+                theme={theme}
+                styles={styles}
               />
               <MetricBox
                 label="TSB"
@@ -209,6 +126,8 @@ export default function MetricsScreen() {
                 statusColor={data.current.tsb >= 0 ? theme.colors.success : theme.colors.warning}
                 statusText={data.current.tsb >= 0 ? 'Recuperado' : 'Fadiga leve'}
                 description="Quanto descansado você está hoje (CTL menos ATL). Positivo significa pronto pra forçar; muito negativo, atenção à fadiga."
+                theme={theme}
+                styles={styles}
               />
               <MetricBox
                 label="ATL"
@@ -218,10 +137,12 @@ export default function MetricsScreen() {
                 statusColor={theme.colors.workoutCross}
                 statusText="Carga aguda"
                 description="Carga dos últimos 7 dias. Sobe rápido com semanas intensas e puxa o ACWR junto."
+                theme={theme}
+                styles={styles}
               />
             </View>
 
-            <LoadChart history={data.history} />
+            <LoadChart history={data.history} styles={styles} />
 
             {/* Card insight (tela 10): variação do CTL nas 6 semanas. */}
             {data.history.length >= 14 ? (
@@ -251,6 +172,106 @@ export default function MetricsScreen() {
           </>
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+// Sub-componentes em escopo de módulo (não dentro da tela) para manter a
+// identidade estável entre renders — definir inline recriava o "type" a cada
+// render do pai, desmontando/remontando os cards e resetando o `expanded`.
+function MetricBox({
+  label,
+  value,
+  unit,
+  color,
+  statusColor,
+  statusText,
+  description,
+  theme,
+  styles,
+}: {
+  label: string;
+  value: number | null;
+  unit?: string;
+  color: string;
+  statusColor: string;
+  statusText: string;
+  description: string;
+  theme: Theme;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <TouchableOpacity
+      style={styles.metricBox}
+      onPress={() => setExpanded(!expanded)}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value != null ? value.toFixed(1) : 'sem dados'}. ${statusText}. Toque para ${expanded ? 'recolher' : 'ver'} descrição`}
+    >
+      <View style={styles.metricTop}>
+        <Text style={styles.metricLabel}>{label}</Text>
+        <Ionicons name={expanded ? 'close' : 'information-circle-outline'} size={16} color={theme.colors.textMuted} />
+      </View>
+      <Text style={[styles.metricValue, { color }]}>
+        {value != null ? value.toFixed(1) : '—'}
+        {unit && value != null ? <Text style={styles.metricUnit}> {unit}</Text> : null}
+      </Text>
+      <View style={styles.metricStatus}>
+        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+        <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
+      </View>
+      {expanded ? <Text style={styles.metricDesc}>{description}</Text> : null}
+    </TouchableOpacity>
+  );
+}
+
+function LoadChart({
+  history,
+  styles,
+}: {
+  history: MetricsPoint[];
+  styles: ReturnType<typeof createStyles>;
+}) {
+  if (!history.length) {
+    return (
+      <View style={styles.chartBox}>
+        <Text style={styles.noData}>Sem dados históricos suficientes</Text>
+      </View>
+    );
+  }
+
+  // 14 barras (buckets de ~3 dias) com gradiente de tom claro→accent,
+  // conforme o gráfico da tela 10.
+  const lastN = history.slice(-42);
+  const BUCKETS = 14;
+  const size = Math.max(1, Math.ceil(lastN.length / BUCKETS));
+  const buckets: number[] = [];
+  for (let i = 0; i < lastN.length; i += size) {
+    const chunk = lastN.slice(i, i + size);
+    buckets.push(chunk.reduce((s, p) => s + (p.ctl ?? 0), 0) / chunk.length);
+  }
+  const maxCTL = Math.max(...buckets, 1);
+
+  return (
+    <View style={styles.chartBox}>
+      <Text style={styles.chartTitle}>Carga (CTL) — últimas 6 semanas</Text>
+      <View style={styles.bars}>
+        {buckets.map((ctl, i) => {
+          const height = Math.max(4, (ctl / maxCTL) * 80);
+          const opacity = 0.3 + 0.7 * (i / Math.max(buckets.length - 1, 1));
+          return (
+            <View key={i} style={styles.barWrapper}>
+              <View style={[styles.bar, { height, opacity }]} />
+            </View>
+          );
+        })}
+      </View>
+      <View style={styles.chartLegend}>
+        <Text style={styles.legendText}>← 6 semanas atrás</Text>
+        <Text style={styles.legendText}>Hoje →</Text>
+      </View>
     </View>
   );
 }

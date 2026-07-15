@@ -105,114 +105,6 @@ export default function ProfileScreen() {
     }
   }
 
-  function SectionCard({ children }: { children: React.ReactNode }) {
-    return <View style={styles.sectionCard}>{children}</View>;
-  }
-
-  function SectionTitle({ children }: { children: string }) {
-    return <Text style={styles.sectionTitle}>{children}</Text>;
-  }
-
-  function YearPicker({ value, onChange }: { value: number | null; onChange: (y: number) => void }) {
-    const listRef = useRef<FlatList>(null);
-
-    function handleSelect(year: number, index: number) {
-      onChange(year);
-      setTimeout(() => {
-        listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
-      }, 50);
-    }
-
-    return (
-      <View>
-        <View style={styles.pickerDisplay}>
-          <Text style={styles.pickerValue}>{value ?? '—'}</Text>
-          <Text style={styles.pickerUnit}>ano</Text>
-        </View>
-        <FlatList
-          ref={listRef}
-          data={YEARS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={ITEM_W + ITEM_GAP}
-          decelerationRate="fast"
-          initialScrollIndex={value ? Math.max(0, YEARS.indexOf(value)) : 0}
-          getItemLayout={(_, i) => ({ length: ITEM_W + ITEM_GAP, offset: (ITEM_W + ITEM_GAP) * i, index: i })}
-          keyExtractor={(y) => String(y)}
-          renderItem={({ item: year, index }) => (
-            <TouchableOpacity
-              style={[styles.yearItem, value === year && styles.yearItemActive]}
-              onPress={() => handleSelect(year, index)}
-              accessibilityRole="button"
-              accessibilityLabel={`Ano ${year}`}
-              accessibilityState={{ selected: value === year }}
-            >
-              <Text style={[styles.yearText, value === year && styles.yearTextActive]}>{year}</Text>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={{ paddingHorizontal: Spacing.xs }}
-        />
-      </View>
-    );
-  }
-
-  function WeightPicker({ value, onChange }: { value: string; onChange: (w: string) => void }) {
-    return (
-      <View style={styles.weightRow}>
-        <TextInput
-          style={styles.weightInput}
-          value={value}
-          onChangeText={onChange}
-          keyboardType="decimal-pad"
-          placeholder="0"
-          placeholderTextColor={theme.colors.textMuted}
-          maxLength={6}
-          accessibilityLabel="Peso em kg"
-        />
-        <Text style={styles.pickerUnit}>kg</Text>
-      </View>
-    );
-  }
-
-  function OptionGrid<T extends string>({
-    options,
-    value,
-    onChange,
-    render,
-    labelFor,
-  }: {
-    options: T[];
-    value: T | null;
-    onChange: (v: T) => void;
-    render: (opt: T, active: boolean) => React.ReactNode;
-    labelFor: (opt: T) => string;
-  }) {
-    return (
-      <View style={styles.optGrid}>
-        {options.map((opt) => {
-          const active = value === opt;
-          return (
-            <TouchableOpacity
-              key={opt}
-              style={[styles.optCard, active && styles.optCardActive]}
-              onPress={() => onChange(opt)}
-              accessibilityRole="radio"
-              accessibilityLabel={labelFor(opt)}
-              accessibilityState={{ selected: active }}
-            >
-              {render(opt, active)}
-              {active ? (
-                <View style={styles.optCheck}>
-                  <Ionicons name="checkmark" size={12} color={theme.colors.onAccent} />
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  }
-
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -229,21 +121,21 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <SectionCard>
-          <SectionTitle>Ano de nascimento</SectionTitle>
-          <YearPicker value={birthYear} onChange={(y) => { setError(null); setBirthYear(y); }} />
+        <SectionCard styles={styles}>
+          <SectionTitle styles={styles}>Ano de nascimento</SectionTitle>
+          <YearPicker value={birthYear} onChange={(y) => { setError(null); setBirthYear(y); }} styles={styles} />
         </SectionCard>
 
-        <SectionCard>
-          <SectionTitle>Peso corporal</SectionTitle>
-          <WeightPicker value={weightKg} onChange={(w) => { setError(null); setWeightKg(w); }} />
+        <SectionCard styles={styles}>
+          <SectionTitle styles={styles}>Peso corporal</SectionTitle>
+          <WeightPicker value={weightKg} onChange={(w) => { setError(null); setWeightKg(w); }} theme={theme} styles={styles} />
           {weightInvalid ? (
             <Text style={styles.fieldHint}>Informe um peso entre 30 e 200 kg.</Text>
           ) : null}
         </SectionCard>
 
-        <SectionCard>
-          <SectionTitle>Sexo biológico</SectionTitle>
+        <SectionCard styles={styles}>
+          <SectionTitle styles={styles}>Sexo biológico</SectionTitle>
           <OptionGrid<Sex>
             options={['M', 'F']}
             value={sex}
@@ -254,11 +146,13 @@ export default function ProfileScreen() {
                 {s === 'M' ? 'Masculino' : 'Feminino'}
               </Text>
             )}
+            theme={theme}
+            styles={styles}
           />
         </SectionCard>
 
-        <SectionCard>
-          <SectionTitle>Frequência semanal</SectionTitle>
+        <SectionCard styles={styles}>
+          <SectionTitle styles={styles}>Frequência semanal</SectionTitle>
           <OptionGrid<Frequency>
             options={['2x', '3x', '4x', '5x+']}
             value={frequency}
@@ -272,11 +166,13 @@ export default function ProfileScreen() {
                 </Text>
               </>
             )}
+            theme={theme}
+            styles={styles}
           />
         </SectionCard>
 
-        <SectionCard>
-          <SectionTitle>Quais dias você treina?</SectionTitle>
+        <SectionCard styles={styles}>
+          <SectionTitle styles={styles}>Quais dias você treina?</SectionTitle>
           <Text style={[styles.optSub, { marginBottom: Spacing.md }]}>
             Selecione pelo menos 2 dias — os treinos serão planejados nesses dias.
           </Text>
@@ -316,6 +212,142 @@ export default function ProfileScreen() {
         />
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+// Sub-componentes em escopo de módulo (não dentro da tela) para manter a
+// identidade estável entre renders — definir inline recriava o "type" a cada
+// render do pai, desmontando/remontando os campos (perda de foco do teclado
+// no peso e reset do scroll do seletor de ano a cada tecla/toque).
+type Styles = ReturnType<typeof createStyles>;
+
+function SectionCard({ children, styles }: { children: React.ReactNode; styles: Styles }) {
+  return <View style={styles.sectionCard}>{children}</View>;
+}
+
+function SectionTitle({ children, styles }: { children: string; styles: Styles }) {
+  return <Text style={styles.sectionTitle}>{children}</Text>;
+}
+
+function YearPicker({
+  value,
+  onChange,
+  styles,
+}: {
+  value: number | null;
+  onChange: (y: number) => void;
+  styles: Styles;
+}) {
+  const listRef = useRef<FlatList>(null);
+
+  function handleSelect(year: number, index: number) {
+    onChange(year);
+    setTimeout(() => {
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    }, 50);
+  }
+
+  return (
+    <View>
+      <View style={styles.pickerDisplay}>
+        <Text style={styles.pickerValue}>{value ?? '—'}</Text>
+        <Text style={styles.pickerUnit}>ano</Text>
+      </View>
+      <FlatList
+        ref={listRef}
+        data={YEARS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={ITEM_W + ITEM_GAP}
+        decelerationRate="fast"
+        initialScrollIndex={value ? Math.max(0, YEARS.indexOf(value)) : 0}
+        getItemLayout={(_, i) => ({ length: ITEM_W + ITEM_GAP, offset: (ITEM_W + ITEM_GAP) * i, index: i })}
+        keyExtractor={(y) => String(y)}
+        renderItem={({ item: year, index }) => (
+          <TouchableOpacity
+            style={[styles.yearItem, value === year && styles.yearItemActive]}
+            onPress={() => handleSelect(year, index)}
+            accessibilityRole="button"
+            accessibilityLabel={`Ano ${year}`}
+            accessibilityState={{ selected: value === year }}
+          >
+            <Text style={[styles.yearText, value === year && styles.yearTextActive]}>{year}</Text>
+          </TouchableOpacity>
+        )}
+        contentContainerStyle={{ paddingHorizontal: Spacing.xs }}
+      />
+    </View>
+  );
+}
+
+function WeightPicker({
+  value,
+  onChange,
+  theme,
+  styles,
+}: {
+  value: string;
+  onChange: (w: string) => void;
+  theme: Theme;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.weightRow}>
+      <TextInput
+        style={styles.weightInput}
+        value={value}
+        onChangeText={onChange}
+        keyboardType="decimal-pad"
+        placeholder="0"
+        placeholderTextColor={theme.colors.textMuted}
+        maxLength={6}
+        accessibilityLabel="Peso em kg"
+      />
+      <Text style={styles.pickerUnit}>kg</Text>
+    </View>
+  );
+}
+
+function OptionGrid<T extends string>({
+  options,
+  value,
+  onChange,
+  render,
+  labelFor,
+  theme,
+  styles,
+}: {
+  options: T[];
+  value: T | null;
+  onChange: (v: T) => void;
+  render: (opt: T, active: boolean) => React.ReactNode;
+  labelFor: (opt: T) => string;
+  theme: Theme;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.optGrid}>
+      {options.map((opt) => {
+        const active = value === opt;
+        return (
+          <TouchableOpacity
+            key={opt}
+            style={[styles.optCard, active && styles.optCardActive]}
+            onPress={() => onChange(opt)}
+            accessibilityRole="radio"
+            accessibilityLabel={labelFor(opt)}
+            accessibilityState={{ selected: active }}
+          >
+            {render(opt, active)}
+            {active ? (
+              <View style={styles.optCheck}>
+                <Ionicons name="checkmark" size={12} color={theme.colors.onAccent} />
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 

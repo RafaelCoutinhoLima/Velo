@@ -27,6 +27,7 @@ import {
   Spacing,
   Tracking,
   useTheme,
+  type AccentName,
   type Theme,
   type ThemeName,
 } from '../../lib/theme';
@@ -84,141 +85,6 @@ export default function SettingsScreen() {
 
   function toggleAdvancedMode(value: boolean) {
     setAdvancedMode(value);
-  }
-
-  // ── Linha de configuração genérica (ícone + título + subtítulo + ação) ─
-  function SettingRow({
-    icon,
-    iconColor,
-    iconBg,
-    title,
-    subtitle,
-    right,
-    onPress,
-    divider,
-    danger,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    iconColor?: string;
-    iconBg?: string;
-    title: string;
-    subtitle?: string;
-    right?: React.ReactNode;
-    onPress?: () => void;
-    divider?: boolean;
-    danger?: boolean;
-  }) {
-    const body = (
-      <View style={[styles.row, divider && styles.rowDivider]}>
-        <View style={[styles.rowIcon, { backgroundColor: iconBg ?? theme.colors.surfaceAlt }]}>
-          <Ionicons
-            name={icon}
-            size={20}
-            color={iconColor ?? (danger ? theme.colors.danger : theme.colors.textPrimary)}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.rowTitle, danger && { color: theme.colors.danger }]}>{title}</Text>
-          {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
-        </View>
-        {right}
-      </View>
-    );
-
-    if (onPress) {
-      return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={title}>
-          {body}
-        </TouchableOpacity>
-      );
-    }
-    return body;
-  }
-
-  function SectionLabel({ children }: { children: string }) {
-    return <Text style={styles.sectionLabel}>{children}</Text>;
-  }
-
-  // Segmented control para troca de identidade visual.
-  function ThemeSelector() {
-    return (
-      <View style={styles.themeSelector}>
-        {available.map((opt) => {
-          const isActive = opt.name === themeName;
-          return (
-            <TouchableOpacity
-              key={opt.name}
-              onPress={() => setThemeName(opt.name as ThemeName)}
-              style={[styles.themeOption, isActive && styles.themeOptionActive]}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Selecionar tema ${opt.displayName}`}
-              accessibilityState={{ selected: isActive }}
-            >
-              <View style={styles.themeSwatchRow}>
-                <View
-                  style={[
-                    styles.themeSwatch,
-                    { backgroundColor: THEME_PREVIEWS[opt.name].primary },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.themeSwatch,
-                    {
-                      backgroundColor: THEME_PREVIEWS[opt.name].bg,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.themeName, isActive && styles.themeNameActive]}>
-                {opt.displayName}
-              </Text>
-              {isActive ? (
-                <View style={styles.themeCheck}>
-                  <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
-                </View>
-              ) : null}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  }
-
-  // Seletor de cor de ação (tela 11): Azul / Verde / Laranja.
-  function AccentSelector() {
-    const isDark = themeName === 'veloDark';
-    return (
-      <View style={styles.accentRow}>
-        {availableAccents.map((opt) => {
-          const isActive = opt.name === accentName;
-          const hex = isDark ? ACCENTS[opt.name].dark : ACCENTS[opt.name].light;
-          return (
-            <TouchableOpacity
-              key={opt.name}
-              onPress={() => setAccentName(opt.name)}
-              style={[styles.accentOption, isActive && { borderColor: hex }]}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Selecionar cor ${opt.displayName}`}
-              accessibilityState={{ selected: isActive }}
-            >
-              <View style={[styles.accentSwatch, { backgroundColor: hex }]}>
-                {isActive ? (
-                  <Ionicons name="checkmark" size={14} color={theme.colors.onAccent} />
-                ) : null}
-              </View>
-              <Text style={[styles.accentName, isActive && { color: hex }]}>
-                {opt.displayName}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
   }
 
   async function handleGarminConnect() {
@@ -394,25 +260,40 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── Aparência ── */}
-        <SectionLabel>Aparência</SectionLabel>
+        <SectionLabel styles={styles}>Aparência</SectionLabel>
         <View style={styles.groupCard}>
           <View style={styles.themeCardInner}>
             <Text style={styles.themeHeader}>Identidade visual</Text>
             <Text style={styles.themeSub}>Escolha como a Velo se apresenta.</Text>
-            <ThemeSelector />
+            <ThemeSelector
+              available={available}
+              themeName={themeName}
+              setThemeName={setThemeName}
+              theme={theme}
+              styles={styles}
+            />
             <Text style={[styles.themeSub, { marginTop: Spacing.md }]}>Cor de destaque</Text>
-            <AccentSelector />
+            <AccentSelector
+              availableAccents={availableAccents}
+              accentName={accentName}
+              setAccentName={setAccentName}
+              themeName={themeName}
+              theme={theme}
+              styles={styles}
+            />
           </View>
         </View>
 
         {/* ── Preferências ── */}
-        <SectionLabel>Preferências</SectionLabel>
+        <SectionLabel styles={styles}>Preferências</SectionLabel>
         <View style={styles.groupCard}>
           <SettingRow
             icon="sparkles"
             iconColor={theme.colors.primary}
             title="Modo Avançado"
             subtitle="Mostra ACWR (balanço carga/risco), CTL (forma de fundo) e TSB (frescor) nas telas de treino."
+            theme={theme}
+            styles={styles}
             right={
               <Switch
                 value={advancedMode}
@@ -429,7 +310,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── Conexões ── */}
-        <SectionLabel>Conexões</SectionLabel>
+        <SectionLabel styles={styles}>Conexões</SectionLabel>
         <View style={styles.groupCard}>
           {garminConnected ? (
             <SettingRow
@@ -438,6 +319,8 @@ export default function SettingsScreen() {
               iconBg={theme.colors.accentLight}
               title="Conexão Garmin"
               subtitle={lastSync ? `Última sync: ${formatSync(lastSync)}` : undefined}
+              theme={theme}
+              styles={styles}
               right={
                 <View style={styles.connRight}>
                   <View style={styles.statusChip}>
@@ -469,6 +352,8 @@ export default function SettingsScreen() {
               title="Conectar Garmin"
               subtitle="Importe seu histórico e personalize seu plano"
               onPress={() => { setConnectStep('idle'); setConnectError(null); setShowGarminModal(true); }}
+              theme={theme}
+              styles={styles}
               right={<Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />}
             />
           )}
@@ -489,7 +374,7 @@ export default function SettingsScreen() {
         ) : null}
 
         {/* ── Conta ── */}
-        <SectionLabel>Conta</SectionLabel>
+        <SectionLabel styles={styles}>Conta</SectionLabel>
         <View style={styles.groupCard}>
           <SettingRow
             icon="star"
@@ -498,6 +383,8 @@ export default function SettingsScreen() {
             title="Assinatura"
             subtitle="Gerencie seu plano Velo Pro"
             onPress={() => router.push('/subscription' as never)}
+            theme={theme}
+            styles={styles}
             right={<Ionicons name="chevron-forward" size={20} color={theme.colors.textMuted} />}
             divider
           />
@@ -506,6 +393,8 @@ export default function SettingsScreen() {
             title="Exportar meus dados"
             subtitle="Baixe tudo o que a Velo guarda sobre você (LGPD)"
             onPress={exportData}
+            theme={theme}
+            styles={styles}
             right={
               dataBusy === 'exporting' ? (
                 <ActivityIndicator size="small" color={theme.colors.textMuted} />
@@ -519,6 +408,8 @@ export default function SettingsScreen() {
             icon="log-out-outline"
             title="Sair da conta"
             onPress={() => setShowLogoutModal(true)}
+            theme={theme}
+            styles={styles}
             divider
           />
           <SettingRow
@@ -527,6 +418,8 @@ export default function SettingsScreen() {
             title="Excluir minha conta"
             subtitle="Apaga permanentemente todos os seus dados (LGPD)"
             onPress={() => setShowDeleteModal(true)}
+            theme={theme}
+            styles={styles}
             right={
               dataBusy === 'deleting' ? (
                 <ActivityIndicator size="small" color={theme.colors.danger} />
@@ -652,6 +545,176 @@ export default function SettingsScreen() {
         onConfirm={deleteAccount}
         onCancel={() => setShowDeleteModal(false)}
       />
+    </View>
+  );
+}
+
+// Sub-componentes em escopo de módulo (não dentro da tela) para manter a
+// identidade estável entre renders — definir inline recriava o "type" a cada
+// render do pai, desmontando/remontando as linhas e seletores inteiros.
+type Styles = ReturnType<typeof createStyles>;
+
+// ── Linha de configuração genérica (ícone + título + subtítulo + ação) ─
+function SettingRow({
+  icon,
+  iconColor,
+  iconBg,
+  title,
+  subtitle,
+  right,
+  onPress,
+  divider,
+  danger,
+  theme,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor?: string;
+  iconBg?: string;
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  onPress?: () => void;
+  divider?: boolean;
+  danger?: boolean;
+  theme: Theme;
+  styles: Styles;
+}) {
+  const body = (
+    <View style={[styles.row, divider && styles.rowDivider]}>
+      <View style={[styles.rowIcon, { backgroundColor: iconBg ?? theme.colors.surfaceAlt }]}>
+        <Ionicons
+          name={icon}
+          size={20}
+          color={iconColor ?? (danger ? theme.colors.danger : theme.colors.textPrimary)}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowTitle, danger && { color: theme.colors.danger }]}>{title}</Text>
+        {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
+      </View>
+      {right}
+    </View>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={title}>
+        {body}
+      </TouchableOpacity>
+    );
+  }
+  return body;
+}
+
+function SectionLabel({ children, styles }: { children: string; styles: Styles }) {
+  return <Text style={styles.sectionLabel}>{children}</Text>;
+}
+
+// Segmented control para troca de identidade visual.
+function ThemeSelector({
+  available,
+  themeName,
+  setThemeName,
+  theme,
+  styles,
+}: {
+  available: { name: ThemeName; displayName: string }[];
+  themeName: ThemeName;
+  setThemeName: (name: ThemeName) => void;
+  theme: Theme;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.themeSelector}>
+      {available.map((opt) => {
+        const isActive = opt.name === themeName;
+        return (
+          <TouchableOpacity
+            key={opt.name}
+            onPress={() => setThemeName(opt.name as ThemeName)}
+            style={[styles.themeOption, isActive && styles.themeOptionActive]}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Selecionar tema ${opt.displayName}`}
+            accessibilityState={{ selected: isActive }}
+          >
+            <View style={styles.themeSwatchRow}>
+              <View
+                style={[
+                  styles.themeSwatch,
+                  { backgroundColor: THEME_PREVIEWS[opt.name].primary },
+                ]}
+              />
+              <View
+                style={[
+                  styles.themeSwatch,
+                  {
+                    backgroundColor: THEME_PREVIEWS[opt.name].bg,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.themeName, isActive && styles.themeNameActive]}>
+              {opt.displayName}
+            </Text>
+            {isActive ? (
+              <View style={styles.themeCheck}>
+                <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+// Seletor de cor de ação (tela 11): Azul / Verde / Laranja.
+function AccentSelector({
+  availableAccents,
+  accentName,
+  setAccentName,
+  themeName,
+  theme,
+  styles,
+}: {
+  availableAccents: { name: AccentName; displayName: string }[];
+  accentName: AccentName;
+  setAccentName: (name: AccentName) => void;
+  themeName: ThemeName;
+  theme: Theme;
+  styles: Styles;
+}) {
+  const isDark = themeName === 'veloDark';
+  return (
+    <View style={styles.accentRow}>
+      {availableAccents.map((opt) => {
+        const isActive = opt.name === accentName;
+        const hex = isDark ? ACCENTS[opt.name].dark : ACCENTS[opt.name].light;
+        return (
+          <TouchableOpacity
+            key={opt.name}
+            onPress={() => setAccentName(opt.name)}
+            style={[styles.accentOption, isActive && { borderColor: hex }]}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Selecionar cor ${opt.displayName}`}
+            accessibilityState={{ selected: isActive }}
+          >
+            <View style={[styles.accentSwatch, { backgroundColor: hex }]}>
+              {isActive ? (
+                <Ionicons name="checkmark" size={14} color={theme.colors.onAccent} />
+              ) : null}
+            </View>
+            <Text style={[styles.accentName, isActive && { color: hex }]}>
+              {opt.displayName}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

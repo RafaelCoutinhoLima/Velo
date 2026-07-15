@@ -127,52 +127,6 @@ export default function WorkoutDetailScreen() {
     }
   }
 
-  function SplitPanel({
-    left,
-    right,
-  }: {
-    left: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
-    right: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
-  }) {
-    return (
-      <View style={styles.splitPanel}>
-        <View style={styles.splitSide}>
-          <View style={styles.splitLabelRow}>
-            <Ionicons name={left.icon} size={15} color={theme.colors.accent} />
-            <Text style={styles.splitLabel}>{left.label}</Text>
-          </View>
-          <Text style={styles.splitValue}>
-            {left.value}
-            <Text style={styles.splitUnit}> {left.unit}</Text>
-          </Text>
-        </View>
-        <View style={styles.splitDivider} />
-        <View style={[styles.splitSide, { alignItems: 'flex-end' }]}>
-          <View style={styles.splitLabelRow}>
-            <Ionicons name={right.icon} size={15} color={theme.colors.accent} />
-            <Text style={styles.splitLabel}>{right.label}</Text>
-          </View>
-          <Text style={styles.splitValue}>
-            {right.value}
-            <Text style={styles.splitUnit}> {right.unit}</Text>
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  function GridStat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
-    return (
-      <View style={styles.gridStat}>
-        <Ionicons name={icon} size={18} color={theme.colors.textMuted} />
-        <View>
-          <Text style={styles.gridValue}>{value}</Text>
-          <Text style={styles.gridLabel}>{label}</Text>
-        </View>
-      </View>
-    );
-  }
-
   if (isLoading) return <LoadingScreen message="Carregando treino..." />;
 
   if (isError || !data?.workout) {
@@ -236,6 +190,8 @@ export default function WorkoutDetailScreen() {
             value: w.duration_s > 0 ? formatDuration(w.duration_s) : '—',
             unit: w.duration_s >= 3600 ? '' : 'min',
           }}
+          theme={theme}
+          styles={styles}
         />
 
         {/* ── FC média (destaque) ── */}
@@ -254,11 +210,15 @@ export default function WorkoutDetailScreen() {
               icon="speedometer-outline"
               value={w.avg_pace_s ? `${formatPace(w.avg_pace_s)}/km` : '—'}
               label="Pace médio"
+              theme={theme}
+              styles={styles}
             />
             <GridStat
               icon="heart-outline"
               value={w.max_hr != null ? `${w.max_hr} bpm` : '—'}
               label="FC máxima"
+              theme={theme}
+              styles={styles}
             />
           </View>
           <View style={styles.gridSep} />
@@ -267,11 +227,15 @@ export default function WorkoutDetailScreen() {
               icon="flame-outline"
               value={w.calories != null ? `${w.calories}` : '—'}
               label="Calorias"
+              theme={theme}
+              styles={styles}
             />
             <GridStat
               icon="footsteps-outline"
               value={w.steps != null ? w.steps.toLocaleString('pt-BR') : '—'}
               label="Passos"
+              theme={theme}
+              styles={styles}
             />
           </View>
           {(w.elevation_gain != null || w.vo2max != null || w.rtss != null) ? (
@@ -282,6 +246,8 @@ export default function WorkoutDetailScreen() {
                   icon="trending-up-outline"
                   value={w.elevation_gain != null ? `${w.elevation_gain} m` : '—'}
                   label="Ganho de altitude"
+                  theme={theme}
+                  styles={styles}
                 />
                 <GridStat
                   icon="pulse-outline"
@@ -293,6 +259,8 @@ export default function WorkoutDetailScreen() {
                         : '—'
                   }
                   label={w.rtss != null ? 'Carga (rTSS)' : 'VO₂ máx'}
+                  theme={theme}
+                  styles={styles}
                 />
               </View>
               {w.rtss != null ? (
@@ -391,6 +359,73 @@ export default function WorkoutDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+// Sub-componentes em escopo de módulo (não dentro da tela) para manter a
+// identidade estável entre renders — definir inline recriava o "type" a cada
+// render do pai, desmontando/remontando as views nativas.
+type Styles = ReturnType<typeof createStyles>;
+
+function SplitPanel({
+  left,
+  right,
+  theme,
+  styles,
+}: {
+  left: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
+  right: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; unit: string };
+  theme: Theme;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.splitPanel}>
+      <View style={styles.splitSide}>
+        <View style={styles.splitLabelRow}>
+          <Ionicons name={left.icon} size={15} color={theme.colors.accent} />
+          <Text style={styles.splitLabel}>{left.label}</Text>
+        </View>
+        <Text style={styles.splitValue}>
+          {left.value}
+          <Text style={styles.splitUnit}> {left.unit}</Text>
+        </Text>
+      </View>
+      <View style={styles.splitDivider} />
+      <View style={[styles.splitSide, { alignItems: 'flex-end' }]}>
+        <View style={styles.splitLabelRow}>
+          <Ionicons name={right.icon} size={15} color={theme.colors.accent} />
+          <Text style={styles.splitLabel}>{right.label}</Text>
+        </View>
+        <Text style={styles.splitValue}>
+          {right.value}
+          <Text style={styles.splitUnit}> {right.unit}</Text>
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function GridStat({
+  icon,
+  value,
+  label,
+  theme,
+  styles,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  label: string;
+  theme: Theme;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.gridStat}>
+      <Ionicons name={icon} size={18} color={theme.colors.textMuted} />
+      <View>
+        <Text style={styles.gridValue}>{value}</Text>
+        <Text style={styles.gridLabel}>{label}</Text>
+      </View>
     </View>
   );
 }
