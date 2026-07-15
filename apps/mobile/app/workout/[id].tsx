@@ -17,10 +17,10 @@ import { ErrorCard } from '../../components/ErrorCard';
 import { BackHeader } from '../../components/BackHeader';
 import { RpeScale, RPE_LABELS } from '../../components/workout/RpeScale';
 
-const PT_WEEKDAYS_FULL = [
-  'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
-  'Quinta-feira', 'Sexta-feira', 'Sábado',
-];
+// Forma curta ("Terça", não "Terça-feira") — bate com o handoff (hero "today
+// hero" de Velo App.dc.html) e evita que o pill "Concluído" + a data estourem
+// a largura do hero em telas estreitas (~320pt).
+const PT_WEEKDAYS_FULL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 function formatPace(paceS: number): string {
   const min = Math.floor(paceS / 60);
@@ -208,7 +208,7 @@ export default function WorkoutDetailScreen() {
               <Ionicons name="checkmark" size={12} color={theme.colors.success} />
               <Text style={styles.donePillText}>Concluído</Text>
             </View>
-            <Text style={styles.datePillMuted}>
+            <Text style={styles.datePillMuted} numberOfLines={1} ellipsizeMode="tail">
               {weekday(w.date)} · {formatDate(w.date)}
             </Text>
           </View>
@@ -420,6 +420,7 @@ const createStyles = (theme: Theme) =>
     hero: { gap: Spacing.sm },
     heroPills: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     donePill: {
+      flexShrink: 0,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
@@ -438,6 +439,7 @@ const createStyles = (theme: Theme) =>
       letterSpacing: Tracking.wide,
     },
     datePillMuted: {
+      flexShrink: 1,
       fontFamily: Fonts.data,
       fontSize: FontSize.xs,
       color: theme.colors.textSecondary,

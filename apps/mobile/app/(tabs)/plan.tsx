@@ -40,10 +40,11 @@ import { SendToWatch } from '../../components/plan/SendToWatch';
 
 // Indexado por Date.getDay() (0 = domingo … 6 = sábado).
 const PT_WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const PT_WEEKDAYS_FULL = [
-  'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
-  'Quinta-feira', 'Sexta-feira', 'Sábado',
-];
+// Forma curta ("Terça", não "Terça-feira") — bate com o handoff (Velo App.dc.html,
+// hero "today hero") e evita que o pill "Treino de Hoje" + o dia estourem a
+// largura do card em telas estreitas (~320pt), já que React Native não faz
+// wrap/shrink automático entre Text irmãos numa row.
+const PT_WEEKDAYS_FULL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const TYPE_LABELS: Record<WorkoutType, string> = {
   easy: 'Rodagem Leve',
@@ -392,7 +393,7 @@ export default function PlanScreen() {
                 <View style={styles.heroPill}>
                   <Text style={styles.heroPillText}>Treino de Hoje</Text>
                 </View>
-                <Text style={styles.heroWeekday}>
+                <Text style={styles.heroWeekday} numberOfLines={1} ellipsizeMode="tail">
                   {getDayLabelFull(plan.week_start, todayWorkout.day)}
                 </Text>
               </View>
@@ -632,6 +633,7 @@ const createStyles = (theme: Theme) =>
     },
     heroEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     heroPill: {
+      flexShrink: 0,
       backgroundColor: theme.colors.primary,
       borderRadius: Radii.full,
       paddingHorizontal: Spacing.sm + 2,
@@ -646,6 +648,7 @@ const createStyles = (theme: Theme) =>
       letterSpacing: Tracking.wide,
     },
     heroWeekday: {
+      flexShrink: 1,
       fontFamily: Fonts.data,
       fontSize: FontSize.xs,
       color: theme.colors.primary,
